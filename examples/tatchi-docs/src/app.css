@@ -1,0 +1,130 @@
+@import './layout.css';
+@import './components/DemoChainsigs/DemoChainsigs.css';
+@import './components/DemoPage.css';
+@import './components/PasskeyLoginMenu.css';
+@import './components/GlassBorder.css';
+@import './components/Toaster.css';
+@import './components/LoadingButton.css';
+@import './components/Select.css';
+@import './components/EmailRecoveryFields.css';
+@import './components/ArrowRightAnim.css';
+@import './components/Footer.css';
+@import './components/Navbar/Navbar.css';
+@import './components/Carousel2/CarouselStyles.css';
+
+
+:root, :host {
+  /* Text Sizes */
+  --fe-text-xs: 0.8rem;
+  --fe-text-sm: 0.9rem;
+  --fe-text-md: 1rem;
+  --fe-text-lg: 1.125rem;
+  --fe-text-xl: 1.25rem;
+  --fe-text-2xl: 1.5rem;
+
+  /* Sizing & Spacing */
+  --fe-radius-sm: 12px;
+  --fe-radius: 24px;
+  --fe-radius-lg: 32px;
+  --fe-radius-xl: 40px;
+  --fe-gap-1: 4px;
+  --fe-gap-2: 8px;
+  --fe-gap-3: 12px;
+  --fe-gap-4: 16px;
+  --fe-gap-6: 24px;
+
+  /* Motion */
+  --fe-ease: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --fe-fast: 200ms;
+  --fe-med: 400ms;
+
+  /* Fonts: set Hanken Grotesk as primary UI sans */
+  --fe-font-sans: 'Hanken Grotesk', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
+  --fe-font-medium: 500;
+  --fe-font-semibold: 600;
+  /* Display font for headings */
+  --fe-font-display: 'Hanken Grotesk', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
+}
+
+/* Ensure app variables derive from SDK tokens at the theme boundary inside ShadowRoot */
+.w3a-theme-provider, [data-w3a-theme] {
+  --fe-primary: var(--w3a-colors-primary);
+  --fe-primary-hover: var(--w3a-colors-primaryHover);
+  --fe-bg: var(--w3a-colors-colorBackground);
+  --fe-surface: var(--w3a-colors-surface);
+  --fe-surface-solid: var(--w3a-colors-surface2);
+  --fe-text: var(--w3a-colors-textPrimary);
+  --fe-text-primary: var(--w3a-colors-textPrimary);
+  --fe-text-secondary: var(--w3a-colors-textSecondary);
+  --fe-text-dim: var(--w3a-colors-textSecondary);
+  --fe-border: var(--w3a-colors-borderPrimary);
+  --fe-border-strong: var(--w3a-colors-borderHover);
+  --fe-shadow: var(--w3a-shadows-sm);
+  --fe-shadow-strong: var(--w3a-shadows-md);
+  --fe-bg-secondary: var(--w3a-colors-surface2);
+  --fe-bg-tertiary: var(--w3a-colors-surface3);
+  --fe-input-bg: var(--w3a-colors-surface);
+  --fe-input-text: var(--w3a-colors-textPrimary);
+  --fe-input-placeholder: var(--w3a-colors-textSecondary);
+  --fe-error: var(--w3a-colors-error);
+  --fe-success: var(--w3a-colors-success);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* App background: use themed gradient slot (backgroundGradient4) */
+html[data-w3a-theme="light"] {
+  background-color: #ffffff; /* fallback for non-OKLCH */
+}
+html[data-w3a-theme="dark"] {
+  background-color: #0b1220; /* fallback for non-OKLCH */
+}
+/* Let the HTML gradient show; avoid body paint */
+html[data-w3a-theme] body {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+a {
+  font-weight: 500;
+  color: var(--fe-primary);
+}
+a:hover {
+  color: var(--fe-primary-hover);
+}
+
+h1 {
+  font-size: 2.5rem;
+  font-weight: 600;
+  color: var(--fe-text-primary);
+  line-height: 1.2;
+  font-family: var(--fe-font-display);
+}
+
+h2 {
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--fe-text);
+  line-height: 1.2;
+  font-family: var(--fe-font-display);
+}
+
+h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--fe-text);
+  line-height: 1.1;
+  font-family: var(--fe-font-display);
+}
+
+/* Explicit classes used around the homepage for titles/subtitles */
+.hero-title,
+.hero-subtitle,
+.bento-title,
+.demo-title,
+.demo-subtitle {
+  font-family: var(--fe-font-display);
+}

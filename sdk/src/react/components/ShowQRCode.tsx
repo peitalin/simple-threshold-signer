@@ -1,0 +1,140 @@
+import { useState, useEffect, useRef } from 'react'
+
+import { useTatchi } from '../context'
+import { DeviceLinkingSSEEvent, DeviceLinkingStatus, DeviceLinkingPhase } from '../../core/types/sdkSentEvents'
+import { toAccountId } from '../../core/types/accountIds'
+import './ShowQRCode.css'
+
+export interface ShowQRCodeProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onEvent: (event: DeviceLinkingSSEEvent) => void;
+  onError: (error: Error) => void;
+  localSignerEnabled?: boolean;
+}
+
+export function ShowQRCode({
+  isOpen,
+  onClose,
+  onEvent,
+  onError,
+  localSignerEnabled,
+}: ShowQRCodeProps) {
+
+  const {
+    startDevice2LinkingFlow,
+    stopDevice2LinkingFlow,
+    accountInputState,
+    loginState,
+  } = useTatchi();
+
+  const [deviceLinkingState, setDeviceLinkingState] = useState<{
+    mode: 'idle' | 'device1' | 'device2';
+    qrCodeDataURL?: string;
+    isProcessing: boolean;
+    lastPhase?: string;
+    lastMessage?: string;
+  }>({ mode: 'idle', isProcessing: false });
+
+  // Prevent duplicate concurrent starts (e.g., React StrictMode double-effect)
+  const sessionRef = useRef(0);
+
+  // Auto-start QR generation when modal opens; cancel when closing or unmounting
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const accountIdRaw = String(accountInputState?.targetAccountId || loginState?.nearAccountId || '').trim();
+
+    const mySession = ++sessionRef.current;
+    let cancelled = false;
+    setDeviceLinkingState({ mode: 'device2', isProcessing: true });
+
+    (async () => {
+      try {
+        const { qrCodeDataURL } = await startDevice2LinkingFlow({
+          ...(accountIdRaw ? { accountId: toAccountId(accountIdRaw) } : {}),
+          ...(localSignerEnabled === false ? { localSignerEnabled: false } : {}),
+          options: {
+            onEvent: (event: DeviceLinkingSSEEvent) => {
+              if (cancelled) return;
+              setDeviceLinkingState(prev => ({ ...prev, lastPhase: String(event.phase), lastMessage: event.message }));
+              onEvent(event);
+              if (event.phase === DeviceLinkingPhase.STEP_7_LINKING_COMPLETE && event.status === DeviceLinkingStatus.SUCCESS) {
+                try { onClose(); } catch {}
+              }
+            },
+            onError: (error: Error) => {
+              if (cancelled) return;
+              setDeviceLinkingState({ mode: 'idle', isProcessing: false });
+              onError(error);
+              try { onClose(); } catch {}
+            }
+          }
+        });
+        if (!cancelled && sessionRef.current === mySession) {
+          setDeviceLinkingState(prev => ({ ...prev, qrCodeDataURL, isProcessing: false }));
+        }
+      } catch (err) {
+        if (!cancelled && sessionRef.current === mySession) {
+          const msg = err instanceof Error ? err.message : String(err || 'Failed to generate QR code');
+          setDeviceLinkingState({ mode: 'device2', isProcessing: false, lastMessage: msg });
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      sessionRef.current++;
+      try {
+        stopDevice2LinkingFlow().catch(() => {});
+      } catch {}
+    };
+  }, [accountInputState?.targetAccountId, isOpen, localSignerEnabled, loginState?.nearAccountId, onClose, onEvent, onError, startDevice2LinkingFlow, stopDevice2LinkingFlow]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="qr-code-container" onClick={(e) => e.stopPropagation()}>
+      <div className="qr-body">
+        {deviceLinkingState.mode === 'device2' && (
+          <div className="qr-code-section">
+            {deviceLinkingState.qrCodeDataURL ? (
+              <div className="qr-code-display">
+                <img
+                  src={deviceLinkingState.qrCodeDataURL}
+                  alt="Device Linking QR Code"
+                  className="qr-code-image"
+                />
+              </div>
+            ) : (
+              <div className="qr-loading">
+                {deviceLinkingState.isProcessing ? (
+                  <p>Generating QR code...</p>
+                ) : (
+                  <>
+                    <p>{deviceLinkingState.lastMessage || 'Failed to generate QR code'}</p>
+                    <button type="button" onClick={onClose}>
+                      Close
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+            <div className="qr-header">
+              <h2 className="qr-title">Scan and Link Device</h2>
+            </div>
+            {deviceLinkingState.qrCodeDataURL &&
+              <>
+                <div className="qr-instruction">Scan to backup your other device.</div>
+                <div className="qr-status">
+                  {deviceLinkingState.lastMessage || 'Waiting for device to scan'}
+                  <span className="animated-ellipsis"></span>
+                </div>
+              </>
+            }
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

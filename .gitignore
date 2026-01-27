@@ -1,0 +1,52 @@
+# Node modules
+node_modules
+**/node_modules
+
+**/dist
+
+# All environment files
+.env
+**/.env
+**/.env.*
+
+# Frontend test certs
+examples/vite/certs
+examples/tatchi-docs/certs
+examples/next-js/certs
+
+# Build output
+examples/vite/public
+examples/vite/dist
+
+examples/next-js/.next
+
+examples/tatchi-docs/public
+examples/tatchi-docs/dist
+examples/tatchi-docs/docs/dist
+examples/tatchi-docs/src/.vitepress/cache
+examples/.vitepress-cache
+
+examples/next-js/public
+examples/next-js/dist
+
+examples/relay-server/dist
+examples/relay-server/dist/*
+examples/relay-server/grace-keys.json
+examples/relay-server/.provision-cache.json
+
+examples/relay-cloudflare-worker/.wrangler
+
+# Playwright report
+passkey-sdk/playwright-report
+test-results
+
+# WASM worker outputs
+passkey-sdk/dist
+passkey-sdk/src/wasm_signer_worker/pkg
+passkey-sdk/src/wasm_vrf_worker/pkg
+
+
+# editor configs
+.vscode/*
+!.vscode/extensions.json
+.DS_Store

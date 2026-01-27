@@ -1,0 +1,38 @@
+/* React Component Styles for @tatchi-xyz/sdk/react */
+
+/* Import AccountMenuButton styles */
+@import './components/AccountMenuButton/MenuItem.css';
+@import './components/AccountMenuButton/ProfileDropdown.css';
+@import './components/AccountMenuButton/icons/TouchIcon.css';
+@import './components/AccountMenuButton/TransactionSettingsSection.css';
+@import './components/AccountMenuButton/UserAccountButton.css';
+@import './components/AccountMenuButton/Web3AuthProfileButton.css';
+
+@import './components/PasskeyAuthMenu/PasskeyAuthMenu.css';
+
+/* Import QR Code Scanner styles */
+@import './components/QRCodeScanner.css';
+@import './components/ShowQRCode.css';
+
+/* Global default z-index tokens for wallet overlay + SDK modals */
+:root {
+  /* Base z-index for wallet iframe overlay (host surface) */
+  --w3a-wallet-overlay-z: 2147483646;
+  /* Offset used by SDK modals that should sit just under the wallet overlay */
+  --w3a-wallet-underlay-backdrop-offset: 2;
+  --w3a-wallet-underlay-content-offset: 1;
+
+  /* Derived z-index layers (SDK defaults)
+   *
+   * These are provided so host apps and examples can opt into consistent layering
+   * without duplicating calc() expressions:
+   * - Underlay backdrops/content sit just below the wallet iframe overlay so the
+   *   tx confirmer always wins.
+   * - Nav/profile overlays should sit below these SDK modals and the wallet overlay
+   *   but above typical app chrome.
+   */
+  --w3a-z-underlay-backdrop: calc(var(--w3a-wallet-overlay-z, 2147483646) - var(--w3a-wallet-underlay-backdrop-offset, 2));
+  --w3a-z-underlay-content: calc(var(--w3a-wallet-overlay-z, 2147483646) - var(--w3a-wallet-underlay-content-offset, 1));
+  --w3a-z-profile-overlay: calc(var(--w3a-wallet-overlay-z, 2147483646) - 4);
+  --w3a-z-nav-root: calc(var(--w3a-wallet-overlay-z, 2147483646) - 5);
+}

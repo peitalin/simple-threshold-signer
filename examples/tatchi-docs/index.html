@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- Match Safari iOS bar fade to app theme -->
+    <meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+    <!-- Hanken Grotesk for headings and UI (standalone dev page) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=fallback">
+    <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=fallback" rel="stylesheet">
+    <script>
+      (function(){
+        try {
+          var ls = (localStorage.getItem('vitepress-theme-appearance') || '').replace(/\"/g,'');
+          // Default to dark when no preference is stored yet
+          var hasStored = (ls === 'dark' || ls === 'light');
+          var mode = hasStored ? ls : 'dark';
+          if (!hasStored) {
+            localStorage.setItem('vitepress-theme-appearance', mode)
+          }
+          // Keep SDK/theme hooks in sync with environment by reflecting on <html>
+          document.documentElement.classList.toggle('dark', mode === 'dark');
+          document.documentElement.setAttribute('data-w3a-theme', mode);
+          document.addEventListener('DOMContentLoaded', function(){
+            document.body.setAttribute('data-w3a-theme', mode)
+          });
+        } catch(e) {}
+      })();
+    </script>
+    <title>Tatchi Passkey Wallet</title>
+  </head>
+  <body>
+    <div id="app-root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

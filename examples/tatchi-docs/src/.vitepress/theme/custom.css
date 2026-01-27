@@ -1,0 +1,237 @@
+
+/* Parent-side guard: ensure wallet overlay iframe does not inherit UA dark canvas */
+iframe[data-w3a-router-id] {
+  background: transparent !important;
+  color-scheme: normal !important;
+}
+
+/* Headings use Hanken Grotesk across VitePress-rendered docs */
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3,
+.vp-doc h4,
+.vp-doc h5,
+.vp-doc h6 {
+  font-family: 'Hanken Grotesk', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
+}
+
+body {
+  min-height: unset;
+}
+
+.VPContent.is-home .VPHome .vp-doc.container {
+  max-width: none;
+  min-height: 0 !important;
+}
+
+.VPHome {
+  margin: 0 !important;
+}
+
+html[data-w3a-theme="light"] {
+  /* Light mode: cream → light grey diagonal gradient (mirrors dark layout) */
+  background: linear-gradient(45deg, oklch(0.96 0.01 240) 0%, oklch(0.99 0.01 240) 50%);
+}
+
+/* Ensure visibility even if containers paint over the root background */
+html[data-w3a-theme="light"]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1; /* sit behind all content */
+  background: linear-gradient(45deg, oklch(0.96 0.01 240) 0%, oklch(0.99 0.01 240) 50%);
+}
+
+
+html[data-w3a-theme="dark"] {
+  background: linear-gradient(45deg, oklch(0.1 0.01 240) 0%, oklch(0.2 0.01 240) 50%);
+}
+
+html[data-w3a-theme] body {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* VitePress sidebar: hide scrollbar but keep scrolling (show thin on hover) */
+.VPSidebar {
+  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none;    /* Firefox: hide by default */
+}
+.VPSidebar:hover { scrollbar-width: thin; }
+.VPSidebar::-webkit-scrollbar { width: 0; height: 0; }
+.VPSidebar:hover::-webkit-scrollbar { width: 4px; height: 4px; }
+.VPSidebar::-webkit-scrollbar-track { background: transparent; }
+.VPSidebar::-webkit-scrollbar-thumb { background-color: transparent; border-radius: 8px; }
+.VPSidebar:hover::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--vp-c-text-2, #888) 15%, transparent);
+}
+
+.VPSidebar .nav {
+  /* Firefox/Edge legacy */
+  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none;    /* Firefox: hide by default */
+}
+.VPSidebar .nav:hover {
+  scrollbar-width: thin;    /* Firefox: show a thin bar on hover */
+}
+/* WebKit-based browsers */
+.VPSidebar .nav::-webkit-scrollbar {
+  width: 0;
+  height: 0; /* hide by default */
+}
+.VPSidebar .nav:hover::-webkit-scrollbar {
+  width: 4px;
+  height: 4px; /* show thin bar on hover */
+}
+.VPSidebar .nav::-webkit-scrollbar-track { background: transparent; }
+.VPSidebar .nav::-webkit-scrollbar-thumb {
+  background-color: transparent; /* invisible until hover */
+  border-radius: 8px;
+}
+.VPSidebar .nav:hover::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--vp-c-text-2, #888) 15%, transparent);
+}
+
+/* Remove scrollbar gutters (hide scrollbars, keep scrollable) */
+html {
+  margin: 0;
+  scrollbar-gutter: auto !important;
+  overflow-y: auto;          /* make only the root scrollable */
+  overflow-x: clip;
+  scrollbar-width: none;     /* Firefox */
+  background: transparent;
+}
+body { margin: 0; overflow: hidden; }
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* Override Sonner toast close button styles */
+/* Vendor sets padding with !important; match with !important and ensure this loads after vendor CSS. */
+:root [data-sonner-toaster][data-theme] [data-sonner-toast] [data-close-button] {
+  border-radius: 4px !important;
+  padding: 2px !important;
+  border: none !important;
+}
+
+/* Sonner toast surface + radius */
+/* Some Sonner builds use :where([data-sonner-toast][data-styled="true"]) */
+:root [data-sonner-toaster][data-theme] :where([data-sonner-toast][data-styled="true"]) {
+  border-radius: 1rem !important;
+  background-color: var(--w3a-colors-colorBackground) !important;
+}
+/* Fallback for builds using [data-sonner-toast] without data-styled */
+:root [data-sonner-toaster][data-theme] [data-sonner-toast] {
+  border-radius: 1rem !important;
+  background-color: var(--w3a-colors-colorBackground) !important;
+}
+
+.VPContent.is-home .VPHome .vp-doc.container {
+  box-sizing: border-box;
+  overflow: visible;
+  padding: 0;
+}
+.VPFlyout.VPNavBarExtra.extra {
+  display: flex;
+}
+
+@media (min-width: 1280px) {
+  .VPNavBarAppearance.appearance {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .VPFlyout.VPNavBarExtra.extra {
+    display: flex;
+  }
+}
+@media (max-width: 768px) {
+  .VPFlyout.VPNavBarExtra.extra {
+    display: none;
+  }
+}
+
+.VPFlyout.VPNavBarExtra.extra > button {
+  box-shadow: none;
+}
+
+.VPFlyout.VPNavBarExtra.extra > div.menu > div.VPMenu > div.group > .item.appearance {
+  display: flex;
+}
+
+/* Ensure sidebar layouts inherit themed background colors. */
+.VPContent.has-sidebar,
+.VPContent .has-sidebar {
+  background-color: var(--vp-c-bg);
+}
+
+@media (min-width: 960px) {
+  .VPNavBar.has-sidebar.top,
+  .VPNavBar.has-sidebar {
+    background-color: var(--vp-c-bg);
+  }
+}
+
+/* Global docs footer styling (component in layout-bottom slot) */
+.global-footer { font-family: var(--fe-font-sans); }
+
+/*
+  Override VitePress theme color tokens with our SDK theme variables.
+  These feed the default theme components (navbar, sidebar, code blocks, etc.).
+  We reference --w3a-colors-* so values stay in sync with light/dark.
+*/
+:root {
+  /* Colors: Background (light) */
+  --vp-c-bg: oklch(0.98 0 0);            /* grey50 */
+  --vp-c-bg-alt: oklch(0.95 0.005 240);  /* grey100 */
+
+  /* Colors: Borders (light) */
+  --vp-c-border: oklch(0.8 0.02 240);    /* slate300 */
+  --vp-c-divider: oklch(0.82 0.014 240); /* grey300 */
+  --vp-c-gutter: oklch(0.82 0.014 240);  /* grey300 */
+
+  /* Colors: Text (light) */
+  --vp-c-text-1: oklch(0.025 0.001 240); /* grey975 */
+  --vp-c-text-2: oklch(0.53 0.02 240);   /* grey500 */
+  --vp-c-text-3: oklch(0.75 0.016 240);  /* grey350 */
+}
+
+.dark {
+  /* Colors: Background (dark) */
+  --vp-c-bg: oklch(0.2 0.01 240);        /* grey800 */
+  --vp-c-bg-alt: oklch(0.175 0.015 240); /* slate825 (darker alt) */
+
+  /* Colors: Borders (dark) */
+  --vp-c-border: oklch(0.35 0.018 240);  /* grey650 */
+  --vp-c-divider: oklch(0.35 0.0225 240);/* slate650 */
+  --vp-c-gutter: #000000;                /* black */
+
+  /* Colors: Text (dark) */
+  --vp-c-text-1: oklch(0.97 0.002 240);  /* grey75 */
+  --vp-c-text-2: oklch(0.53 0.02 240);   /* grey500 */
+  --vp-c-text-3: oklch(0.35 0.018 240);  /* grey650 */
+}
+
+/* Mermaid diagram box colors - theme aware */
+:root {
+  /* Light mode: lighter gray */
+  --mermaid-box-fill: rgb(243, 244, 246);      /* gray-100 */
+  --mermaid-box-stroke: rgb(156, 163, 175);    /* gray-400 */
+}
+
+.dark {
+  /* Dark mode: dark blue background with deep orange border */
+  --mermaid-box-fill: rgb(40, 48, 58);        /* blue-900 */
+  --mermaid-box-stroke: rgb(40, 48, 58);     /* blue-990 */
+}
+
+/* Target mermaid box backgrounds - match rects with the specific gray color we set */
+.vp-doc .mermaid svg rect[style*="fill: rgb(243, 244, 246)"],
+.vp-doc .mermaid svg rect[fill="rgb(243, 244, 246)"] {
+  fill: var(--mermaid-box-fill) !important;
+  stroke: var(--mermaid-box-stroke) !important;
+}

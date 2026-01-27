@@ -1,0 +1,257 @@
+{
+  "name": "@tatchi-xyz/sdk",
+  "version": "0.46.0",
+  "type": "module",
+  "description": "An embedded passkey wallet SDK built on NEAR protocol",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/src/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/types/src/index.d.ts"
+    },
+    "./plugins/headers": {
+      "import": "./dist/esm/plugins/headers.js",
+      "require": "./dist/cjs/plugins/headers.js",
+      "types": "./dist/types/src/plugins/headers.d.ts"
+    },
+    "./plugins/next": {
+      "import": "./dist/esm/plugins/next.js",
+      "require": "./dist/cjs/plugins/next.js",
+      "types": "./dist/types/src/plugins/next.d.ts"
+    },
+    "./core": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/types/src/index.d.ts"
+    },
+    "./lite": {
+      "import": "./dist/esm/lite/index.js",
+      "require": "./dist/cjs/lite/index.js",
+      "types": "./dist/types/src/lite/index.d.ts"
+    },
+    "./plugins/vite": {
+      "import": "./dist/esm/plugins/vite.js",
+      "require": "./dist/cjs/plugins/vite.js",
+      "types": "./dist/types/src/plugins/vite.d.ts"
+    },
+    "./server": {
+      "import": "./dist/esm/server/index.js",
+      "require": "./dist/cjs/server/index.js",
+      "types": "./dist/types/src/server/index.d.ts"
+    },
+    "./server/router/express": {
+      "import": "./dist/esm/server/router/express.js",
+      "require": "./dist/cjs/server/router/express.js",
+      "types": "./dist/types/src/server/router/express-adaptor.d.ts"
+    },
+    "./server/router/cloudflare": {
+      "import": "./dist/esm/server/router/cloudflare.js",
+      "require": "./dist/cjs/server/router/cloudflare.js",
+      "types": "./dist/types/src/server/router/cloudflare-adaptor.d.ts"
+    },
+    "./server/wasm/signer": {
+      "import": "./dist/esm/server/wasm/signer.js",
+      "require": "./dist/cjs/server/wasm/signer.js",
+      "types": "./dist/types/src/server/wasm/signer.d.ts"
+    },
+    "./react": {
+      "import": "./dist/esm/react/index.js",
+      "require": "./dist/cjs/react/index.js",
+      "types": "./dist/types/src/react/index.d.ts"
+    },
+    "./react/profile": {
+      "import": "./dist/esm/react/components/AccountMenuButton/index.js",
+      "require": "./dist/cjs/react/components/AccountMenuButton/index.js",
+      "types": "./dist/types/src/react/components/AccountMenuButton/index.d.ts"
+    },
+    "./react/passkey-auth-menu": {
+      "import": "./dist/esm/react/components/PasskeyAuthMenu/passkeyAuthMenuCompat.js",
+      "require": "./dist/cjs/react/components/PasskeyAuthMenu/passkeyAuthMenuCompat.js",
+      "types": "./dist/types/src/react/components/PasskeyAuthMenu/passkeyAuthMenuCompat.d.ts"
+    },
+    "./react/passkey-auth-menu/client": {
+      "import": "./dist/esm/react/components/PasskeyAuthMenu/client.js",
+      "require": "./dist/cjs/react/components/PasskeyAuthMenu/client.js",
+      "types": "./dist/types/src/react/components/PasskeyAuthMenu/client.d.ts"
+    },
+    "./react/passkey-auth-menu/skeleton": {
+      "import": "./dist/esm/react/components/PasskeyAuthMenu/skeleton.js",
+      "require": "./dist/cjs/react/components/PasskeyAuthMenu/skeleton.js",
+      "types": "./dist/types/src/react/components/PasskeyAuthMenu/skeleton.d.ts"
+    },
+    "./react/passkey-auth-menu/preload": {
+      "import": "./dist/esm/react/components/PasskeyAuthMenu/preload.js",
+      "require": "./dist/cjs/react/components/PasskeyAuthMenu/preload.js",
+      "types": "./dist/types/src/react/components/PasskeyAuthMenu/preload.d.ts"
+    },
+    "./react/passkey-auth-menu2": {
+      "import": "./dist/esm/react/components/PasskeyAuthMenu/shell.js",
+      "require": "./dist/cjs/react/components/PasskeyAuthMenu/shell.js",
+      "types": "./dist/types/src/react/components/PasskeyAuthMenu/shell.d.ts"
+    },
+    "./react/passkey-auth-menu2/client": {
+      "import": "./dist/esm/react/components/PasskeyAuthMenu/client.js",
+      "require": "./dist/cjs/react/components/PasskeyAuthMenu/client.js",
+      "types": "./dist/types/src/react/components/PasskeyAuthMenu/client.d.ts"
+    },
+    "./react/passkey-auth-menu2/skeleton": {
+      "import": "./dist/esm/react/components/PasskeyAuthMenu/skeleton.js",
+      "require": "./dist/cjs/react/components/PasskeyAuthMenu/skeleton.js",
+      "types": "./dist/types/src/react/components/PasskeyAuthMenu/skeleton.d.ts"
+    },
+    "./react/passkey-auth-menu2/preload": {
+      "import": "./dist/esm/react/components/PasskeyAuthMenu/preload.js",
+      "require": "./dist/cjs/react/components/PasskeyAuthMenu/preload.js",
+      "types": "./dist/types/src/react/components/PasskeyAuthMenu/preload.d.ts"
+    },
+    "./react/provider": {
+      "import": "./dist/esm/react/context/TatchiPasskeyProvider.js",
+      "require": "./dist/cjs/react/context/TatchiPasskeyProvider.js",
+      "types": "./dist/types/src/react/context/TatchiPasskeyProvider.d.ts"
+    },
+    "./react/styles": "./dist/esm/react/styles/styles.css",
+    "./chainsigs": {
+      "import": "./dist/esm/chainsigs/index.js",
+      "require": "./dist/cjs/chainsigs/index.js",
+      "types": "./dist/types/src/chainsigs/index.d.ts"
+    },
+    "./WalletIframe/client/html": {
+      "import": "./dist/esm/core/WalletIframe/client/html.js",
+      "require": "./dist/cjs/core/WalletIframe/client/html.js",
+      "types": "./dist/types/src/core/WalletIframe/client/html.d.ts"
+    },
+    "./worker": "./dist/web3authn-signer.worker.js",
+    "./wasm": "./dist/wasm_signer_worker_bg.wasm",
+    "./wasm-js": "./dist/wasm_signer_worker.js",
+    "./offline-export-sw": "./dist/workers/offline-export-sw.js",
+    "./components/modal": {
+      "import": "./dist/esm/core/WebAuthnManager/Components/modal.js",
+      "require": "./dist/cjs/core/WebAuthnManager/Components/modal.js",
+      "types": "./dist/types/src/core/WebAuthnManager/Components/modal.d.ts"
+    },
+    "./components/embedded": {
+      "import": "./dist/esm/core/WebAuthnManager/Components/embedded.js",
+      "require": "./dist/cjs/core/WebAuthnManager/Components/embedded.js",
+      "types": "./dist/types/src/core/WebAuthnManager/Components/embedded.d.ts"
+    }
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "typesVersions": {
+    "*": {
+      "react": [
+        "dist/types/src/react/index.d.ts"
+      ],
+      "react/*": [
+        "dist/types/src/react/*"
+      ]
+    }
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "scripts": {
+    "build": "./scripts/build-dev.sh",
+    "build:prod": "./scripts/build-prod.sh",
+    "build:sri-tarball": "bash ./scripts/build-sri-tarball.sh",
+    "build:rolldown": "rolldown -c rolldown.config.ts",
+    "dev": "rolldown -c rolldown.config.ts -w",
+    "test": "npm run build:check:fresh || npm run build && USE_RELAY_SERVER=1 playwright test --reporter=line",
+    "test:lite": "npm run build:check:fresh || npm run build && USE_RELAY_SERVER=1 playwright test -c playwright.lite.config.ts --reporter=line",
+    "test:inline": "npm run build:check:fresh || npm run build && USE_RELAY_SERVER=1 playwright test --reporter=line",
+    "test:e2e": "playwright test src/__tests__/e2e --reporter=line",
+    "test:unit": "npm run build:check:fresh || npm run build && playwright test src/__tests__/unit --reporter=line",
+    "test:wallet-iframe": "USE_RELAY_SERVER=0 playwright test src/__tests__/wallet-iframe --reporter=line",
+    "test:lit-components": "USE_RELAY_SERVER=0 playwright test src/__tests__/lit-components --reporter=line",
+    "test:relayer": "playwright test -c playwright.relayer.config.ts --reporter=line",
+    "test:relay-email-recovery-zk": "node src/__tests__/scripts/test-relay-email-recovery-zk.mjs",
+    "build:check:fresh": "./scripts/check-build-freshness.sh",
+    "size:lite": "node ./scripts/report-lite-bundle-sizes.mjs",
+    "size:lite:check": "node ./scripts/report-lite-bundle-sizes.mjs --check",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "NEAR",
+    "passkey",
+    "webauthn",
+    "authentication",
+    "blockchain",
+    "react",
+    "typescript",
+    "sdk"
+  ],
+  "author": "web3authn.org",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/web3-authn/sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/web3-authn/sdk/issues"
+  },
+  "homepage": "https://github.com/web3-authn",
+  "peerDependencies": {
+    "express": ">=4.17.0",
+    "jsqr": ">=1.4.0",
+    "qrcode": ">=1.3.0",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
+    "qrcode": {
+      "optional": true
+    },
+    "jsqr": {
+      "optional": true
+    },
+    "express": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@lit/react": "^1.0.8",
+    "@noble/ciphers": "^2.1.1",
+    "@noble/curves": "^2.0.1",
+    "@noble/ed25519": "^2.1.0",
+    "@noble/hashes": "^2.0.1",
+    "@simplewebauthn/server": "^13.2.2",
+    "bs58": "^6.0.0",
+    "idb": "^8.0.3",
+    "lit": "^3.3.1",
+    "pg": "^8.17.2",
+    "tslib": "^2.8.1"
+  },
+  "devDependencies": {
+    "@near-js/types": "^2.4.0",
+    "@playwright/test": "^1.40.0",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.19.9",
+    "@types/pg": "^8.16.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "borsh": "^2.0.0",
+    "express": "^4.21.2",
+    "js-sha256": "^0.11.1",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "rolldown": "^1.0.0-beta.27",
+    "rollup-plugin-css-only": "^4.5.2",
+    "typescript": "^5.8.3"
+  }
+}

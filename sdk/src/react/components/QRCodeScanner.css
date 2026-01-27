@@ -1,0 +1,263 @@
+/* QRCodeScanner Component Styles */
+
+.qr-scanner-modal {
+  position: fixed;
+  inset: 0;
+  /* Stay below the wallet iframe overlay so Tx confirmer always sits on top */
+  z-index: var(--w3a-z-underlay-backdrop, calc(var(--w3a-wallet-overlay-z, 2147483646) - var(--w3a-wallet-underlay-backdrop-offset, 2)));
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  background: oklch(0.2 0.01 240 / 0.8);
+  backdrop-filter: blur(8px);
+  animation: backdrop-opacity 32ms ease-in;
+  will-change: opacity;
+  transition: background-color 0.1s ease-in-out, backdrop-filter 0.2s ease-in-out;
+  padding: 0.5rem;
+}
+
+/* Themed panel similar to ShowQRCode modal content */
+.qr-scanner-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  min-height: 200px;
+  max-width: 520px;
+  border-radius: 2rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qr-scanner-modal {
+    animation: none;
+    transition: none;
+  }
+}
+
+@keyframes backdrop-opacity {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes qr-scanner-video-fade-in {
+  from {
+    opacity: 0;
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+.qr-scanner-camera-container {
+  background: var(--w3a-colors-surface);
+  position: relative;
+  display: inline-block;
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  border-radius: 12px;
+}
+
+.qr-scanner-video {
+  width: 400px;
+  height: 400px;
+  object-fit: cover; /* Crop to square format */
+  object-position: center center; /* Center the crop properly */
+  border-radius: 12px;
+  display: block;
+  margin: 0 auto; /* Center the video element itself */
+  transform: translateX(0); /* Ensure no horizontal offset */
+  opacity: 0;
+}
+
+.qr-scanner-video.is-ready {
+  animation: qr-scanner-video-fade-in 200ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qr-scanner-video {
+    opacity: 1;
+  }
+  .qr-scanner-video.is-ready {
+    animation: none;
+  }
+}
+
+.qr-scanner-canvas {
+  display: none;
+}
+
+.qr-scanner-overlay {
+  position: absolute;
+  inset: -1px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+}
+
+.qr-scanner-box {
+  width: 402px;
+  height: 402px;
+  border: 3px solid var(--w3a-colors-primary);
+  border-radius: 12px;
+  position: relative;
+  background: transparent;
+}
+
+.qr-scanner-corner-top-left {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  width: 20px;
+  height: 20px;
+  border-top: 3px solid var(--w3a-colors-primary);
+  border-left: 3px solid var(--w3a-colors-primary);
+  border-top-left-radius: 4px;
+}
+
+.qr-scanner-corner-top-right {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-top: 3px solid var(--w3a-colors-primary);
+  border-right: 3px solid var(--w3a-colors-primary);
+  border-top-right-radius: 4px;
+}
+
+.qr-scanner-corner-bottom-left {
+  position: absolute;
+  bottom: -6px;
+  left: -6px;
+  width: 20px;
+  height: 20px;
+  border-bottom: 3px solid var(--w3a-colors-primary);
+  border-left: 3px solid var(--w3a-colors-primary);
+  border-bottom-left-radius: 4px;
+}
+
+.qr-scanner-corner-bottom-right {
+  position: absolute;
+  bottom: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-bottom: 3px solid var(--w3a-colors-primary);
+  border-right: 3px solid var(--w3a-colors-primary);
+  border-bottom-right-radius: 4px;
+}
+
+.qr-scanner-instructions {
+  margin-top: 24px;
+  color: var(--w3a-colors-textPrimary);
+  text-align: center;
+  font-size: 16px;
+  font-weight: 500;
+  max-width: 400px;
+}
+
+.qr-scanner-sub-instruction {
+  font-size: 13px;
+  font-weight: 400;
+  opacity: 0.7;
+  margin-top: 8px;
+  line-height: 1.4;
+}
+
+.qr-scanner-sub-instruction--small {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.qr-scanner-camera-controls {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.qr-scanner-camera-selector {
+  background: var(--w3a-colors-surface);
+  color: var(--w3a-colors-textPrimary);
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 13px;
+  max-width: 220px;
+}
+
+.qr-scanner-mode-controls {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.qr-scanner-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: var(--w3a-colors-surface);
+  color: var(--w3a-colors-textSecondary);
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: all 0.2s ease;
+  padding: 0;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+.qr-scanner-close:hover {
+  background: var(--w3a-colors-surface2);
+}
+
+.qr-scanner-error-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  padding: 20px;
+}
+
+.qr-scanner-error-message {
+  background-color: rgba(239, 68, 68, 0.95);
+  color: white;
+  padding: 20px;
+  border-radius: 12px;
+  text-align: center;
+  max-width: 300px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.qr-scanner-error-button {
+  margin-top: 12px;
+  margin-left: 6px;
+  margin-right: 6px;
+  padding: 8px 16px;
+  background-color: white;
+  color: #ef4444;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.qr-scanner-error-button:hover {
+  background-color: #f3f4f6;
+}

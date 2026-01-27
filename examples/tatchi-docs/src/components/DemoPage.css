@@ -1,0 +1,199 @@
+
+.demo-page-header {
+  padding: var(--fe-gap-6);
+  text-align: center;
+}
+
+.demo-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--fe-text);
+  margin: 0;
+}
+
+.greeting-controls-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.on-chain-greeting-box {
+  display: flex;
+  align-items: center;
+  gap: var(--fe-gap-3);
+  padding: var(--fe-gap-2);
+  background: var(--fe-bg-secondary);
+  border-radius: var(--fe-radius-lg);
+  margin-bottom: var(--fe-gap-2);
+}
+
+.on-chain-greeting-box p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--fe-text);
+  flex: 1;
+}
+
+.refresh-icon-button {
+  background: none;
+  border: none;
+  color: var(--w3a-colors-textSecondary);
+  cursor: pointer;
+  padding: var(--fe-gap-2);
+  border-radius: 4rem;
+  transition: background var(--fe-fast) var(--fe-ease);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.refresh-icon-button:hover:not(:disabled) {
+  background: var(--fe-border);
+}
+
+.refresh-icon-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Loading state: spin the icon when busy/disabled */
+.refresh-icon-button[aria-busy="true"] svg,
+.refresh-icon-button:disabled svg {
+  animation: refresh-spin 0.9s linear infinite;
+  transform-origin: 50% 50%;
+}
+
+@keyframes refresh-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Greeting Input Group */
+.greeting-input-group {
+  margin-bottom: 0.5rem;
+}
+
+.greeting-input-group input {
+  width: 100%;
+  height: 54px;
+  padding: var(--fe-gap-2) var(--fe-gap-4);
+  background-color: var(--w3a-colors-surface2);
+  border: 1px solid var(--fe-border);
+  border-radius: var(--fe-radius-lg);
+  color: var(--fe-input-text);
+  font-size: 0.9rem;
+  font-family: var(--fe-font-sans);
+  transition: all var(--fe-fast) var(--fe-ease);
+}
+
+.greeting-input-group input:focus {
+  outline: none;
+  border-color: var(--fe-border-strong);
+  box-shadow: 0 0 0 3px var(--w3a-shadows-sm);
+}
+
+.greeting-input-group input::placeholder {
+  color: var(--fe-input-placeholder);
+}
+
+.accent-btn {
+  background: var(--w3a-colors-primary);
+  padding: var(--fe-gap-3) var(--fe-gap-4);
+  border: none;
+  border-radius: 2rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--fe-fast) var(--fe-ease);
+  align-items: center;
+  justify-content: center;
+}
+
+.error-message {
+  background: var(--fe-error-bg);
+  border: 1px solid var(--fe-error);
+  border-radius: var(--fe-radius-sm);
+  padding: var(--fe-gap-3);
+  color: var(--fe-error);
+  font-size: 0.9rem;
+  margin-top: var(--fe-gap-4);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .demo-page-header,
+  .greeting-content {
+    padding: var(--fe-gap-4);
+  }
+
+  .greeting-input-group {
+    flex-direction: column;
+  }
+}
+
+/* EmbeddedTxButton styles merged */
+.embedded-tx-page-root {
+  display: grid;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  padding: 1rem;
+}
+
+.demo-subtitle {
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: var(--fe-text-primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.button-with-tooltip-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fe-gap-2);
+  max-inline-size: 100%;
+}
+
+@media (max-width: 768px) {
+  .embedded-tx-page-root { padding: var(--fe-gap-3); }
+  .demo-subtitle { font-size: var(--fe-text-xl); }
+}
+
+.action-section {
+  padding: 1rem;
+  margin-bottom: 0;
+  width: 100%;
+  transition: all var(--fe-fast) var(--fe-ease);
+}
+
+.action-text {
+  font-size: 1rem;
+  color: var(--fe-text-secondary);
+  margin-bottom: 1rem;
+}
+
+.demo-divider {
+  height: 1px;
+  width: 100%;
+  background: var(--fe-border);
+  opacity: 0.9;
+  margin: 1.25rem 0 1rem;
+}
+
+/* Fade-in helper for embedded button */
+.button-with-tooltip-container {
+  position: relative;
+  z-index: 1;
+  opacity: 1;
+  will-change: opacity;
+}
+.fade-in {
+  animation: demo-embedded-fade-in 160ms var(--fe-ease) forwards;
+}
+@keyframes demo-embedded-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .button-with-tooltip-container { animation: none; opacity: 1; }
+}

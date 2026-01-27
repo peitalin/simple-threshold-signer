@@ -1,0 +1,823 @@
+/*
+  Theme tokens for modal and drawer confirmers.
+  These map the TS theme object into static CSS variables used by the UI.
+
+  Tokens are generated from sdk/src/theme/palette.json via
+  sdk/src/theme/base-styles.js (createThemeTokens) and emitted as
+  w3a-components.css by the dev/build pipelines. Components ensure the
+  stylesheet is present (see css-loader.ts and usages).
+*/
+
+/* Defaults (dark theme) */
+w3a-modal-tx-confirmer,
+w3a-drawer-tx-confirmer,
+w3a-tx-confirm-content,
+/* Declare at document root for global availability across the iframe */
+:root {
+  /* Passkey halo loading defaults (dark) */
+  --w3a-modal__passkey-halo-loading__ring-background: transparent 0%, #4DAFFE 10%, #4DAFFE 25%, transparent 35%;
+  --w3a-modal__passkey-halo-loading__inner-background: transparent;
+  --w3a-modal__passkey-halo-loading__inner-padding: 3px;
+  --w3a-modal__passkey-halo-loading-icon-container__background-color: var(--w3a-colors-surface);
+  --w3a-modal__passkey-halo-loading-touch-icon__color: var(--w3a-colors-textSecondary);
+  --w3a-modal__passkey-halo-loading-touch-icon__margin: 0.75rem;
+  --w3a-modal__passkey-halo-loading-touch-icon__stroke-width: 3;
+  /* Provide explicit radius token so consumers avoid "undefined" */
+  --w3a-modal__passkey-halo-loading-icon-container__border-radius: 1.125rem;
+}
+
+/* Tx confimer variants set layout tokens */
+w3a-modal-tx-confirmer {
+  /* Modal uses column layout for rpid */
+  --w3a-modal__rpid__flex-direction: column;
+}
+
+w3a-drawer-tx-confirmer {
+  /* Drawer uses row layout for rpid */
+  --w3a-modal__rpid__flex-direction: row;
+}
+
+/* Structural styles for modal confirmer */
+:host {
+
+  /* Default style-guide variables (can be overridden by applyStyles) */
+  --w3a-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --w3a-font-size-sm: 0.8rem;
+  --w3a-font-size-base: 1rem;
+  --w3a-font-size-lg: 1.125rem;
+  --w3a-font-size-xl: 1.25rem;
+
+  --w3a-radius-md: 0.5rem;
+  --w3a-radius-lg: 0.75rem;
+  --w3a-radius-xl: 1rem;
+
+  /* Component display */
+  display: block;
+
+  /* Use global tokens directly */
+  font-family: var(--w3a-font-family);
+  font-size: var(--w3a-font-size-base);
+  line-height: 1.5;
+  color: var(--w3a-colors-textPrimary);
+  background-color: var(--w3a-colors-colorBackground);
+
+  scrollbar-width: thin;
+  scrollbar-color: rgba(25, 25, 25, 0.2);
+}
+
+/* Light DOM host equivalents when Shadow DOM is disabled */
+w3a-modal-tx-confirmer,
+w3a-drawer-tx-confirmer,
+w3a-tx-confirm-content {
+  --w3a-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --w3a-font-size-sm: 0.8rem;
+  --w3a-font-size-base: 1rem;
+  --w3a-font-size-lg: 1.125rem;
+  --w3a-font-size-xl: 1.25rem;
+
+  --w3a-radius-md: 0.5rem;
+  --w3a-radius-lg: 0.75rem;
+  --w3a-radius-xl: 1rem;
+
+  display: block;
+  font-family: var(--w3a-font-family);
+  font-size: var(--w3a-font-size-base);
+  line-height: 1.5;
+  color: var(--w3a-colors-textPrimary);
+  background-color: var(--w3a-colors-colorBackground);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(25, 25, 25, 0.2);
+}
+
+/* Shared styles adopted by tx-confirm-content (rendered inside modal/drawer) */
+.txc-root {
+  display: block;
+  color: inherit;
+  touch-action: auto;
+  width: fit-content;
+  /* Responsive tooltip width that adapts to viewport and zoom */
+  --tooltip-margin: 1.5rem;
+  --tooltip-width: min(360px, calc(100vw - var(--tooltip-margin)));
+}
+@supports (width: 1dvw) {
+  .txc-root { --tooltip-width: min(360px, calc(100dvw - var(--tooltip-margin))); }
+}
+.section { margin: 0.5rem 0; }
+.tooltip-width { width: var(--tooltip-width, 100%); }
+.summary-row > * { min-width: 0; }
+.label { font-size: 0.75rem; color: var(--w3a-colors-textMuted, rgba(255,255,255,0.7)); }
+.value {
+  font-size: 0.8125rem;
+  color: var(--w3a-colors-textPrimary, #f6f7f8);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+.muted { color: var(--w3a-colors-textMuted, rgba(255,255,255,0.6)); font-size: 12px; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+.actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  align-items: stretch;
+  margin-top: 0.75rem;
+}
+.actions > * { min-width: 0; }
+.cancel {
+  background: none;
+  color: var(--w3a-colors-textPrimary);
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  border-radius: 2rem;
+  font: inherit; padding: 0.7em 1em; min-height: 2.75em; cursor: pointer;
+}
+.confirm {
+  background: var(--w3a-colors-buttonBackground);
+  color: var(--w3a-colors-textButton, #fff);
+  border: 1px solid transparent;
+  border-radius: 2rem;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5em;
+  font: inherit; padding: 0.7em 1em; min-height: 2.75em; cursor: pointer;
+}
+.confirm.loading { cursor: progress; opacity: 0.9; }
+.cancel:hover {
+  background: var(--w3a-colors-hover);
+  border: 1px solid var(--w3a-colors-borderHover);
+}
+.confirm:hover {
+  background: var(--w3a-colors-buttonHoverBackground);
+  border: 1px solid transparent;
+}
+.cancel:focus-visible, .confirm:focus-visible {
+  outline: 2px solid var(--w3a-colors-focus, var(--w3a-blue400));
+  outline-offset: 3px;
+}
+w3a-modal-tx-confirmer {
+
+  /* Default style-guide variables (can be overridden by applyStyles) */
+  --w3a-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --w3a-font-size-sm: 0.8rem;
+  --w3a-font-size-base: 1rem;
+  --w3a-font-size-lg: 1.125rem;
+  --w3a-font-size-xl: 1.25rem;
+
+  --w3a-radius-md: 0.5rem;
+  --w3a-radius-lg: 0.75rem;
+  --w3a-radius-xl: 1rem;
+
+  /* Spacing tokens only; no legacy gap vars */
+
+  /* Component display */
+  display: block;
+
+  /* Use global tokens directly */
+  font-family: var(--w3a-font-family);
+  font-size: var(--w3a-font-size-base);
+  line-height: 1.5;
+  color: var(--w3a-colors-textPrimary);
+  background-color: var(--w3a-colors-colorBackground);
+
+  scrollbar-width: thin;
+  scrollbar-color: rgba(25, 25, 25, 0.2);
+}
+
+/* Reset and base styles */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+.modal-backdrop-blur {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  justify-content: center;
+  z-index: 2147483647;
+  background: oklch(0.2 0.01 240 / 0.4);
+  backdrop-filter: blur(0px);
+  /* animation: var(--w3a-modal__modal-backdrop-blur__animation, backdrop-opacity 60ms ease-in); */
+  opacity: 1;
+  will-change: opacity;
+}
+
+@keyframes backdrop-opacity {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 2147483648; /* Above backdrop */
+  pointer-events: none;
+}
+
+.modal-backdrop > * {
+  pointer-events: auto;
+}
+
+.modal-container-root {
+  display: grid;
+  gap: 0.5rem;
+  position: relative;
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  border-radius: 2rem;
+  margin: 1rem 0 0 0;
+  padding: 0.75rem;
+  height: auto;
+  overflow: hidden;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.12);
+  background: var(--w3a-colors-colorBackground);
+  animation: fadeIn 32ms ease-in;
+  will-change: opacity, transform;
+}
+
+/* Softer elevation in light theme */
+:root[data-w3a-theme="light"] .modal-container-root,
+w3a-modal-tx-confirmer[theme="light"] .modal-container-root,
+w3a-drawer-tx-confirmer[theme="light"] .modal-container-root {
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.14), 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0px) scale(1);
+  }
+}
+
+.card-background-border {
+  border-radius: 2rem;
+  background: var(--w3a-colors-colorBackground);
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  margin: 0px;
+}
+
+.modal-container-root .rpid {
+  display: flex;
+  /* Allow host to control direction via CSS var */
+  flex-direction: var(--w3a-modal__rpid__flex-direction, column);
+  align-items: flex-start;
+  gap: 2px;
+  margin-top: 2px;
+  font-size: 0.7rem;
+  color: var(--w3a-colors-textSecondary);
+  font-weight: 400;
+}
+.domain-text {
+  color: var(--w3a-colors-textSecondary);
+}
+
+/* Hero section with halo and headings */
+.hero {
+  display: grid;
+  justify-items: center;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+  display: flex;
+}
+.hero-container {
+  min-height: 48px;
+  display: grid;
+  align-items: flex-start;
+  margin-top: 0.5rem;
+}
+.hero-heading {
+  margin: 0;
+  font-size: var(--w3a-font-size-lg);
+  font-weight: 500;
+  color: var(--w3a-colors-textPrimary);
+  text-align: start;
+}
+.hero-subheading {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--w3a-colors-textSecondary);
+  text-align: start;
+}
+
+.summary-row {
+  display: grid;
+  /* Use content-aware label column that scales with text */
+  grid-template-columns: minmax(8.5em, max-content) 1fr;
+  align-items: center;
+  gap: var(--w3a-spacing-sm);
+  background: transparent;
+  border-radius: 0;
+  transition: all 100ms cubic-bezier(0.2, 0.6, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+.summary-row > * { min-width: 0; }
+.summary-label {
+  color: var(--w3a-colors-textSecondary);
+  font-size: var(--w3a-font-size-sm);
+  font-weight: 500;
+}
+.summary-value {
+  color: var(--w3a-colors-textPrimary);
+  font-size: var(--w3a-font-size-sm);
+  font-weight: 500;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+/* Transactions section */
+
+.action-item {
+  margin-bottom: var(--w3a-spacing-sm);
+  overflow: hidden;
+  position: relative;
+}
+
+.action-item:last-child {
+  margin-bottom: 0;
+}
+
+.action-row {
+  display: grid;
+  /* Content-aware label column that adapts to larger text sizes */
+  grid-template-columns: minmax(7.5em, max-content) 1fr;
+  align-items: center;
+  gap: var(--w3a-spacing-sm);
+  padding: 0;
+  margin-bottom: 0;
+  background: transparent;
+  border-radius: 0;
+}
+.action-row > * { min-width: 0; }
+
+.action-row:last-child {
+  margin-bottom: 0;
+}
+
+.action-label {
+  font-family: var(--w3a-font-family);
+  color: var(--w3a-colors-textSecondary);
+  font-size: var(--w3a-font-size-sm);
+  line-height: 1.5;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 2px 0px;
+  margin: 0px;
+}
+
+.action-content {
+  padding: 0.5rem;
+  font-size: var(--w3a-font-size-sm);
+  line-height: 1.4;
+  max-height: 50vh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  background: var(--w3a-colors-surface2);
+  border-radius: 12px;
+}
+
+/* Prefer dynamic viewport units when supported (iOS Safari address bar) */
+@supports (height: 1dvh) {
+  .action-content {
+    max-height: 50dvh;
+  }
+}
+
+.action-content-min-height {
+  min-height: 200px;
+}
+
+.action-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.action-content::-webkit-scrollbar-track {
+  background: var(--w3a-colors-surface2);
+  border-radius: var(--w3a-radius-md);
+}
+
+.action-content::-webkit-scrollbar-thumb {
+  background: var(--w3a-colors-borderPrimary);
+  border-radius: var(--w3a-radius-md);
+}
+
+.action-value {
+  color: var(--w3a-colors-textPrimary);
+  word-break: break-word;
+  font-weight: 500;
+  font-size: var(--w3a-font-size-sm);
+}
+
+.action-subitem {
+  margin-bottom: var(--w3a-spacing-sm);
+  padding: 0rem 0rem 0rem var(--w3a-spacing-md);
+  background: unset;
+  position: relative;
+}
+
+.action-subitem:last-child {
+  margin-bottom: 0;
+}
+
+.action-subheader {
+  font-size: var(--w3a-font-size-sm);
+  font-weight: 600;
+  color: var(--w3a-colors-accent, var(--w3a-blue400));
+}
+
+.code-block {
+  background: var(--w3a-colors-surface2);
+  border: 1px solid transparent;
+  border-radius: var(--w3a-radius-md);
+  /* dimensions */
+  margin: 4px 0px 0px 0px;
+  padding: var(--w3a-spacing-sm);
+  min-height: calc(1.4em * 3);
+  max-height: var(--w3a-modal__code-block__max-height, 400px);
+  height: auto;
+  max-width: var(--w3a-modal__code-block__max-width, 100%);
+  overflow: auto;
+  /* text styles */
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: var(--w3a-modal__code-block__font-size, var(--w3a-font-size-sm));
+  color: var(--w3a-colors-textSecondary);
+  line-height: 1.4;
+  /* pretty print JSON and text wrap */
+  white-space: pre;
+  text-wrap: auto;
+  word-break: var(--w3a-modal__code-block__word-break, break-word);
+  /* Ensure resize handle is visible and functional */
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.method-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-weight: 600;
+  color: var(--w3a-blue400);
+}
+
+/* Button styles */
+.buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  position: relative;
+  z-index: 1;
+  align-items: stretch;
+}
+
+.error-banner {
+  color: var(--w3a-colors-error, var(--w3a-red400));
+  font-size: 0.9rem;
+  text-align: var(--w3a-modal__error-banner__text-align, start);
+  font-weight: 500;
+}
+
+.btn {
+  background-color: var(--w3a-colors-surface);
+  box-shadow: var(--w3a-modal__btn__box-shadow, none);
+  color: var(--w3a-colors-textPrimary);
+  text-align: center;
+  border-radius: 2rem;
+  margin-right: 1px;
+  justify-content: center;
+  align-items: center;
+  /* Scalable tap target: ~44px at 16px root */
+  min-height: 2.75em;
+  width: 100%;
+  padding: var(--w3a-modal__btn__padding, 0.7em 1em);
+  font-size: var(--w3a-font-size-base);
+  display: inline-flex;
+  gap: 0.5em;
+  cursor: pointer;
+  border: none;
+  font-family: var(--w3a-font-family);
+  font-weight: var(--w3a-modal__btn__font-weight, 500);
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+  /* Smooth press-down and release animation */
+  transition:
+    transform var(--w3a-modal__btn__transition-transform, 120ms cubic-bezier(0.2, 0.6, 0.2, 1)),
+    background-color 120ms ease-out,
+    box-shadow 120ms ease-out;
+  transform-origin: center;
+  will-change: transform;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn:hover {
+  background-color: var(--w3a-colors-hover);
+  box-shadow: var(--w3a-modal__btn-hover__box-shadow, none);
+}
+
+.btn:active {
+  background-color: var(--w3a-colors-active);
+  /* Default to a subtle scale-down on press; overridable via CSS var */
+  transform: var(--w3a-modal__btn__active-transform, scale(0.98));
+}
+
+.btn-cancel {
+  box-shadow: none;
+  color: var(--w3a-colors-textPrimary);
+  background-color: var(--w3a-colors-surface);
+  border: 1px solid var(--w3a-colors-borderPrimary);
+}
+
+.btn-cancel:hover {
+  color: var(--w3a-colors-textPrimary);
+  background-color: var(--w3a-colors-hover);
+  border: 1px solid var(--w3a-colors-borderHover);
+}
+
+.btn-confirm {
+  background-color: var(--w3a-colors-buttonBackground);
+  color: var(--w3a-colors-textButton, #fff);
+  border: 1px solid transparent;
+}
+
+.btn-confirm:hover {
+  background-color: var(--w3a-colors-buttonHoverBackground);
+  border: 1px solid transparent;
+}
+
+.btn-danger {
+  background-color: var(--w3a-red500);
+  color: #ffffff;
+  border: 1px solid var(--w3a-red450);
+}
+.btn-danger:hover {
+  background-color: var(--w3a-red400);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--w3a-colors-focus, var(--w3a-blue400));
+  outline-offset: 3px;
+  box-shadow: var(--w3a-modal__btn__focus-box-shadow, 0 0 0 3px oklch(0.55 0.18 240 / 0.12));
+}
+
+/* Single-button alignment (place single button in right column) */
+.buttons.single .btn {
+  grid-column: 2 / 3;
+  justify-self: end;
+}
+
+/* Responsive adjustments */
+
+@media (max-width: 375px) {
+  /* Ensure full-bleed width on mobile */
+  .modal-container-root { width: 100vw; }
+  @supports (width: 1dvw) {
+    .modal-container-root { width: 100dvw; }
+  }
+  /* remove backdrop on mobile becasue of Safari 26 address bar bugs */
+  .modal-backdrop-blur {
+    opacity: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .responsive-card {
+    /* Make modal 1rem narrower on small/zoomed viewports */
+    max-width: calc(100vw - 2rem);
+  }
+
+  /* Override with dvw on capable browsers for Safari correctness */
+  @supports (width: 1dvw) {
+    .responsive-card {
+      max-width: calc(100dvw - 2rem);
+    }
+  }
+
+  /* Keep inner content (TxTree) in sync to avoid overflow */
+  .responsive-card w3a-tx-confirm-content {
+    --tooltip-margin: 2rem;
+  }
+
+  .summary-row {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+    padding: calc(var(--w3a-spacing-sm) + var(--w3a-spacing-xs));
+  }
+
+  .summary-label {
+    font-size: var(--w3a-font-size-sm);
+    margin-bottom: 2px;
+  }
+
+  .action-row {
+    grid-template-columns: 100px 1fr;
+    gap: 0.25rem;
+    padding: var(--w3a-spacing-sm);
+  }
+
+  .buttons {
+    display: flex;
+  }
+
+  .btn {
+    width: 100%;
+    padding: var(--w3a-spacing-md) calc(var(--w3a-spacing-md) + var(--w3a-spacing-xs));
+  }
+
+  .action-content {
+    font-size: var(--w3a-font-size-sm);
+    max-height: 100px;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .responsive-card {
+    max-width: 500px;
+  }
+}
+
+/* Large desktop adjustments */
+@media (min-width: 1025px) {
+  .responsive-card {
+    max-width: 600px;
+  }
+}
+
+/* Loading indicator styles */
+.loading-indicator {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-radius: 50%;
+  border-top-color: rgba(255,255,255,0.95);
+  animation: spin 1s ease-in-out infinite;
+  margin-right: var(--w3a-spacing-sm);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.btn.loading {
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+/* Fallback support for browsers without backdrop-filter */
+@supports not (backdrop-filter: blur(8px)) {
+  .row { background: transparent; }
+  .action-item { background: transparent; }
+  .action-content { background: var(--w3a-colors-surface2); }
+  .btn { background: var(--w3a-colors-surface); }
+  .btn-confirm { background: var(--w3a-colors-buttonBackground); }
+}
+
+/* Drawer variant styles (extracted from viewer-drawer.ts) */
+:host { display: contents; }
+w3a-drawer-tx-confirmer { display: contents; }
+
+/* Narrower sheet for tx confirmer drawer */
+w3a-drawer {
+  /* Scale with viewport and base font size for better zoom behavior */
+  --w3a-drawer__max-width: min(100vw, 28rem);
+}
+.drawer-tx-confirmer-root {
+  display: grid;
+  place-content: center;
+}
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  row-gap: 0.5em;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.drawer-title {
+  margin: 0;
+  font-size: var(--w3a-font-size-lg, 1.125rem);
+  line-height: 1.3;
+  font-weight: 700;
+}
+.drawer-actions { display: flex; gap: 8px; }
+.drawer-btn {
+  border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12));
+  background: var(--w3a-colors-surface, rgba(255,255,255,0.06));
+  color: var(--w3a-colors-textPrimary, #f6f7f8);
+  border-radius: 10px;
+  padding: 0.6em 0.9em;
+  font-weight: 600;
+  cursor: pointer;
+}
+.drawer-btn.primary {
+  background: var(--w3a-btn-primary, var(--w3a-colors-buttonBackground, #4DAFFE));
+  color:var(--w3a-colors-textButton, #0b1220);
+  border-color: transparent;
+}
+.footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+.section {
+  margin: 8px 0;
+  max-width: clamp(20rem, 90vw, 26rem);
+  min-width: 0;
+}
+.responsive-card {
+  position: relative;
+  justify-content: flex-end;
+  /* Scales with viewport and root font size under text zoom */
+  max-width: clamp(20rem, 90vw, 26rem);
+  min-width: 0;
+  overflow: visible;
+  border-radius: 1rem;
+  z-index: 1;
+  padding: 0rem;
+  margin: 0px;
+}
+.margin-left1 {
+  margin-left: 1rem;
+}
+.responsive-card-center {
+  display: flex;
+  justify-content: center;
+}
+
+.rpid-wrapper {
+  margin-bottom: 1rem;
+}
+.confirmation-body {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--w3a-colors-textSecondary);
+  max-width: 340px;
+  margin: 0.5rem;
+  /* overflow-wrap: anywhere; */
+  /* hyphens: auto; */
+  white-space: pre-line;
+}
+.drawer-tx-confirmer-root .rpid {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 0.7rem;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+  color: var(--w3a-colors-textSecondary);
+  font-weight: 400;
+}
+.secure-indicator {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.padlock-icon {
+  width: 1em;
+  height: 1em;
+  margin-inline-end: 0.5em;
+  flex: none;
+  color: var(--w3a-blue600);
+}
+
+.security-details {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--w3a-colors-textSecondary);
+}
+.block-height-icon {
+  width: 1em;
+  height: 1em;
+  margin-inline-end: 0.5em;
+  flex: none;
+  color: var(--w3a-blue600);
+}
+.divider {
+  width: 1px; height: 12px;
+  background: var(--w3a-colors-borderPrimary, rgba(255,255,255,0.18));
+  margin: 0 4px;
+}
+
+/* TxTree connector elbow tweak within confirmers: shorten by 0.1rem via token */
+:host w3a-tx-tree,
+:host tx-tree {
+  --w3a-tree__connector__elbow-delta: -0.1rem;
+}

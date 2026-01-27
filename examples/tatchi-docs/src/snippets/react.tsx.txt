@@ -1,0 +1,9 @@
+import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react/provider'
+
+export function App() {
+  return (
+    <TatchiPasskeyProvider config={{ walletOrigin, ...configs }}>
+      {/* your app */}
+    </TatchiPasskeyProvider>
+  )
+}
