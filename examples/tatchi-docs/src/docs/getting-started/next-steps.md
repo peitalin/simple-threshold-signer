@@ -106,7 +106,7 @@ function Transactions() {
             },
           ],
           options: {
-            confirmationConfig: { behavior: 'requireClickick' },
+            confirmationConfig: { behavior: 'requireClick' },
             onEvent: (event) => console.log(event),
             afterCall: (success, result) => {
               if (success) {
@@ -125,7 +125,7 @@ function Transactions() {
 }
 ```
 
-You can set `confirmationConfig: { behavior: 'requireClickick' | 'skipClick' }` to  either force explicit user confirmation in the wallet UI or skip it.
+You can set `confirmationConfig: { behavior: 'requireClick' | 'skipClick' }` to  either force explicit user confirmation in the wallet UI or skip it.
 
 The `onEvent()` callback streams progress events (authentication, signing, broadcasting, completion) that you can use to update your UI or handle errors.
 

@@ -65,7 +65,7 @@ await tatchi.executeAction({
   options: {
     confirmationConfig: {
       uiMode: 'drawer',          // 'modal' | 'drawer'
-      behavior: 'requireClickick',  // 'requireClickick' | 'skipClick'
+      behavior: 'requireClick',  // 'requireClick' | 'skipClick'
     },
   },
 })
@@ -73,7 +73,7 @@ await tatchi.executeAction({
 
 - `uiMode`: choose between a centered modal or a bottom drawer.
 - `behavior`:
-  - `requireClickick` – user must click “Confirm” (recommended).
+  - `requireClick` – user must click “Confirm” (recommended).
   - `skipClick` – auto‑confirm after a brief display (for low‑risk flows).
 
 Global settings live in the wallet iframe and are respected when `confirmationConfig` is omitted.
@@ -223,7 +223,7 @@ export function SendTokenButton() {
             actions: [{ type: ActionType.Transfer, amount: '1000000000000000000' }],
           }],
           options: {
-            confirmationConfig: { uiMode: 'drawer', behavior: 'requireClickick' },
+            confirmationConfig: { uiMode: 'drawer', behavior: 'requireClick' },
             waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
           },
         })

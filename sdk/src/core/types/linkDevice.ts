@@ -43,7 +43,6 @@ export interface LinkDeviceResult extends ActionResult {
   transactionId?: string;
   fundingAmount: string;
   linkedToAccount?: string; // The account ID that the device key was added to
-  signedDeleteKeyTransaction?: SignedTransaction;
 }
 
 export class DeviceLinkingError extends Error {

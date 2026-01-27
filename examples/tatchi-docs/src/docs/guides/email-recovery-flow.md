@@ -167,7 +167,7 @@ await tatchi.startEmailRecovery({
       body: 'Approve to create a new device key and start email recovery.',
     },
     confirmationConfig: {
-      behavior: 'requireClickick',
+      behavior: 'requireClick',
     },
   },
 });

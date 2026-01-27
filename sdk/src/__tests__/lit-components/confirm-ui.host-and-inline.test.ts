@@ -22,7 +22,7 @@ function buildCtxStub(overrides: Record<string, unknown> = {}) {
       getCurrentUserAccountId: () => 'alice.testnet',
       getConfirmationConfig: () => ({
         uiMode: 'modal',
-        behavior: 'requireClickick',
+        behavior: 'requireClick',
         autoProceedDelay: 0,
         theme: 'dark'
       })
@@ -49,7 +49,7 @@ test.describe('confirm-ui inline confirmer', () => {
           getCurrentUserAccountId: () => 'alice.testnet',
           getConfirmationConfig: () => ({
             uiMode: 'modal',
-            behavior: 'requireClickick',
+            behavior: 'requireClick',
             autoProceedDelay: 0,
             theme: 'dark'
           })
@@ -94,7 +94,7 @@ test.describe('confirm-ui inline confirmer', () => {
           getCurrentUserAccountId: () => 'alice.testnet',
           getConfirmationConfig: () => ({
             uiMode: 'modal',
-            behavior: 'requireClickick',
+            behavior: 'requireClick',
             autoProceedDelay: 0,
             theme: 'dark'
           }),
@@ -106,7 +106,7 @@ test.describe('confirm-ui inline confirmer', () => {
           getCurrentUserAccountId: () => 'alice.testnet',
           getConfirmationConfig: () => ({
             uiMode: 'drawer',
-            behavior: 'requireClickick',
+            behavior: 'requireClick',
             autoProceedDelay: 0,
             theme: 'dark'
           })
@@ -148,7 +148,7 @@ test.describe('confirm-ui inline confirmer', () => {
           getCurrentUserAccountId: () => 'alice.testnet',
           getConfirmationConfig: () => ({
             uiMode: 'modal',
-            behavior: 'requireClickick',
+            behavior: 'requireClick',
             autoProceedDelay: 0,
             theme: 'dark'
           }),
@@ -198,7 +198,7 @@ test.describe('confirm-ui inline confirmer', () => {
           getCurrentUserAccountId: () => 'alice.testnet',
           getConfirmationConfig: () => ({
             uiMode: 'modal',
-            behavior: 'requireClickick',
+            behavior: 'requireClick',
             autoProceedDelay: 0,
             theme: 'dark'
           })
@@ -246,7 +246,7 @@ test.describe('confirm-ui inline confirmer', () => {
           getCurrentUserAccountId: () => 'alice.testnet',
           getConfirmationConfig: () => ({
             uiMode: 'modal',
-            behavior: 'requireClickick',
+            behavior: 'requireClick',
             autoProceedDelay: 0,
             theme: 'dark'
           })

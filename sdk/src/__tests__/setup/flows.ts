@@ -129,7 +129,7 @@ export async function registerPasskey(
   }, { accountId, confirmVariant: options.confirmVariant ?? 'none' });
 
   // Registration in a cross-origin wallet iframe requires a user activation.
-  // confirmTxFlow enforces requireClickick; provide the click from Playwright while
+  // confirmTxFlow enforces requireClick; provide the click from Playwright while
   // the browser-side registration promise is pending.
   const clickPromise = clickWalletIframeConfirm(passkey.page, { timeoutMs: 20_000 });
   await Promise.race([registrationPromise.then(() => undefined), clickPromise]);

@@ -24,7 +24,7 @@ test.describe('SecureConfirm – warm signing', () => {
         userPreferencesManager: {
           getConfirmationConfig: () => ({
             uiMode: 'none',
-            behavior: 'requireClickick',
+            behavior: 'requireClick',
             autoProceedDelay: 0,
           }),
         },

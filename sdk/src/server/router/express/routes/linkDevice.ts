@@ -17,6 +17,23 @@ export function registerLinkDeviceRoutes(router: ExpressRouter, ctx: ExpressRela
     }
   });
 
+  router.post('/link-device/session', async (req: any, res: any) => {
+    try {
+      if (!req?.body) {
+        res.status(400).json({ ok: false, code: 'invalid_body', message: 'Request body is required' });
+        return;
+      }
+      const result = await ctx.service.registerLinkDeviceSession({ ...(req.body || {}) });
+      if (!result.ok) {
+        res.status(result.code === 'internal' ? 500 : 400).json(result);
+        return;
+      }
+      res.status(200).json(result);
+    } catch (e: any) {
+      res.status(500).json({ ok: false, code: 'internal', message: e?.message || 'Internal error' });
+    }
+  });
+
   router.post('/link-device/session/claim', async (req: any, res: any) => {
     try {
       if (!req?.body) {

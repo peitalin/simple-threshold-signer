@@ -17,7 +17,7 @@ import { needsExplicitActivation } from '@/utils';
  *
  * Wallet‑iframe registration/link safety rule:
  * - When running inside the wallet-iframe host context, always clamp registration/link flows to
- *   `{ uiMode: 'modal', behavior: 'requireClickick' }` so the user activation happens inside the iframe.
+ *   `{ uiMode: 'modal', behavior: 'requireClick' }` so the user activation happens inside the iframe.
  *   This intentionally overrides both user preferences and request-level overrides.
  *
  * Notes
@@ -55,15 +55,15 @@ export function determineConfirmationConfig(
 
   // On Safari/iOS or mobile devices without a fresh user activation,
   // clamp to a clickable UI to reliably satisfy WebAuthn requirements.
-  // - If caller/user set uiMode: 'none', promote to 'modal' + requireClickick
-  // - If behavior is 'skipClick', upgrade to 'requireClickick'
+  // - If caller/user set uiMode: 'none', promote to 'modal' + requireClick
+  // - If behavior is 'skipClick', upgrade to 'requireClick'
   // Use shared heuristic to decide if explicit activation is necessary
   if (needsExplicitActivation()) {
     const newUiMode: ConfirmationConfig['uiMode'] = (cfg.uiMode === 'none') ? 'drawer' : cfg.uiMode;
     cfg = {
       ...cfg,
       uiMode: newUiMode,
-      behavior: 'requireClickick',
+      behavior: 'requireClick',
     } as ConfirmationConfig;
   }
 
@@ -78,7 +78,7 @@ export function determineConfirmationConfig(
     // so the click lands inside the wallet iframe and satisfies WebAuthn activation.
     return {
       uiMode: 'modal',
-      behavior: 'requireClickick',
+      behavior: 'requireClick',
       autoProceedDelay: cfg.autoProceedDelay,
     } as ConfirmationConfig;
   }

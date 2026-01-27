@@ -23,7 +23,7 @@ The wallet iframe mounts as a hidden 0×0 element in the parent document. When a
 The `OnEventsProgressBus` class receives typed progress payloads and applies a phase heuristic to decide when to show/hide the overlay. It also aggregates overlay visibility across concurrent requests so one flow cannot prematurely hide the overlay needed by another.
 
 - Show phases (need transient activation):
-  - `ActionPhase.STEP_2_USER_CONFIRMATION` (non‑negotiable for requireClickick)
+  - `ActionPhase.STEP_2_USER_CONFIRMATION` (non‑negotiable for requireClick)
   - `ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION`
   - Device linking and login/recovery phases that gather WebAuthn credentials
     (see the source for the up‑to‑date list)
@@ -50,7 +50,7 @@ Router integration: when a request completes or times out, the router will only 
 Key points:
 
 - Step 2 (“Requesting user confirmation…”) is emitted as early as possible to get the overlay up before any slow RPC/IO, so activation is not lost to latency.
-  - IMPORTANT: Step 2 must expand the overlay. If removed, the modal rendered inside the wallet iframe won’t be visible when `behavior: 'requireClickick'`, and user confirmation will never happen.
+  - IMPORTANT: Step 2 must expand the overlay. If removed, the modal rendered inside the wallet iframe won’t be visible when `behavior: 'requireClick'`, and user confirmation will never happen.
   - Source: `sdk/src/core/TatchiPasskey/actions.ts` (emits `STEP_2_USER_CONFIRMATION` before signing)
 
 
@@ -129,8 +129,8 @@ Even when you call `tatchi.executeAction(...)` directly from your app (not from 
 1) Overlay activation at the right phases
    - On `STEP_2_USER_CONFIRMATION` and `STEP_3_WEBAUTHN_AUTHENTICATION`, the `ProgressBus` instructs the router to expand the wallet iframe overlay, so the credential call happens in the wallet document.
 
-2) Default confirmation config: “modal + requireClickick”
-   - `DEFAULT_CONFIRMATION_CONFIG` is `uiMode: 'modal', behavior: 'requireClickick', autoProceedDelay: 0`.
+2) Default confirmation config: “modal + requireClick”
+   - `DEFAULT_CONFIRMATION_CONFIG` is `uiMode: 'modal', behavior: 'requireClick', autoProceedDelay: 0`.
    - Source: `passkey-sdk/src/core/types/signer-worker.ts`
    - In `handleSecureConfirmRequest.ts`, the `modal + skipClick` branch mounts the modal with `loading: true`, waits `autoProceedDelay`, and proceeds without requiring a user click.
      - Source: `sdk/src/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/handleSecureConfirmRequest.ts`
@@ -153,18 +153,18 @@ Before merging changes to the progress bus or overlay logic, verify:
 
 - Show list includes `user-confirmation` and `webauthn-authentication`.
 - Hide list includes `authentication-complete`, `transaction-signing-progress`, `transaction-signing-complete`, `broadcasting`, `action-complete`, and error/complete phases for login/registration/linking/recovery.
-- In iframe mode, a manual test with `setConfirmBehavior('requireClickick')` shows the modal and allows clicking Confirm.
+- In iframe mode, a manual test with `setConfirmBehavior('requireClick')` shows the modal and allows clicking Confirm.
 - In skipClick mode, modal appears briefly with loading then proceeds without extra clicks.
 
 
 ## When an extra click is required (and for registrations)
 
 - If you run `executeAction` without a recent user gesture (e.g., on page load, or after a long async chain with no new click), browsers may reject WebAuthn with `NotAllowedError` due to missing activation. In such cases:
-  - Switch to `requireClickick` behavior: `tatchi.setConfirmationConfig({ uiMode: 'modal', behavior: 'requireClickick' })`.
+  - Switch to `requireClick` behavior: `tatchi.setConfirmationConfig({ uiMode: 'modal', behavior: 'requireClick' })`.
   - Or use a UI element inside the wallet iframe (e.g., `SecureSignTxButton`) so the click lands in the wallet context.
 
 - For registration/link‑device in the wallet‑iframe host context, we enforce explicit click (no auto‑proceed) to guarantee a clean activation for `create()`:
-  - See: `sdk/src/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/determineConfirmationConfig.ts` (forces `{ uiMode: 'modal', behavior: 'requireClickick' }` in that runtime).
+  - See: `sdk/src/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/determineConfirmationConfig.ts` (forces `{ uiMode: 'modal', behavior: 'requireClick' }` in that runtime).
 
 
 ## Developer tips

@@ -74,7 +74,7 @@ export async function registerPasskeyInternal(
 
     const confirmationConfig: Partial<ConfirmationConfig> = {
       uiMode: 'modal',
-      behavior: 'requireClickick', // cross‑origin safari requirement: must requireClickick
+      behavior: 'requireClick', // cross‑origin safari requirement: must requireClick
       ...(confirmationConfigOverride ?? options?.confirmationConfig ?? {}),
     };
 
@@ -531,7 +531,7 @@ async function enableNearEscapeHatchBackupKeyBestEffort(args: {
       confirmationConfigOverride: {
         ...(args.confirmationConfigOverride ?? {}),
         uiMode: 'modal',
-        behavior: 'requireClickick',
+        behavior: 'requireClick',
       },
       title: 'Enable backup key (escape hatch)',
       body: 'Adds a backup key to your NEAR account so you can leave MPC later.',

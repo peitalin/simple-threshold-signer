@@ -1313,6 +1313,72 @@ export class AuthService {
     }
   }
 
+  async registerLinkDeviceSession(request: {
+    session_id?: unknown;
+    sessionId?: unknown;
+    device2_public_key?: unknown;
+    device2PublicKey?: unknown;
+    expires_at_ms?: unknown;
+    expiresAtMs?: unknown;
+  }): Promise<
+    | { ok: true; session: DeviceLinkingSessionRecord }
+    | { ok: false; code: string; message: string }
+  > {
+    try {
+      const sessionId = String(request?.session_id ?? request?.sessionId ?? '').trim();
+      if (!sessionId || !/^[A-Za-z0-9][A-Za-z0-9_-]{7,127}$/.test(sessionId)) {
+        return { ok: false, code: 'invalid_body', message: 'Invalid sessionId' };
+      }
+
+      const device2PublicKey = String(request?.device2_public_key ?? request?.device2PublicKey ?? '').trim();
+      if (!device2PublicKey || !device2PublicKey.startsWith('ed25519:')) {
+        return { ok: false, code: 'invalid_body', message: 'Invalid device2PublicKey (expected ed25519:...)' };
+      }
+
+      const now = Date.now();
+      const requestedExpiresRaw = request?.expires_at_ms ?? request?.expiresAtMs;
+      const requestedExpires = typeof requestedExpiresRaw === 'number'
+        ? requestedExpiresRaw
+        : Number(requestedExpiresRaw);
+      const ttlMs = 15 * 60_000;
+      const maxTtlMs = 60 * 60_000;
+      const baseExpires = now + ttlMs;
+      const expiresAtMs = Number.isFinite(requestedExpires) && requestedExpires > now
+        ? Math.min(Math.floor(requestedExpires), now + maxTtlMs)
+        : baseExpires;
+
+      const store = this.getDeviceLinkingSessionStore();
+      const existing = await store.get(sessionId);
+      if (existing?.device2PublicKey && existing.device2PublicKey !== device2PublicKey) {
+        return { ok: false, code: 'conflict', message: 'Session public key mismatch' };
+      }
+
+      const session: DeviceLinkingSessionRecord = {
+        version: 'device_linking_session_v1',
+        sessionId,
+        device2PublicKey,
+        createdAtMs: existing?.createdAtMs ?? now,
+        expiresAtMs: Math.max(existing?.expiresAtMs ?? 0, expiresAtMs),
+        ...(existing?.claimedAtMs ? { claimedAtMs: existing.claimedAtMs } : {}),
+        ...(existing?.accountId ? { accountId: existing.accountId } : {}),
+        ...(existing?.deviceNumber ? { deviceNumber: existing.deviceNumber } : {}),
+        ...(existing?.addKeyTxHash ? { addKeyTxHash: existing.addKeyTxHash } : {}),
+      };
+
+      await store.put(session);
+      this.logger.info('[link-device] session registered', {
+        sessionId,
+        device2PublicKey,
+        expiresAtMs: session.expiresAtMs,
+        hasExisting: !!existing,
+        storeKind: String((this.config.thresholdEd25519KeyStore as any)?.kind || ''),
+      });
+      return { ok: true, session };
+    } catch (e: unknown) {
+      return { ok: false, code: 'internal', message: errorMessage(e) || 'Failed to register link-device session' };
+    }
+  }
+
   async claimLinkDeviceSession(request: {
     session_id?: unknown;
     sessionId?: unknown;
@@ -1398,6 +1464,14 @@ export class AuthService {
       };
 
       await store.put(session);
+      this.logger.info('[link-device] session claimed', {
+        sessionId,
+        accountId,
+        device2PublicKey,
+        deviceNumber,
+        addKeyTxHash: addKeyTxHash || '',
+        storeKind: String((this.config.thresholdEd25519KeyStore as any)?.kind || ''),
+      });
       return { ok: true, session };
     } catch (e: unknown) {
       return { ok: false, code: 'internal', message: errorMessage(e) || 'Failed to claim link-device session' };

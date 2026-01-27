@@ -14,6 +14,7 @@ export class UserPreferencesManager {
 
   private confirmationConfigChangeListeners: Set<(config: ConfirmationConfig) => void> = new Set();
   private signerModeChangeListeners: Set<(mode: SignerMode) => void> = new Set();
+  private currentUserChangeListeners: Set<(nearAccountId: AccountId | null) => void> = new Set();
 
   private currentUserAccountId: AccountId | undefined;
   private confirmationConfig: ConfirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
@@ -72,6 +73,18 @@ export class UserPreferencesManager {
     };
   }
 
+  /**
+   * Register a callback for current-user changes (wallet-host authority).
+   * This is used to notify the parent app in wallet-iframe mode when a flow
+   * changes the active account (e.g., device linking auto-login).
+   */
+  onCurrentUserChange(callback: (nearAccountId: AccountId | null) => void): () => void {
+    this.currentUserChangeListeners.add(callback);
+    return () => {
+      this.currentUserChangeListeners.delete(callback);
+    };
+  }
+
   private notifyConfirmationConfigChange(config: ConfirmationConfig): void {
     if (this.confirmationConfigChangeListeners.size === 0) return;
     for (const listener of this.confirmationConfigChangeListeners) {
@@ -83,6 +96,13 @@ export class UserPreferencesManager {
     if (this.signerModeChangeListeners.size === 0) return;
     for (const listener of this.signerModeChangeListeners) {
       listener(mode);
+    }
+  }
+
+  private notifyCurrentUserChange(nearAccountId: AccountId | null): void {
+    if (this.currentUserChangeListeners.size === 0) return;
+    for (const listener of this.currentUserChangeListeners) {
+      try { listener(nearAccountId); } catch {}
     }
   }
 
@@ -213,7 +233,11 @@ export class UserPreferencesManager {
     const next = this.mergeConfirmationConfig(DEFAULT_CONFIRMATION_CONFIG, sanitized);
 
     if (nearAccountId) {
+      const prev = this.currentUserAccountId;
       this.currentUserAccountId = nearAccountId;
+      if (!prev || String(prev) !== String(nearAccountId)) {
+        this.notifyCurrentUserChange(nearAccountId);
+      }
     }
 
     this.confirmationConfig = next;
@@ -230,7 +254,11 @@ export class UserPreferencesManager {
   }): void {
     const { nearAccountId, signerMode } = args || ({} as any);
     if (nearAccountId) {
+      const prev = this.currentUserAccountId;
       this.currentUserAccountId = nearAccountId;
+      if (!prev || String(prev) !== String(nearAccountId)) {
+        this.notifyCurrentUserChange(nearAccountId);
+      }
     }
     const base = this.signerModeOverride ?? DEFAULT_SIGNING_MODE;
     const next = coerceSignerMode(signerMode, base);
@@ -238,7 +266,11 @@ export class UserPreferencesManager {
   }
 
   setCurrentUser(nearAccountId: AccountId): void {
+    const prev = this.currentUserAccountId;
     this.currentUserAccountId = nearAccountId;
+    if (!prev || String(prev) !== String(nearAccountId)) {
+      this.notifyCurrentUserChange(nearAccountId);
+    }
     // Load settings for the new user (best-effort). In wallet-iframe mode on the app origin,
     // IndexedDB is intentionally disabled to avoid creating any tables.
     if (!IndexedDBManager.clientDB.isDisabled()) {
@@ -276,7 +308,7 @@ export class UserPreferencesManager {
   /**
    * Set confirmation behavior
    */
-  setConfirmBehavior(behavior: 'requireClickick' | 'skipClick'): void {
+  setConfirmBehavior(behavior: 'requireClick' | 'skipClick'): void {
     this.confirmationConfig = this.mergeConfirmationConfig(this.confirmationConfig, { behavior });
     this.notifyConfirmationConfigChange(this.confirmationConfig);
     this.saveUserSettings();

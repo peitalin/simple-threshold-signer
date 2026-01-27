@@ -146,7 +146,7 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
 
   const handleToggleSkipClick = () => {
     if (!currentConfirmConfig) return;
-    const newBehavior = currentConfirmConfig.behavior === 'requireClickick' ? 'skipClick' : 'requireClickick';
+    const newBehavior = currentConfirmConfig.behavior === 'requireClick' ? 'skipClick' : 'requireClick';
     tatchi.setConfirmBehavior(newBehavior);
   };
 

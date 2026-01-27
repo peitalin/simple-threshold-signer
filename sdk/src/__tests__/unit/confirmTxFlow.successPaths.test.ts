@@ -98,7 +98,7 @@ test.describe('confirmTxFlow – success paths', () => {
     // - `uiMode: 'none'` (skip intermediate confirmer UI entirely)
     // - `behavior: 'skipClick'` (no click gating; go straight to TouchID prompt)
     //
-    // If we ever regress to `uiMode: 'drawer'` + `behavior: 'requireClickick'`, the user is forced
+    // If we ever regress to `uiMode: 'drawer'` + `behavior: 'requireClick'`, the user is forced
     // to click a redundant drawer before the TouchID prompt appears (the bug that prompted this test).
     const result = await page.evaluate(async ({ paths }) => {
       const types = await import(paths.types);
@@ -172,7 +172,7 @@ test.describe('confirmTxFlow – success paths', () => {
         // Simulate a config that would normally mount UI, and assert host-mode overrides it.
         const confirmationConfig: any = {
           uiMode: 'drawer',
-          behavior: 'requireClickick',
+          behavior: 'requireClick',
           autoProceedDelay: 0,
         };
 

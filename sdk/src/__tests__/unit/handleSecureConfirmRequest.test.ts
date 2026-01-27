@@ -25,7 +25,7 @@ test.describe('handlePromptUserConfirmInJsMainThread - Orchestrator Unit Tests',
           userPreferencesManager: {
             getConfirmationConfig: () => ({
               uiMode: 'modal',
-              behavior: 'requireClickick',
+              behavior: 'requireClick',
               autoProceedDelay: 0})
           }
         };
@@ -76,7 +76,7 @@ test.describe('handlePromptUserConfirmInJsMainThread - Orchestrator Unit Tests',
           userPreferencesManager: {
             getConfirmationConfig: () => ({
               uiMode: 'modal',
-              behavior: 'requireClickick',
+              behavior: 'requireClick',
               autoProceedDelay: 0})
           }
         };
@@ -126,7 +126,7 @@ test.describe('handlePromptUserConfirmInJsMainThread - Orchestrator Unit Tests',
           userPreferencesManager: {
             getConfirmationConfig: () => ({
               uiMode: 'modal',
-              behavior: 'requireClickick',
+              behavior: 'requireClick',
               autoProceedDelay: 0})
           }
         };

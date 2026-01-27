@@ -22,7 +22,7 @@ test.describe('determineConfirmationConfig', () => {
         userPreferencesManager: {
           getConfirmationConfig: () => ({
             uiMode: 'modal',
-            behavior: 'requireClickick',
+            behavior: 'requireClick',
             autoProceedDelay: 42,
           })
         }
@@ -58,7 +58,7 @@ test.describe('determineConfirmationConfig', () => {
         userPreferencesManager: {
           getConfirmationConfig: () => ({
             uiMode: 'modal',
-            behavior: 'requireClickick',
+            behavior: 'requireClick',
             autoProceedDelay: 0,
           })
         }
@@ -70,7 +70,7 @@ test.describe('determineConfirmationConfig', () => {
     }, { paths: IMPORT_PATHS });
 
     expect(res.cfg.uiMode).toBe('none');
-    expect(res.cfg.behavior).toBe('requireClickick');
+    expect(res.cfg.behavior).toBe('requireClick');
   });
 
   test('SHOW_SECURE_PRIVATE_KEY_UI uses modal/drawer UI', async ({ page }) => {
@@ -83,7 +83,7 @@ test.describe('determineConfirmationConfig', () => {
         userPreferencesManager: {
           getConfirmationConfig: () => ({
             uiMode: 'modal',
-            behavior: 'requireClickick',
+            behavior: 'requireClick',
             autoProceedDelay: 0,
           })
         }
@@ -99,7 +99,7 @@ test.describe('determineConfirmationConfig', () => {
     expect(res.cfg.uiMode === 'modal' || res.cfg.uiMode === 'drawer').toBe(true);
   });
 
-  test('in iframe + registration/link clamps to modal+requireClickick when no override provided', async ({ page }) => {
+  test('in iframe + registration/link clamps to modal+requireClick when no override provided', async ({ page }) => {
     // Create a same-origin iframe and run the function inside that context
     const result = await (async () => {
       const frameHandle = await page.evaluateHandle(() => {
@@ -157,8 +157,8 @@ test.describe('determineConfirmationConfig', () => {
       }, { paths: IMPORT_PATHS });
     })();
 
-    // Should clamp to safe modal/requireClickick.
-    expect(result.cfg1).toEqual({ uiMode: 'modal', behavior: 'requireClickick', autoProceedDelay: 5 });
-    expect(result.cfg2).toEqual({ uiMode: 'modal', behavior: 'requireClickick', autoProceedDelay: 5 });
+    // Should clamp to safe modal/requireClick.
+    expect(result.cfg1).toEqual({ uiMode: 'modal', behavior: 'requireClick', autoProceedDelay: 5 });
+    expect(result.cfg2).toEqual({ uiMode: 'modal', behavior: 'requireClick', autoProceedDelay: 5 });
   });
 });

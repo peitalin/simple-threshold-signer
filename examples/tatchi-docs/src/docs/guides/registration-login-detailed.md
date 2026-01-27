@@ -56,7 +56,7 @@ export function RegisterButton({ accountId }: { accountId: string }) {
       },
       confirmationConfig: {
         uiMode: 'modal',          // 'modal' | 'drawer'
-        behavior: 'requireClickick', // 'requireClickick' | 'skipClick'
+        behavior: 'requireClick', // 'requireClick' | 'skipClick'
       },
     })
   }

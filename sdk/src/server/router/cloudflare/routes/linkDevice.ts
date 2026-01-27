@@ -9,6 +9,16 @@ export async function handleLinkDevice(ctx: CloudflareRelayContext): Promise<Res
     return json(result, { status });
   }
 
+  if (ctx.method === 'POST' && ctx.pathname === '/link-device/session') {
+    const body = await readJson(ctx.request);
+    if (!isObject(body)) {
+      return json({ ok: false, code: 'invalid_body', message: 'Expected JSON object body' }, { status: 400 });
+    }
+    const result = await ctx.service.registerLinkDeviceSession(body as any);
+    const status = result.ok ? 200 : (result.code === 'internal' ? 500 : 400);
+    return json(result, { status });
+  }
+
   if (ctx.method === 'POST' && ctx.pathname === '/link-device/session/claim') {
     const body = await readJson(ctx.request);
     if (!isObject(body)) {

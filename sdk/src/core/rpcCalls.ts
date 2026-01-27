@@ -514,7 +514,6 @@ export async function executeDeviceLinkingContractCalls({
   confirmerText?: { title?: string; body?: string };
 }): Promise<{
   addKeyTxResult: FinalExecutionOutcome;
-  signedDeleteKeyTransaction: SignedTransaction
 }> {
 
   const signTransactions = () => context.webAuthnManager.signTransactionsWithActions({
@@ -547,14 +546,6 @@ export async function executeDeviceLinkingContractCalls({
           }),
         }],
       },
-      // Transaction 2: Pre-sign DeleteKey so callers can revert without a 2nd prompt.
-      {
-        receiverId: device1AccountId,
-        actions: [{
-          action_type: ActionType.DeleteKey,
-          public_key: device2PublicKey
-        }],
-      }
     ],
     onEvent: (progress) => {
       // Bridge all action progress events to the parent so the wallet iframe overlay
@@ -578,9 +569,6 @@ export async function executeDeviceLinkingContractCalls({
   if (!signedTransactions[0]?.signedTransaction) {
     throw new Error('AddKey transaction signing failed');
   }
-  if (!signedTransactions[1]?.signedTransaction) {
-    throw new Error('DeleteKey transaction signing failed');
-  }
 
   let addKeyTxResult: FinalExecutionOutcome;
   try {
@@ -601,6 +589,5 @@ export async function executeDeviceLinkingContractCalls({
 
   return {
     addKeyTxResult,
-    signedDeleteKeyTransaction: signedTransactions[1].signedTransaction
   };
 }

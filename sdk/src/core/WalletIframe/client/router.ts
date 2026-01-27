@@ -854,7 +854,7 @@ export class WalletIframeRouter {
     return res.result;
   }
 
-  async setConfirmBehavior(behavior: 'requireClickick' | 'skipClick'): Promise<void> {
+  async setConfirmBehavior(behavior: 'requireClick' | 'skipClick'): Promise<void> {
     let { nearAccountId } = (await this.getLoginSession()).login;
     await this.post<void>({
       type: 'PM_SET_CONFIRM_BEHAVIOR',
@@ -1053,7 +1053,9 @@ export class WalletIframeRouter {
           }
           : {}),
       },
-      options: { onProgress: this.wrapOnEvent(payload?.options?.onEvent, isDeviceLinkingSSEEvent) },
+      // Keep the progress subscription alive after the initial QR is returned so Device2 can
+      // continue polling and later trigger an in-iframe confirmation + TouchID prompt.
+      options: { sticky: true, onProgress: this.wrapOnEvent(payload?.options?.onEvent, isDeviceLinkingSSEEvent) },
     });
     return res.result as StartDevice2LinkingFlowResults;
   }
@@ -1411,6 +1413,7 @@ export class WalletIframeRouter {
       case 'PM_EXECUTE_ACTION':
       case 'PM_SEND_TRANSACTION':
       case 'PM_SIGN_TXS_WITH_ACTIONS':
+      case 'PM_LINK_DEVICE_WITH_SCANNED_QR_DATA':
       case 'PM_START_DEVICE2_LINKING_FLOW':
         return { mode: 'fullscreen' };
 

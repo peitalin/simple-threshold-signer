@@ -215,7 +215,7 @@ export interface PMSignNep413Payload {
 export interface PMExportNearKeypairPayload { nearAccountId: string }
 export interface PMExportNearKeypairUiPayload { nearAccountId: string; variant?: 'modal' | 'drawer'; theme?: 'dark' | 'light' }
 
-export interface PMSetConfirmBehaviorPayload { behavior: 'requireClickick' | 'skipClick'; nearAccountId?: string }
+export interface PMSetConfirmBehaviorPayload { behavior: 'requireClick' | 'skipClick'; nearAccountId?: string }
 
 export interface PMSetConfirmationConfigPayload { config: Partial<ConfirmationConfig>; nearAccountId?: string }
 

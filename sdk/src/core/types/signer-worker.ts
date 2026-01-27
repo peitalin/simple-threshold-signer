@@ -347,7 +347,7 @@ export interface WorkerRequestTypeMap {
  * Validation rules for ConfirmationConfig to ensure behavior conforms to UI mode:
  *
  * - uiMode: 'none' → behavior is ignored, autoProceedDelay is ignored
- * - uiMode: 'modal' | 'drawer' → behavior: 'requireClickick' | 'skipClick', autoProceedDelay only used with 'skipClick'
+ * - uiMode: 'modal' | 'drawer' → behavior: 'requireClick' | 'skipClick', autoProceedDelay only used with 'skipClick'
  *
  * The WASM worker automatically validates and overrides these settings:
  * - For 'none' mode: behavior is set to 'skipClick' with autoProceedDelay: 0
@@ -360,11 +360,11 @@ export interface WorkerRequestTypeMap {
  * }
  */
 export type ConfirmationUIMode = 'none' | 'modal' | 'drawer';
-export type ConfirmationBehavior = 'requireClickick' | 'skipClick';
+export type ConfirmationBehavior = 'requireClick' | 'skipClick';
 export interface ConfirmationConfig {
   /** Type of UI to display for confirmation: 'none' | 'modal' | 'drawer' */
   uiMode: ConfirmationUIMode;
-  /** How the confirmation UI behaves: 'requireClickick' | 'skipClick' */
+  /** How the confirmation UI behaves: 'requireClick' | 'skipClick' */
   behavior: ConfirmationBehavior;
   /** Delay in milliseconds before auto-proceeding (only used with skipClick) */
   autoProceedDelay?: number;
@@ -372,7 +372,7 @@ export interface ConfirmationConfig {
 
 export const DEFAULT_CONFIRMATION_CONFIG: ConfirmationConfig = {
   uiMode: 'modal',
-  behavior: 'requireClickick',
+  behavior: 'requireClick',
   autoProceedDelay: 0,
 };
 
@@ -393,7 +393,7 @@ export const mapUIModeToWasm = (uiMode: ConfirmationUIMode): number => {
 
 export const mapBehaviorToWasm = (behavior: ConfirmationBehavior): number => {
   switch (behavior) {
-    case 'requireClickick': return wasmModule.ConfirmationBehavior.RequireClick;
+    case 'requireClick': return wasmModule.ConfirmationBehavior.RequireClick;
     case 'skipClick': return wasmModule.ConfirmationBehavior.AutoProceed;
     default: return wasmModule.ConfirmationBehavior.RequireClick;
   }

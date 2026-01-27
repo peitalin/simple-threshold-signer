@@ -143,9 +143,11 @@ function ensureTatchiPasskey(): void {
     };
     const unsubCfg = up.onConfirmationConfigChange?.(() => emitPreferencesChanged()) || null;
     const unsubSignerMode = up.onSignerModeChange?.(() => emitPreferencesChanged()) || null;
+    const unsubCurrentUser = up.onCurrentUserChange?.(() => emitPreferencesChanged()) || null;
     prefsUnsubscribe = () => {
       try { unsubCfg?.(); } catch {}
       try { unsubSignerMode?.(); } catch {}
+      try { unsubCurrentUser?.(); } catch {}
     };
     // Emit a best-effort snapshot as soon as the host is ready.
     Promise.resolve().then(() => emitPreferencesChanged()).catch(() => {});

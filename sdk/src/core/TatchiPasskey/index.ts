@@ -644,7 +644,7 @@ export class TatchiPasskey {
   /**
    * Set confirmation behavior setting for the current user
    */
-  setConfirmBehavior(behavior: 'requireClickick' | 'skipClick'): void {
+  setConfirmBehavior(behavior: 'requireClick' | 'skipClick'): void {
     if (this.shouldUseWalletIframe()) {
       // Fire and forget; persistence handled in wallet host. Avoid unhandled rejections.
       void (async () => {

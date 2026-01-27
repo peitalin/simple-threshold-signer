@@ -104,25 +104,72 @@ export class LinkDeviceFlow {
 
   private async fetchClaimedSessionFromRelay(sessionId: string): Promise<{ accountId: string; deviceNumber?: number } | null> {
     const relayerUrl = String(this.context?.configs?.relayer?.url || '').trim().replace(/\/$/, '');
-    if (!relayerUrl) return null;
+    if (!relayerUrl) {
+      console.debug('[LinkDeviceFlow] relay polling skipped (missing relayer url)', { sessionId });
+      return null;
+    }
     const url = `${relayerUrl}/link-device/session/${encodeURIComponent(sessionId)}`;
     const resp = await fetch(url, { method: 'GET' });
-    if (!resp.ok) return null;
+    if (!resp.ok) {
+      console.debug('[LinkDeviceFlow] relay poll response not ok', { sessionId, url, status: resp.status });
+      return null;
+    }
     const json: any = await resp.json().catch(() => ({}));
-    if (json?.ok !== true) return null;
+    if (json?.ok !== true) {
+      console.debug('[LinkDeviceFlow] relay poll response not ok=true', { sessionId, url, json });
+      return null;
+    }
     const claimedAccountId = String(json?.session?.accountId || '').trim();
     const claimedPublicKey = String(json?.session?.device2PublicKey || '').trim();
     if (claimedPublicKey && this.session?.nearPublicKey && claimedPublicKey !== this.session.nearPublicKey) {
+      console.debug('[LinkDeviceFlow] relay poll publicKey mismatch', {
+        sessionId,
+        url,
+        claimedPublicKey,
+        expectedPublicKey: this.session.nearPublicKey,
+      });
       return null;
     }
     const deviceNumberRaw = json?.session?.deviceNumber;
     const deviceNumber = Number.isFinite(deviceNumberRaw) ? Math.floor(deviceNumberRaw) : undefined;
+    console.debug('[LinkDeviceFlow] relay poll ok', {
+      sessionId,
+      url,
+      claimed: !!claimedAccountId,
+      ...(claimedAccountId ? { accountId: claimedAccountId } : {}),
+      ...(deviceNumber ? { deviceNumber } : {}),
+    });
     return claimedAccountId ? { accountId: claimedAccountId, ...(deviceNumber ? { deviceNumber } : {}) } : null;
+  }
+
+  private async registerSessionOnRelay(sessionId: string, device2PublicKey: string, expiresAtMs: number): Promise<void> {
+    const relayerUrl = String(this.context?.configs?.relayer?.url || '').trim().replace(/\/$/, '');
+    if (!relayerUrl) return;
+    try {
+      const resp = await fetch(`${relayerUrl}/link-device/session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          device2_public_key: device2PublicKey,
+          expires_at_ms: expiresAtMs,
+        }),
+      });
+      const json: any = await resp.json().catch(() => ({}));
+      if (!resp.ok || json?.ok !== true) {
+        console.warn('[link-device] session register failed:', json?.message || `HTTP ${resp.status}`);
+      } else {
+        console.debug('[LinkDeviceFlow] session registered on relay', { sessionId, device2PublicKey, expiresAtMs });
+      }
+    } catch (err) {
+      console.warn('[link-device] session register error:', err);
+    }
   }
 
   private async waitForClaimAndComplete(): Promise<void> {
     const pollMs = DEVICE_LINKING_CONFIG.TIMEOUTS.POLLING_INTERVAL_MS;
     let announced = false;
+    let attempt = 0;
 
     while (!this.cancelled) {
       const session = this.session;
@@ -142,23 +189,40 @@ export class LinkDeviceFlow {
       }
 
       // Poll relay for a claimed session (Device1 posts accountId after AddKey).
+      attempt++;
+      if (attempt <= 3 || attempt % 10 === 0) {
+        console.debug('[LinkDeviceFlow] polling relay for claim', {
+          sessionId: session.sessionId,
+          attempt,
+          pollMs,
+        });
+      }
+      let claimed: { accountId: string; deviceNumber?: number } | null = null;
       try {
-        const claimed = await this.fetchClaimedSessionFromRelay(session.sessionId);
-        if (claimed?.accountId) {
-          const accountId = toAccountId(claimed.accountId);
-          const deviceNumber = Number.isFinite(claimed.deviceNumber) ? claimed.deviceNumber : session.deviceNumber;
-          this.session = { ...session, accountId, ...(deviceNumber ? { deviceNumber } : {}), phase: DeviceLinkingPhase.STEP_5_ADDKEY_DETECTED };
-          this.safeOnEvent({
-            step: 5,
-            phase: DeviceLinkingPhase.STEP_5_ADDKEY_DETECTED,
-            status: DeviceLinkingStatus.PROGRESS,
-            message: `Linked to ${String(accountId)}; finishing setup…`,
-          });
-          await this.completeLinking();
-          return;
-        }
-      } catch {
-        // ignore and keep polling
+        claimed = await this.fetchClaimedSessionFromRelay(session.sessionId);
+      } catch (e) {
+        console.debug('[LinkDeviceFlow] relay poll threw', { sessionId: session.sessionId, error: String((e as any)?.message || e) });
+        claimed = null;
+      }
+      if (claimed?.accountId) {
+        const accountId = toAccountId(claimed.accountId);
+        const deviceNumber = Number.isFinite(claimed.deviceNumber) ? claimed.deviceNumber : session.deviceNumber;
+        console.debug('[LinkDeviceFlow] claim detected; starting completion', {
+          sessionId: session.sessionId,
+          accountId: String(accountId),
+          ...(deviceNumber ? { deviceNumber } : {}),
+        });
+        this.session = { ...session, accountId, ...(deviceNumber ? { deviceNumber } : {}), phase: DeviceLinkingPhase.STEP_5_ADDKEY_DETECTED };
+        this.safeOnEvent({
+          step: 5,
+          phase: DeviceLinkingPhase.STEP_5_ADDKEY_DETECTED,
+          status: DeviceLinkingStatus.PROGRESS,
+          message: `Linked to ${String(accountId)}; finishing setup…`,
+        });
+        // Important: don't swallow completion errors; surface them to the caller so UI can show a failure.
+        await this.completeLinking();
+        console.debug('[LinkDeviceFlow] completion finished', { sessionId: session.sessionId, accountId: String(accountId) });
+        return;
       }
 
       await sleep(pollMs);
@@ -169,6 +233,12 @@ export class LinkDeviceFlow {
     if (this.cancelled) return;
     const session = this.session;
     if (!session?.accountId) throw new Error('LinkDeviceFlow: missing accountId for completion');
+
+    console.debug('[LinkDeviceFlow] completeLinking start', {
+      sessionId: session.sessionId,
+      accountId: String(session.accountId),
+      deviceNumber: session.deviceNumber,
+    });
 
     const nearAccountId = toAccountId(String(session.accountId));
     const relayerUrl = String(this.context?.configs?.relayer?.url || '').trim();
@@ -259,6 +329,14 @@ export class LinkDeviceFlow {
     const ephemeralPublicKey = ensureEd25519Prefix(String(session.nearPublicKey || '').trim());
     if (!ephemeralPublicKey) throw new Error('LinkDeviceFlow: missing ephemeral public key');
 
+    console.debug('[LinkDeviceFlow] completing on-chain key swap', {
+      sessionId: session.sessionId,
+      accountId: String(nearAccountId),
+      ephemeralPublicKey,
+      thresholdPublicKey,
+      ...(localPublicKey ? { localPublicKey } : {}),
+    });
+
     const actions: ActionArgsWasm[] = [
       {
         action_type: ActionType.AddKey,
@@ -278,7 +356,12 @@ export class LinkDeviceFlow {
       },
     ];
 
-    const txContext = await this.fetchNonceBlockHashForKey(nearAccountId, ephemeralPublicKey);
+    // The AddKey propagation can take a moment; retry longer than default to avoid flakiness.
+    const txContext = await this.fetchNonceBlockHashForKey(nearAccountId, ephemeralPublicKey, {
+      attempts: 24,
+      delayMs: 500,
+      finality: 'optimistic',
+    });
     const signed = await this.context.webAuthnManager.signTransactionWithKeyPair({
       nearPrivateKey: session.tempPrivateKey,
       signerAccountId: String(nearAccountId),
@@ -319,10 +402,8 @@ export class LinkDeviceFlow {
     // Store authenticator + user data locally using the threshold public key as the active signing key.
     await this.storeDeviceAuthenticator({ nearPublicKey: thresholdPublicKey, credential });
 
-    // Best-effort: set active user state for immediate use.
-    try { await this.context.webAuthnManager.setLastUser(nearAccountId, resolvedDeviceNumber); } catch {}
-    try { await this.context.webAuthnManager.initializeCurrentUser(nearAccountId, this.context.nearClient); } catch {}
-    try { await getLoginSession(this.context, nearAccountId); } catch {}
+    // Auto-login: set last-user + warm login state so the device is immediately usable.
+    await this.attemptAutoLogin({ accountId: nearAccountId, deviceNumber: resolvedDeviceNumber });
 
     if (this.session?.tempPrivateKey) {
       this.session.tempPrivateKey = '';
@@ -336,6 +417,55 @@ export class LinkDeviceFlow {
       status: DeviceLinkingStatus.SUCCESS,
       message: 'Device linking completed',
     });
+  }
+
+  /**
+   * Device2: Attempt auto-login after successful device linking.
+   *
+   * Note: In the lite-signer refactor we no longer do VRF WebAuthn verification/unlocks here.
+   * Auto-login is simply: set last-user pointer + initialize current user state for signing.
+   */
+  private async attemptAutoLogin(input: { accountId: string; deviceNumber: number }): Promise<void> {
+    try {
+      if (this.cancelled) return;
+      const nearAccountId = toAccountId(String(input.accountId));
+      const deviceNumber = coerceDeviceNumber(input.deviceNumber);
+
+      console.debug('[LinkDeviceFlow] auto-login start', { accountId: String(nearAccountId), deviceNumber });
+      this.safeOnEvent({
+        step: 8,
+        phase: DeviceLinkingPhase.STEP_8_AUTO_LOGIN,
+        status: DeviceLinkingStatus.PROGRESS,
+        message: 'Logging in…',
+      });
+
+      await this.context.webAuthnManager.setLastUser(nearAccountId, deviceNumber).catch(() => undefined);
+      await this.context.webAuthnManager.updateLastLogin(nearAccountId).catch(() => undefined);
+      await this.context.webAuthnManager.initializeCurrentUser(nearAccountId, this.context.nearClient);
+      const { login } = await getLoginSession(this.context, nearAccountId);
+      if (!login?.isLoggedIn) {
+        throw new Error(`Auto-login did not mark ${String(nearAccountId)} as logged in`);
+      }
+
+      this.safeOnEvent({
+        step: 8,
+        phase: DeviceLinkingPhase.STEP_8_AUTO_LOGIN,
+        status: DeviceLinkingStatus.SUCCESS,
+        message: `Welcome ${String(nearAccountId)}`,
+      });
+      console.debug('[LinkDeviceFlow] auto-login complete', { accountId: String(nearAccountId), deviceNumber });
+    } catch (e: unknown) {
+      const msg = errorMessage(e) || 'Auto-login failed after device linking';
+      console.warn('[LinkDeviceFlow] auto-login failed:', e);
+      // Don't fail linking if auto-login fails; user can manually login.
+      this.safeOnEvent({
+        step: 0,
+        phase: DeviceLinkingPhase.LOGIN_ERROR,
+        status: DeviceLinkingStatus.ERROR,
+        message: msg,
+        error: msg,
+      });
+    }
   }
 
   private async fetchNonceBlockHashForKey(
@@ -402,6 +532,8 @@ export class LinkDeviceFlow {
         createdAt: nowMs(),
         expiresAt: nowMs() + DEVICE_LINKING_CONFIG.TIMEOUTS.SESSION_EXPIRATION_MS,
       };
+
+      await this.registerSessionOnRelay(sessionId, tempKeypair.publicKey, this.session.expiresAt);
 
       const qrData: DeviceLinkingQRData = {
         sessionId,

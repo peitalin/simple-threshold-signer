@@ -10,7 +10,7 @@ const PREFERENCES_PUSH_STUB = `
   // Extend the base wallet-service stub with preference RPCs + push updates.
   (function installPreferencesPushStub() {
     const nearAccountId = 'alice.testnet';
-    let confirmationConfig = { behavior: 'requireClickick', uiMode: 'modal', autoProceedDelay: 0 };
+    let confirmationConfig = { behavior: 'requireClick', uiMode: 'modal', autoProceedDelay: 0 };
     const signerMode = { mode: 'local-signer' };
 
     const makeLoginSession = () => ({
@@ -176,7 +176,7 @@ test.describe('Wallet iframe preferences sync', () => {
     expect(result.initialTheme).toBe('dark');
     expect(result.mirrored).toBe(true);
     expect(result.finalTheme).toBe('dark');
-    expect(result.initialConfig).toEqual({ behavior: 'requireClickick', uiMode: 'modal', autoProceedDelay: 0 });
+    expect(result.initialConfig).toEqual({ behavior: 'requireClick', uiMode: 'modal', autoProceedDelay: 0 });
     expect(result.finalConfig).toEqual({ behavior: 'skipClick', uiMode: 'drawer', autoProceedDelay: 5 });
     expect(result.currentUser).toBe('alice.testnet');
 

@@ -54,7 +54,7 @@ const WALLET_STUB_RESPONSE_SCRIPT = String.raw`
       }
 
       if (data.type === 'PM_GET_CONFIRMATION_CONFIG') {
-        respond({ behavior: 'requireClickick', uiMode: 'modal' });
+        respond({ behavior: 'requireClick', uiMode: 'modal' });
       }
 
       if (data.type === 'PM_GET_SIGNER_MODE') {

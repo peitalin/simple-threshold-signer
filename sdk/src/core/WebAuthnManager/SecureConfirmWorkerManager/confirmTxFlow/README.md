@@ -66,9 +66,9 @@ For signing flows, the canonical initiator is the **SecureConfirm worker**:
 ## UI Behavior
 
 - `determineConfirmationConfig` combines user prefs and request overrides, with wallet‑iframe safety defaults
-- `renderConfirmUI` supports `uiMode: 'none' | 'modal' | 'drawer'` and `behavior: 'skipClick' | 'requireClickick'`
+- `renderConfirmUI` supports `uiMode: 'none' | 'modal' | 'drawer'` and `behavior: 'skipClick' | 'requireClick'`
 - For warm sessions (`signingAuthMode: 'warmSession'`), the confirmer UI still renders, but no WebAuthn prompt is performed.
-- Wallet iframe overlay considerations remain: requireClickick flows must be visible for clicks to register
+- Wallet iframe overlay considerations remain: requireClick flows must be visible for clicks to register
 
 ## NEAR Context
 

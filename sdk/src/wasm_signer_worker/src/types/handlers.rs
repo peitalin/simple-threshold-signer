@@ -129,7 +129,7 @@ pub enum ConfirmationUIMode {
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum ConfirmationBehavior {
-    #[serde(rename = "requireClickick")]
+    #[serde(rename = "requireClick")]
     RequireClick,
     #[serde(rename = "skipClick")]
     AutoProceed,

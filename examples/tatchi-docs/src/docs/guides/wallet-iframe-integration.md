@@ -118,7 +118,7 @@ export function RegisterButton({ accountId }: { accountId: string }) {
           // Optional: customize confirmation UI for this call only
           confirmationConfig: {
             uiMode: 'modal',          // 'modal' | 'drawer'
-            behavior: 'requireClickick', // 'requireClickick' | 'skipClick'
+            behavior: 'requireClick', // 'requireClick' | 'skipClick'
           },
           // Optional: observe progress
           onEvent: (event: RegistrationSSEEvent) => {

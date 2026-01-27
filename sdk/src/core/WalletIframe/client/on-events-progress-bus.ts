@@ -20,25 +20,36 @@
 import type { ProgressPayload as MessageProgressPayload } from '../shared/messages';
 import {
   ActionPhase,
+  DeviceLinkingPhase,
+  SyncAccountPhase,
   RegistrationPhase,
   LoginPhase,
+  EmailRecoveryPhase,
   DelegateActionPhase,
 } from '../../types/sdkSentEvents';
 
 // Phases that should temporarily SHOW the overlay (to capture activation)
 // IMPORTANT: STEP_2_USER_CONFIRMATION must remain in this list. Without it,
-// modal confirmation with behavior: 'requireClickick' will never be visible in
+// modal confirmation with behavior: 'requireClick' will never be visible in
 // iframe mode, because the wallet iframe is still 0×0 when the modal mounts.
 const SHOW_PHASES = new Set<string>([
   // Gate overlay to moments of imminent activation only.
   // Show early during user confirmation so the modal inside the wallet iframe is visible
-  // and can capture the required click when behavior === 'requireClickick'.
+  // and can capture the required click when behavior === 'requireClick'.
   ActionPhase.STEP_2_USER_CONFIRMATION,
   DelegateActionPhase.STEP_2_USER_CONFIRMATION,
   ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION,
   DelegateActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION,
   // Registration requires a WebAuthn create() ceremony at step 1
   RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,
+  // Email recovery: TouchID registration uses WebAuthn create()
+  EmailRecoveryPhase.STEP_2_TOUCH_ID_REGISTRATION,
+  // Device1: TouchID authorization (host needs overlay to capture activation)
+  DeviceLinkingPhase.STEP_3_AUTHORIZATION,
+  // Device2: Registration inside wallet host (collects passkey via ModalTxConfirmer)
+  // Show overlay so the wallet iframe is visible and focused for WebAuthn
+  DeviceLinkingPhase.STEP_6_REGISTRATION,
+  SyncAccountPhase.STEP_2_WEBAUTHN_AUTHENTICATION,
   LoginPhase.STEP_2_WEBAUTHN_ASSERTION,
 ]);
 
@@ -49,6 +60,14 @@ const HIDE_PHASES = new Set<string>([
   ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE,
   ActionPhase.STEP_7_BROADCASTING,
   ActionPhase.STEP_8_ACTION_COMPLETE,
+  // Device linking: hide while QR is shown / device2 is polling (sticky subscription).
+  DeviceLinkingPhase.STEP_1_QR_CODE_GENERATED,
+  DeviceLinkingPhase.STEP_4_POLLING,
+  // Device linking: hide when the flow has finished or errored
+  DeviceLinkingPhase.STEP_7_LINKING_COMPLETE,
+  DeviceLinkingPhase.REGISTRATION_ERROR,
+  DeviceLinkingPhase.LOGIN_ERROR,
+  DeviceLinkingPhase.DEVICE_LINKING_ERROR,
   // Registration: hide once contract work starts or flow completes/errors
   RegistrationPhase.STEP_5_CONTRACT_REGISTRATION,
   RegistrationPhase.STEP_9_REGISTRATION_COMPLETE,
@@ -57,6 +76,14 @@ const HIDE_PHASES = new Set<string>([
   LoginPhase.STEP_3_SESSION_READY,
   LoginPhase.STEP_4_LOGIN_COMPLETE,
   LoginPhase.LOGIN_ERROR,
+  // Account sync: hide after authentication completes or on completion/errors
+  SyncAccountPhase.STEP_4_AUTHENTICATOR_SAVED,
+  SyncAccountPhase.STEP_5_SYNC_ACCOUNT_COMPLETE,
+  SyncAccountPhase.ERROR,
+  // Email recovery: hide after finalization/complete or on error
+  EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION,
+  EmailRecoveryPhase.STEP_6_COMPLETE,
+  EmailRecoveryPhase.ERROR,
 ]);
 
 export type ProgressPayload = MessageProgressPayload;

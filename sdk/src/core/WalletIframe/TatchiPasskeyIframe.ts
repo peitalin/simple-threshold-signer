@@ -71,7 +71,7 @@ export class TatchiPasskeyIframe {
   // Expose a userPreferences shim so API matches TatchiPasskey
   get userPreferences() {
     return {
-      setConfirmBehavior: (b: 'requireClickick' | 'skipClick') => { this.setConfirmBehavior(b); },
+      setConfirmBehavior: (b: 'requireClick' | 'skipClick') => { this.setConfirmBehavior(b); },
       setConfirmationConfig: (c: ConfirmationConfig) => { this.setConfirmationConfig(c); },
       getConfirmationConfig: () => this.getConfirmationConfig(),
     };
@@ -429,7 +429,7 @@ export class TatchiPasskeyIframe {
   }
 
   // Parity with PasskeyManager API
-  setConfirmBehavior(behavior: 'requireClickick' | 'skipClick'): void {
+  setConfirmBehavior(behavior: 'requireClick' | 'skipClick'): void {
     void this.router.setConfirmBehavior(behavior)
       .then(() => this.refreshConfirmationConfig())
       .catch(() => {});

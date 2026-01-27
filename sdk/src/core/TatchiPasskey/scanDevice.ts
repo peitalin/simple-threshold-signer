@@ -68,7 +68,6 @@ export async function linkDeviceWithScannedQRData(
     // Execute device linking transactions using the centralized RPC function
     const {
       addKeyTxResult,
-      signedDeleteKeyTransaction
     } = await executeDeviceLinkingContractCalls({
       context,
       device1AccountId,
@@ -110,7 +109,6 @@ export async function linkDeviceWithScannedQRData(
       transactionId: addKeyTxResult?.transaction?.hash || 'unknown',
       fundingAmount,
       linkedToAccount: device1AccountId, // Include which account the key was added to
-      signedDeleteKeyTransaction
     };
 
     onEvent?.({
