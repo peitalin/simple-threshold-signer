@@ -58,6 +58,12 @@ import {
   type DeviceLinkingSessionRecord,
   type DeviceLinkingSessionStore,
 } from './DeviceLinkingSessionStore';
+import {
+  createNearPublicKeyStore,
+  type NearPublicKeyKind,
+  type NearPublicKeyRecord,
+  type NearPublicKeyStore,
+} from './NearPublicKeyStore';
 import { ensurePostgresSchema, getPostgresUrlFromConfig } from '../storage/postgres';
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -195,6 +201,8 @@ export class AuthService {
   private webAuthnSyncChallengeStore: WebAuthnSyncChallengeStore | null = null;
   private deviceLinkingSessionStoreInitialized = false;
   private deviceLinkingSessionStore: DeviceLinkingSessionStore | null = null;
+  private nearPublicKeyStoreInitialized = false;
+  private nearPublicKeyStore: NearPublicKeyStore | null = null;
   private storageInitPromise: Promise<void> | null = null;
 
   // Transaction queue to prevent nonce conflicts
@@ -425,6 +433,28 @@ export class AuthService {
       isNode: this.isNodeEnvironment(),
     });
     return this.deviceLinkingSessionStore;
+  }
+
+  private getNearPublicKeyStore(): NearPublicKeyStore {
+    if (this.nearPublicKeyStoreInitialized && this.nearPublicKeyStore) {
+      return this.nearPublicKeyStore;
+    }
+    if (this.nearPublicKeyStoreInitialized) {
+      // Defensive: should never happen, but avoids returning null.
+      this.nearPublicKeyStore = createNearPublicKeyStore({
+        config: this.config.thresholdEd25519KeyStore || null,
+        logger: this.logger,
+        isNode: this.isNodeEnvironment(),
+      });
+      return this.nearPublicKeyStore;
+    }
+    this.nearPublicKeyStoreInitialized = true;
+    this.nearPublicKeyStore = createNearPublicKeyStore({
+      config: this.config.thresholdEd25519KeyStore || null,
+      logger: this.logger,
+      isNode: this.isNodeEnvironment(),
+    });
+    return this.nearPublicKeyStore;
   }
 
   async txStatus(txHash: string, senderAccountId: string): Promise<FinalExecutionOutcome> {
@@ -844,6 +874,45 @@ export class AuthService {
         };
         await bindingStore.put(binding);
 
+        // Best-effort: persist NEAR public key metadata for UI surfaces.
+        // This provides (key kind + timestamp) for access key listings.
+        try {
+          const pkStore = this.getNearPublicKeyStore();
+          const thresholdPk = thresholdKeygen ? String(thresholdKeygen.publicKey || '').trim() : '';
+          if (thresholdPk) {
+            const thresholdRecord: NearPublicKeyRecord = {
+              version: 'near_public_key_v1',
+              userId: accountId,
+              publicKey: thresholdPk,
+              kind: 'threshold',
+              deviceNumber,
+              rpId,
+              credentialIdB64u,
+              createdAtMs: now,
+              updatedAtMs: now,
+            };
+            await pkStore.put(thresholdRecord);
+          }
+
+          const accountCreationPk = String(newPublicKey || '').trim();
+          if (accountCreationPk && accountCreationPk !== thresholdPk) {
+            const accountCreationKind: NearPublicKeyKind = thresholdPk ? 'backup' : 'local';
+            const creationRecord: NearPublicKeyRecord = {
+              version: 'near_public_key_v1',
+              userId: accountId,
+              publicKey: accountCreationPk,
+              kind: accountCreationKind,
+              deviceNumber,
+              rpId,
+              credentialIdB64u,
+              createdAtMs: now,
+              updatedAtMs: now,
+              ...(result?.transaction?.hash ? { addedTxHash: String(result.transaction.hash) } : {}),
+            };
+            await pkStore.put(creationRecord);
+          }
+        } catch {}
+
         this.logger.info(`Registration completed: ${result.transaction.hash}`);
         return {
           success: true,
@@ -1035,6 +1104,113 @@ export class AuthService {
         rpId: String(input?.rpId || ''),
       });
       return { success: false, verified: false, code: 'internal', message: msg };
+    }
+  }
+
+  /**
+   * List WebAuthn authenticators for the given user.
+   *
+   * This is relay-private state (no on-chain authenticator registry).
+   * Intended for UI surfaces like "Linked Devices" in the SDK.
+   */
+  async listWebAuthnAuthenticatorsForUser(input: {
+    userId: string;
+    rpId?: string;
+  }): Promise<{
+    ok: boolean;
+    code?: string;
+    message?: string;
+    authenticators?: Array<{
+      credentialIdB64u: string;
+      deviceNumber?: number;
+      publicKey?: string;
+      createdAtMs?: number;
+      updatedAtMs?: number;
+    }>;
+  }> {
+    try {
+      const userId = String(input.userId || '').trim();
+      const rpId = String(input.rpId || '').trim();
+      if (!userId) return { ok: false, code: 'invalid_args', message: 'Missing userId' };
+
+      const authStore = this.getWebAuthnAuthenticatorStore();
+      const bindingStore = this.getWebAuthnCredentialBindingStore();
+
+      if (typeof authStore.list !== 'function') {
+        return { ok: false, code: 'not_supported', message: 'Authenticator listing is not supported by this store' };
+      }
+      if (typeof bindingStore.listByUserId !== 'function') {
+        return { ok: false, code: 'not_supported', message: 'Credential binding listing is not supported by this store' };
+      }
+
+      const [authenticators, bindings] = await Promise.all([
+        authStore.list(userId),
+        bindingStore.listByUserId({ userId, ...(rpId ? { rpId } : {}) }),
+      ]);
+
+      const authByCid = new Map<string, WebAuthnAuthenticatorRecord>();
+      for (const a of authenticators || []) {
+        authByCid.set(String(a.credentialIdB64u || '').trim(), a);
+      }
+
+      const merged = (bindings || []).map((b) => {
+        const cid = String(b.credentialIdB64u || '').trim();
+        const a = authByCid.get(cid);
+        return {
+          credentialIdB64u: cid,
+          deviceNumber: b.deviceNumber,
+          publicKey: b.publicKey,
+          createdAtMs: a?.createdAtMs ?? b.createdAtMs,
+          updatedAtMs: a?.updatedAtMs ?? b.updatedAtMs,
+        };
+      });
+
+      merged.sort((x, y) => (Number(x.deviceNumber || 0) || 0) - (Number(y.deviceNumber || 0) || 0));
+
+      return { ok: true, authenticators: merged };
+    } catch (e: unknown) {
+      return { ok: false, code: 'internal', message: errorMessage(e) || 'Failed to list authenticators' };
+    }
+  }
+
+  async listNearPublicKeysForUser(input: {
+    userId: string;
+  }): Promise<{
+    ok: boolean;
+    code?: string;
+    message?: string;
+    keys?: Array<{
+      publicKey: string;
+      kind: NearPublicKeyKind;
+      deviceNumber?: number;
+      createdAtMs?: number;
+      updatedAtMs?: number;
+      rpId?: string;
+      credentialIdB64u?: string;
+    }>;
+  }> {
+    try {
+      const userId = String(input.userId || '').trim();
+      if (!userId) return { ok: false, code: 'invalid_args', message: 'Missing userId' };
+
+      const store = this.getNearPublicKeyStore();
+      if (typeof store.listByUserId !== 'function') {
+        return { ok: false, code: 'not_supported', message: 'Key listing is not supported by this store' };
+      }
+
+      const records = await store.listByUserId(userId);
+      const keys = (records || []).map((r) => ({
+        publicKey: r.publicKey,
+        kind: r.kind,
+        ...(typeof r.deviceNumber === 'number' ? { deviceNumber: r.deviceNumber } : {}),
+        createdAtMs: r.createdAtMs,
+        updatedAtMs: r.updatedAtMs,
+        ...(r.rpId ? { rpId: r.rpId } : {}),
+        ...(r.credentialIdB64u ? { credentialIdB64u: r.credentialIdB64u } : {}),
+      }));
+      return { ok: true, keys };
+    } catch (e: unknown) {
+      return { ok: false, code: 'internal', message: errorMessage(e) || 'Failed to list keys' };
     }
   }
 
@@ -1464,6 +1640,24 @@ export class AuthService {
       };
 
       await store.put(session);
+
+      // Best-effort: persist the ephemeral (device2) key metadata. This key is expected to be deleted
+      // by Device2 during completion, but storing it helps UIs classify access keys while linking is in flight.
+      try {
+        const pkStore = this.getNearPublicKeyStore();
+        const record: NearPublicKeyRecord = {
+          version: 'near_public_key_v1',
+          userId: accountId,
+          publicKey: device2PublicKey,
+          kind: 'ephemeral',
+          deviceNumber,
+          createdAtMs: now,
+          updatedAtMs: now,
+          ...(addKeyTxHash ? { addedTxHash: addKeyTxHash } : {}),
+        };
+        await pkStore.put(record);
+      } catch {}
+
       this.logger.info('[link-device] session claimed', {
         sessionId,
         accountId,
@@ -1483,6 +1677,8 @@ export class AuthService {
     accountId?: unknown;
     device_number?: unknown;
     deviceNumber?: unknown;
+    local_public_key?: unknown;
+    localPublicKey?: unknown;
     threshold_ed25519?: unknown;
     rp_id?: unknown;
     webauthn_registration?: unknown;
@@ -1520,6 +1716,11 @@ export class AuthService {
         const n = typeof raw === 'number' ? raw : Number(raw);
         return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 2;
       })();
+
+      const localPublicKey = String(request?.local_public_key ?? request?.localPublicKey ?? '').trim() || '';
+      if (localPublicKey && !localPublicKey.startsWith('ed25519:')) {
+        return { ok: false, code: 'invalid_body', message: 'Invalid localPublicKey (expected ed25519:...)' };
+      }
 
       const thresholdClientVerifyingShareB64u = String((request as any)?.threshold_ed25519?.client_verifying_share_b64u || '').trim();
       if (!thresholdClientVerifyingShareB64u) {
@@ -1621,6 +1822,37 @@ export class AuthService {
         createdAtMs: now,
         updatedAtMs: now,
       });
+
+      // Best-effort: persist key metadata for UI surfaces like "Linked Devices".
+      try {
+        const pkStore = this.getNearPublicKeyStore();
+        const thresholdRecord: NearPublicKeyRecord = {
+          version: 'near_public_key_v1',
+          userId: accountId,
+          publicKey: keygen.publicKey,
+          kind: 'threshold',
+          deviceNumber,
+          rpId,
+          credentialIdB64u,
+          createdAtMs: now,
+          updatedAtMs: now,
+        };
+        await pkStore.put(thresholdRecord);
+        if (localPublicKey) {
+          const localRecord: NearPublicKeyRecord = {
+            version: 'near_public_key_v1',
+            userId: accountId,
+            publicKey: localPublicKey,
+            kind: 'local',
+            deviceNumber,
+            rpId,
+            credentialIdB64u,
+            createdAtMs: now,
+            updatedAtMs: now,
+          };
+          await pkStore.put(localRecord);
+        }
+      } catch {}
 
       return {
         ok: true,

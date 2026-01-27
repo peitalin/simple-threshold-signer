@@ -195,7 +195,7 @@ class PostgresWebAuthnLoginChallengeStore implements WebAuthnLoginChallengeStore
     const pool = await this.poolPromise;
     await pool.query(
       `
-        INSERT INTO tatchi_webauthn_login_challenges (namespace, challenge_id, record_json, expires_at_ms)
+        INSERT INTO tatchi_webauthn_challenges (namespace, challenge_id, record_json, expires_at_ms)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (namespace, challenge_id)
         DO UPDATE SET record_json = EXCLUDED.record_json, expires_at_ms = EXCLUDED.expires_at_ms
@@ -211,7 +211,7 @@ class PostgresWebAuthnLoginChallengeStore implements WebAuthnLoginChallengeStore
     const nowMs = Date.now();
     const { rows } = await pool.query(
       `
-        DELETE FROM tatchi_webauthn_login_challenges
+        DELETE FROM tatchi_webauthn_challenges
         WHERE namespace = $1 AND challenge_id = $2 AND expires_at_ms > $3
         RETURNING record_json
       `,
@@ -228,7 +228,7 @@ class PostgresWebAuthnLoginChallengeStore implements WebAuthnLoginChallengeStore
     if (!id) return;
     const pool = await this.poolPromise;
     await pool.query(
-      'DELETE FROM tatchi_webauthn_login_challenges WHERE namespace = $1 AND challenge_id = $2',
+      'DELETE FROM tatchi_webauthn_challenges WHERE namespace = $1 AND challenge_id = $2',
       [this.namespace, id],
     );
   }
@@ -396,15 +396,7 @@ export function createWebAuthnLoginChallengeStore(input: {
     return new PostgresWebAuthnLoginChallengeStore({ postgresUrl, namespace: prefix });
   }
 
-  const postgresUrl = getPostgresUrlFromConfig(config);
-  if (postgresUrl) {
-    if (!input.isNode) {
-      throw new Error('[webauthn] POSTGRES_URL is set but Postgres is not supported in this runtime');
-    }
-    input.logger.info('[webauthn] Using Postgres login challenge store');
-    return new PostgresWebAuthnLoginChallengeStore({ postgresUrl, namespace: prefix });
-  }
-
+  // Env-shaped config: prefer Redis/Upstash for one-time challenges (TTL + lower Postgres churn).
   const upstashUrl = toOptionalTrimmedString(config.UPSTASH_REDIS_REST_URL);
   const upstashToken = toOptionalTrimmedString(config.UPSTASH_REDIS_REST_TOKEN);
   if (upstashUrl || upstashToken) {
@@ -423,6 +415,15 @@ export function createWebAuthnLoginChallengeStore(input: {
     }
     input.logger.info('[webauthn] Using redis-tcp login challenge store');
     return new RedisTcpWebAuthnLoginChallengeStore({ redisUrl, prefix });
+  }
+
+  const postgresUrl = getPostgresUrlFromConfig(config);
+  if (postgresUrl) {
+    if (!input.isNode) {
+      throw new Error('[webauthn] POSTGRES_URL is set but Postgres is not supported in this runtime');
+    }
+    input.logger.info('[webauthn] Using Postgres login challenge store');
+    return new PostgresWebAuthnLoginChallengeStore({ postgresUrl, namespace: prefix });
   }
 
   input.logger.info('[webauthn] Using in-memory login challenge store (non-persistent)');

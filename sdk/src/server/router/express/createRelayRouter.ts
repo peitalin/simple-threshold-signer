@@ -16,7 +16,9 @@ import { registerSessionRoutes } from './routes/sessions';
 import { registerSignedDelegateRoutes } from './routes/signedDelegate';
 import { registerSyncAccountRoutes } from './routes/syncAccount';
 import { registerThresholdEd25519Routes } from './routes/thresholdEd25519';
+import { registerWebAuthnAuthenticatorRoutes } from './routes/webauthnAuthenticators';
 import { registerWebAuthnLoginRoutes } from './routes/webauthnLogin';
+import { registerNearPublicKeysRoutes } from './routes/nearPublicKeys';
 import { registerWellKnownRoutes } from './routes/wellKnown';
 import { resolveThresholdOption } from '../routerOptions';
 
@@ -64,6 +66,8 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
   registerLinkDeviceRoutes(router, ctx);
   registerEmailRecoveryRoutes(router, ctx);
   registerThresholdEd25519Routes(router, ctx);
+  registerWebAuthnAuthenticatorRoutes(router, ctx);
+  registerNearPublicKeysRoutes(router, ctx);
   registerSessionRoutes(router, ctx);
   registerRecoverEmailRoute(router, ctx);
   registerHealthRoutes(router, ctx);

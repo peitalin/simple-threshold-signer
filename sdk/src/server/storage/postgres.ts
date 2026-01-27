@@ -53,12 +53,8 @@ export async function ensurePostgresSchema(input: {
   const pool = await getPostgresPool(input.postgresUrl);
   await pool.query('SELECT pg_advisory_lock($1)', [MIGRATION_LOCK_ID]);
   try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS tatchi_sdk_migrations (
-        id TEXT PRIMARY KEY,
-        applied_at_ms BIGINT NOT NULL
-      )
-    `);
+    // Legacy / unused bookkeeping table (safe to drop).
+    await pool.query('DROP TABLE IF EXISTS tatchi_sdk_migrations');
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS tatchi_webauthn_authenticators (
@@ -86,7 +82,7 @@ export async function ensurePostgresSchema(input: {
     `);
 
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS tatchi_webauthn_login_challenges (
+      CREATE TABLE IF NOT EXISTS tatchi_webauthn_challenges (
         namespace TEXT NOT NULL,
         challenge_id TEXT NOT NULL,
         record_json JSONB NOT NULL,
@@ -95,22 +91,8 @@ export async function ensurePostgresSchema(input: {
       )
     `);
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS tatchi_webauthn_login_challenges_expires_idx
-      ON tatchi_webauthn_login_challenges (expires_at_ms)
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS tatchi_webauthn_sync_challenges (
-        namespace TEXT NOT NULL,
-        challenge_id TEXT NOT NULL,
-        record_json JSONB NOT NULL,
-        expires_at_ms BIGINT NOT NULL,
-        PRIMARY KEY (namespace, challenge_id)
-      )
-    `);
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS tatchi_webauthn_sync_challenges_expires_idx
-      ON tatchi_webauthn_sync_challenges (expires_at_ms)
+      CREATE INDEX IF NOT EXISTS tatchi_webauthn_challenges_expires_idx
+      ON tatchi_webauthn_challenges (expires_at_ms)
     `);
 
     await pool.query(`
@@ -123,60 +105,20 @@ export async function ensurePostgresSchema(input: {
     `);
 
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS tatchi_threshold_ed25519_mpc_sessions (
+      CREATE TABLE IF NOT EXISTS tatchi_threshold_ed25519_sessions (
         namespace TEXT NOT NULL,
+        kind TEXT NOT NULL,
         session_id TEXT NOT NULL,
         record_json JSONB NOT NULL,
         expires_at_ms BIGINT NOT NULL,
-        PRIMARY KEY (namespace, session_id)
+        remaining_uses INTEGER,
+        PRIMARY KEY (namespace, kind, session_id),
+        CHECK (kind IN ('mpc', 'signing', 'coordinator', 'auth'))
       )
     `);
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS tatchi_threshold_ed25519_mpc_sessions_expires_idx
-      ON tatchi_threshold_ed25519_mpc_sessions (expires_at_ms)
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS tatchi_threshold_ed25519_signing_sessions (
-        namespace TEXT NOT NULL,
-        session_id TEXT NOT NULL,
-        record_json JSONB NOT NULL,
-        expires_at_ms BIGINT NOT NULL,
-        PRIMARY KEY (namespace, session_id)
-      )
-    `);
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS tatchi_threshold_ed25519_signing_sessions_expires_idx
-      ON tatchi_threshold_ed25519_signing_sessions (expires_at_ms)
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS tatchi_threshold_ed25519_coordinator_sessions (
-        namespace TEXT NOT NULL,
-        session_id TEXT NOT NULL,
-        record_json JSONB NOT NULL,
-        expires_at_ms BIGINT NOT NULL,
-        PRIMARY KEY (namespace, session_id)
-      )
-    `);
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS tatchi_threshold_ed25519_coordinator_sessions_expires_idx
-      ON tatchi_threshold_ed25519_coordinator_sessions (expires_at_ms)
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS tatchi_threshold_ed25519_auth_sessions (
-        namespace TEXT NOT NULL,
-        session_id TEXT NOT NULL,
-        record_json JSONB NOT NULL,
-        expires_at_ms BIGINT NOT NULL,
-        remaining_uses INTEGER NOT NULL,
-        PRIMARY KEY (namespace, session_id)
-      )
-    `);
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS tatchi_threshold_ed25519_auth_sessions_expires_idx
-      ON tatchi_threshold_ed25519_auth_sessions (expires_at_ms)
+      CREATE INDEX IF NOT EXISTS tatchi_threshold_ed25519_sessions_expires_idx
+      ON tatchi_threshold_ed25519_sessions (expires_at_ms)
     `);
 
     await pool.query(`
@@ -191,6 +133,102 @@ export async function ensurePostgresSchema(input: {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS tatchi_device_linking_sessions_expires_idx
       ON tatchi_device_linking_sessions (expires_at_ms)
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tatchi_near_public_keys (
+        namespace TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        public_key TEXT NOT NULL,
+        record_json JSONB NOT NULL,
+        created_at_ms BIGINT NOT NULL,
+        updated_at_ms BIGINT NOT NULL,
+        PRIMARY KEY (namespace, user_id, public_key)
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS tatchi_near_public_keys_user_idx
+      ON tatchi_near_public_keys (namespace, user_id)
+    `);
+
+    // ==========================
+    // One-time table consolidations
+    // ==========================
+
+    // Consolidate webauthn challenges tables.
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF to_regclass('tatchi_webauthn_login_challenges') IS NOT NULL THEN
+          INSERT INTO tatchi_webauthn_challenges (namespace, challenge_id, record_json, expires_at_ms)
+          SELECT namespace, challenge_id, record_json, expires_at_ms
+          FROM tatchi_webauthn_login_challenges
+          ON CONFLICT (namespace, challenge_id) DO NOTHING;
+          DROP TABLE tatchi_webauthn_login_challenges;
+        END IF;
+      END $$;
+    `);
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF to_regclass('tatchi_webauthn_sync_challenges') IS NOT NULL THEN
+          INSERT INTO tatchi_webauthn_challenges (namespace, challenge_id, record_json, expires_at_ms)
+          SELECT namespace, challenge_id, record_json, expires_at_ms
+          FROM tatchi_webauthn_sync_challenges
+          ON CONFLICT (namespace, challenge_id) DO NOTHING;
+          DROP TABLE tatchi_webauthn_sync_challenges;
+        END IF;
+      END $$;
+    `);
+
+    // Consolidate threshold ed25519 session tables.
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF to_regclass('tatchi_threshold_ed25519_mpc_sessions') IS NOT NULL THEN
+          INSERT INTO tatchi_threshold_ed25519_sessions (namespace, kind, session_id, record_json, expires_at_ms)
+          SELECT namespace, 'mpc', session_id, record_json, expires_at_ms
+          FROM tatchi_threshold_ed25519_mpc_sessions
+          ON CONFLICT (namespace, kind, session_id) DO NOTHING;
+          DROP TABLE tatchi_threshold_ed25519_mpc_sessions;
+        END IF;
+      END $$;
+    `);
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF to_regclass('tatchi_threshold_ed25519_signing_sessions') IS NOT NULL THEN
+          INSERT INTO tatchi_threshold_ed25519_sessions (namespace, kind, session_id, record_json, expires_at_ms)
+          SELECT namespace, 'signing', session_id, record_json, expires_at_ms
+          FROM tatchi_threshold_ed25519_signing_sessions
+          ON CONFLICT (namespace, kind, session_id) DO NOTHING;
+          DROP TABLE tatchi_threshold_ed25519_signing_sessions;
+        END IF;
+      END $$;
+    `);
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF to_regclass('tatchi_threshold_ed25519_coordinator_sessions') IS NOT NULL THEN
+          INSERT INTO tatchi_threshold_ed25519_sessions (namespace, kind, session_id, record_json, expires_at_ms)
+          SELECT namespace, 'coordinator', session_id, record_json, expires_at_ms
+          FROM tatchi_threshold_ed25519_coordinator_sessions
+          ON CONFLICT (namespace, kind, session_id) DO NOTHING;
+          DROP TABLE tatchi_threshold_ed25519_coordinator_sessions;
+        END IF;
+      END $$;
+    `);
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF to_regclass('tatchi_threshold_ed25519_auth_sessions') IS NOT NULL THEN
+          INSERT INTO tatchi_threshold_ed25519_sessions (namespace, kind, session_id, record_json, expires_at_ms, remaining_uses)
+          SELECT namespace, 'auth', session_id, record_json, expires_at_ms, remaining_uses
+          FROM tatchi_threshold_ed25519_auth_sessions
+          ON CONFLICT (namespace, kind, session_id) DO NOTHING;
+          DROP TABLE tatchi_threshold_ed25519_auth_sessions;
+        END IF;
+      END $$;
     `);
   } finally {
     try {

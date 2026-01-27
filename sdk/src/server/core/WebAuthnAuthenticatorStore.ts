@@ -28,6 +28,12 @@ export interface WebAuthnAuthenticatorStore {
   get(userId: string, credentialIdB64u: string): Promise<WebAuthnAuthenticatorRecord | null>;
   put(userId: string, record: WebAuthnAuthenticatorRecord): Promise<void>;
   del(userId: string, credentialIdB64u: string): Promise<void>;
+  /**
+   * List all authenticators for a user.
+   *
+   * Optional because not all backing stores can efficiently enumerate keys.
+   */
+  list?(userId: string): Promise<WebAuthnAuthenticatorRecord[]>;
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -104,6 +110,20 @@ class InMemoryWebAuthnAuthenticatorStore implements WebAuthnAuthenticatorStore {
     const cid = toOptionalTrimmedString(credentialIdB64u);
     if (!uid || !cid) return;
     this.map.delete(this.key(uid, cid));
+  }
+
+  async list(userId: string): Promise<WebAuthnAuthenticatorRecord[]> {
+    const uid = toOptionalTrimmedString(userId);
+    if (!uid) return [];
+    const keyPrefix = `${this.prefix}${uid}:`;
+    const out: WebAuthnAuthenticatorRecord[] = [];
+    for (const [k, v] of this.map.entries()) {
+      if (!k.startsWith(keyPrefix)) continue;
+      const parsed = parseWebAuthnAuthenticatorRecord(v);
+      if (parsed) out.push(parsed);
+    }
+    out.sort((a, b) => a.createdAtMs - b.createdAtMs);
+    return out;
   }
 }
 
@@ -366,6 +386,34 @@ class PostgresWebAuthnAuthenticatorStore implements WebAuthnAuthenticatorStore {
       'DELETE FROM tatchi_webauthn_authenticators WHERE namespace = $1 AND user_id = $2 AND credential_id_b64u = $3',
       [this.namespace, uid, cid],
     );
+  }
+
+  async list(userId: string): Promise<WebAuthnAuthenticatorRecord[]> {
+    const uid = toOptionalTrimmedString(userId);
+    if (!uid) return [];
+    const pool = await this.poolPromise;
+    const { rows } = await pool.query(
+      `
+        SELECT credential_id_b64u, credential_public_key_b64u, counter, created_at_ms, updated_at_ms
+        FROM tatchi_webauthn_authenticators
+        WHERE namespace = $1 AND user_id = $2
+        ORDER BY created_at_ms ASC
+      `,
+      [this.namespace, uid],
+    );
+    const out: WebAuthnAuthenticatorRecord[] = [];
+    for (const row of rows || []) {
+      const record = parseWebAuthnAuthenticatorRecord({
+        version: 'webauthn_authenticator_v1',
+        credentialIdB64u: String(row?.credential_id_b64u ?? ''),
+        credentialPublicKeyB64u: String(row?.credential_public_key_b64u ?? ''),
+        counter: typeof row?.counter === 'number' ? row.counter : Number(row?.counter),
+        createdAtMs: typeof row?.created_at_ms === 'number' ? row.created_at_ms : Number(row?.created_at_ms),
+        updatedAtMs: typeof row?.updated_at_ms === 'number' ? row.updated_at_ms : Number(row?.updated_at_ms),
+      });
+      if (record) out.push(record);
+    }
+    return out;
   }
 }
 

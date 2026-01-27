@@ -17,6 +17,14 @@
   will-change: opacity;
 }
 
+.w3a-access-keys-modal-backdrop.theme-light {
+  background: oklch(0.2 0.01 240 / 0.6);
+}
+
+.w3a-access-keys-modal-backdrop.theme-dark {
+  background: oklch(0.2 0.01 240 / 0.8);
+}
+
 .w3a-access-keys-modal-inner {
   position: relative;
   z-index: var(--w3a-z-underlay-content, calc(var(--w3a-wallet-overlay-z, 2147483646) - var(--w3a-wallet-underlay-content-offset, 1)));
@@ -225,8 +233,8 @@
 }
 
 .theme-light .w3a-status-badge.w3a-full-access {
-  color: var(--w3a-colors-blue500);
-  border-color: var(--w3a-colors-blue500);
+  color: var(--w3a-colors-blue500, var(--w3a-colors-primary));
+  border-color: var(--w3a-colors-blue500, var(--w3a-colors-primary));
 }
 
 .w3a-key-header {
@@ -287,6 +295,39 @@
 .w3a-registered {
   font-size: 0.9rem;
   color: var(--w3a-colors-textPrimary);
+}
+
+.w3a-key-kind {
+  font-size: 0.85rem;
+  color: var(--w3a-colors-textMuted);
+}
+
+.w3a-key-kind-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-transform: capitalize;
+}
+
+.w3a-key-kind-threshold {
+  color: var(--w3a-colors-primary);
+  background: color-mix(in oklab, var(--w3a-colors-primary) 12%, transparent);
+}
+
+.w3a-key-kind-local {
+  color: var(--w3a-colors-success);
+  background: color-mix(in oklab, var(--w3a-colors-success) 12%, transparent);
+}
+
+.w3a-key-kind-backup {
+  color: var(--w3a-colors-textPrimary);
+  background: color-mix(in oklab, var(--w3a-colors-textMuted) 10%, transparent);
 }
 
 /* Theme-specific contrast for registered timestamps */
@@ -446,4 +487,20 @@
   to {
     opacity: 1;
   }
+}
+
+.w3a-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 8px 4px;
+  color: var(--w3a-colors-textMuted);
+}
+
+.w3a-pagination-info {
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: center;
+  flex: 1;
 }

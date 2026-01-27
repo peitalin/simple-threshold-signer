@@ -277,7 +277,7 @@ class PostgresThresholdEd25519SessionStore implements ThresholdEd25519SessionSto
   }
 
   private async insertOrUpdate(input: {
-    table: string;
+    kind: 'mpc' | 'signing' | 'coordinator';
     sessionId: string;
     record: unknown;
     expiresAtMs: number;
@@ -285,25 +285,25 @@ class PostgresThresholdEd25519SessionStore implements ThresholdEd25519SessionSto
     const pool = await this.poolPromise;
     await pool.query(
       `
-        INSERT INTO ${input.table} (namespace, session_id, record_json, expires_at_ms)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (namespace, session_id)
+        INSERT INTO tatchi_threshold_ed25519_sessions (namespace, kind, session_id, record_json, expires_at_ms)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (namespace, kind, session_id)
         DO UPDATE SET record_json = EXCLUDED.record_json, expires_at_ms = EXCLUDED.expires_at_ms
       `,
-      [this.namespace, input.sessionId, input.record, Math.floor(input.expiresAtMs)],
+      [this.namespace, input.kind, input.sessionId, input.record, Math.floor(input.expiresAtMs)],
     );
   }
 
-  private async takeRow(table: string, sessionId: string): Promise<unknown | null> {
+  private async takeRow(kind: 'mpc' | 'signing' | 'coordinator', sessionId: string): Promise<unknown | null> {
     const pool = await this.poolPromise;
     const nowMs = Date.now();
     const { rows } = await pool.query(
       `
-        DELETE FROM ${table}
-        WHERE namespace = $1 AND session_id = $2 AND expires_at_ms > $3
+        DELETE FROM tatchi_threshold_ed25519_sessions
+        WHERE namespace = $1 AND kind = $2 AND session_id = $3 AND expires_at_ms > $4
         RETURNING record_json
       `,
-      [this.namespace, sessionId, nowMs],
+      [this.namespace, kind, sessionId, nowMs],
     );
     return rows[0]?.record_json ?? null;
   }
@@ -313,13 +313,13 @@ class PostgresThresholdEd25519SessionStore implements ThresholdEd25519SessionSto
     if (!k) throw new Error('Missing mpcSessionId');
     const expiresAtMs = Date.now() + Math.max(0, Number(ttlMs) || 0);
     const storedRecord = { ...record, expiresAtMs };
-    await this.insertOrUpdate({ table: 'tatchi_threshold_ed25519_mpc_sessions', sessionId: k, record: storedRecord, expiresAtMs });
+    await this.insertOrUpdate({ kind: 'mpc', sessionId: k, record: storedRecord, expiresAtMs });
   }
 
   async takeMpcSession(id: string): Promise<ThresholdEd25519MpcSessionRecord | null> {
     const k = id;
     if (!k) return null;
-    const raw = await this.takeRow('tatchi_threshold_ed25519_mpc_sessions', k);
+    const raw = await this.takeRow('mpc', k);
     return parseThresholdEd25519MpcSessionRecord(raw);
   }
 
@@ -328,13 +328,13 @@ class PostgresThresholdEd25519SessionStore implements ThresholdEd25519SessionSto
     if (!k) throw new Error('Missing signingSessionId');
     const expiresAtMs = Date.now() + Math.max(0, Number(ttlMs) || 0);
     const storedRecord = { ...record, expiresAtMs };
-    await this.insertOrUpdate({ table: 'tatchi_threshold_ed25519_signing_sessions', sessionId: k, record: storedRecord, expiresAtMs });
+    await this.insertOrUpdate({ kind: 'signing', sessionId: k, record: storedRecord, expiresAtMs });
   }
 
   async takeSigningSession(id: string): Promise<ThresholdEd25519SigningSessionRecord | null> {
     const k = id;
     if (!k) return null;
-    const raw = await this.takeRow('tatchi_threshold_ed25519_signing_sessions', k);
+    const raw = await this.takeRow('signing', k);
     return parseThresholdEd25519SigningSessionRecord(raw);
   }
 
@@ -343,13 +343,13 @@ class PostgresThresholdEd25519SessionStore implements ThresholdEd25519SessionSto
     if (!k) throw new Error('Missing coordinator signingSessionId');
     const expiresAtMs = Date.now() + Math.max(0, Number(ttlMs) || 0);
     const storedRecord = { ...record, expiresAtMs };
-    await this.insertOrUpdate({ table: 'tatchi_threshold_ed25519_coordinator_sessions', sessionId: k, record: storedRecord, expiresAtMs });
+    await this.insertOrUpdate({ kind: 'coordinator', sessionId: k, record: storedRecord, expiresAtMs });
   }
 
   async takeCoordinatorSigningSession(id: string): Promise<ThresholdEd25519CoordinatorSigningSessionRecord | null> {
     const k = id;
     if (!k) return null;
-    const raw = await this.takeRow('tatchi_threshold_ed25519_coordinator_sessions', k);
+    const raw = await this.takeRow('coordinator', k);
     return parseThresholdEd25519CoordinatorSigningSessionRecord(raw);
   }
 }
@@ -409,16 +409,7 @@ export function createThresholdEd25519SessionStore(input: {
     return new PostgresThresholdEd25519SessionStore({ postgresUrl, namespace: toOptionalTrimmedString(config.keyPrefix) || envPrefix });
   }
 
-  // Env-shaped config: reuse UPSTASH/REDIS_URL detection like the key store.
-  const postgresUrl = getPostgresUrlFromConfig(config);
-  if (postgresUrl) {
-    if (!input.isNode) {
-      throw new Error('[threshold-ed25519] POSTGRES_URL is set but Postgres is not supported in this runtime');
-    }
-    input.logger.info('[threshold-ed25519] Using Postgres session store for signing session persistence');
-    return new PostgresThresholdEd25519SessionStore({ postgresUrl, namespace: envPrefix || '' });
-  }
-
+  // Env-shaped config: prefer Redis/Upstash for session storage (TTL + lower Postgres churn).
   const upstashUrl = toOptionalTrimmedString(config.UPSTASH_REDIS_REST_URL);
   const upstashToken = toOptionalTrimmedString(config.UPSTASH_REDIS_REST_TOKEN);
   if (upstashUrl || upstashToken) {
@@ -440,6 +431,15 @@ export function createThresholdEd25519SessionStore(input: {
     }
     input.logger.info('[threshold-ed25519] Using redis-tcp session store for signing session persistence');
     return new RedisTcpThresholdEd25519SessionStore({ redisUrl, keyPrefix: envPrefix || undefined });
+  }
+
+  const postgresUrl = getPostgresUrlFromConfig(config);
+  if (postgresUrl) {
+    if (!input.isNode) {
+      throw new Error('[threshold-ed25519] POSTGRES_URL is set but Postgres is not supported in this runtime');
+    }
+    input.logger.info('[threshold-ed25519] Using Postgres session store for signing session persistence');
+    return new PostgresThresholdEd25519SessionStore({ postgresUrl, namespace: envPrefix || '' });
   }
 
   if (requirePersistent) {

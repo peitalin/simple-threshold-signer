@@ -19,6 +19,21 @@ import { Theme, useTheme } from '../theme';
 import { AccountId, toAccountId } from '../../../core/types/accountIds';
 import type { SignerMode } from '../../../core/types/signer-worker';
 
+function resolveDefaultPortalTarget(
+  explicit: HTMLElement | ShadowRoot | null | undefined,
+  buttonRoot: HTMLDivElement | null,
+): HTMLElement | ShadowRoot | null {
+  if (explicit) return explicit;
+  try {
+    const root = buttonRoot?.getRootNode?.();
+    if (root && typeof ShadowRoot !== 'undefined' && root instanceof ShadowRoot) {
+      return root;
+    }
+  } catch {}
+  if (typeof document === 'undefined') return null;
+  return document.body;
+}
+
 /**
  * Account Menu Button Component
  * Provides user settings, account management, and device linking.
@@ -279,6 +294,9 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
     handleClose();
   };
 
+  const portalHost = resolveDefaultPortalTarget(portalTarget, refs.buttonRef.current);
+  const canPortal = !!portalHost;
+
   return (
     <div
       ref={refs.buttonRef}
@@ -318,7 +336,7 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
       />
 
       {/* QR Scanner Modal (portaled to nearest root for robustness) */}
-      {createPortal(
+      {canPortal && createPortal(
         <QRCodeScanner
           key="profile-qr-scanner"
           isOpen={showQRScanner}
@@ -336,15 +354,15 @@ const AccountMenuButtonInner: React.FC<AccountMenuButtonProps> = ({
             setShowQRScanner(false);
           }}
           onEvent={(event) => deviceLinkingScannerParams?.onEvent?.(event)}
-        />, (portalTarget || document.body))}
+        />, portalHost!)}
 
       {/* Linked Devices Modal (portaled to nearest root for robustness) */}
-      {createPortal(
+      {canPortal && createPortal(
         <LinkedDevicesModal
           nearAccountId={nearAccountId!}
           isOpen={showLinkedDevices}
           onClose={() => setShowLinkedDevices(false)}
-        />, (portalTarget || document.body))}
+        />, portalHost!)}
     </div>
   );
 };

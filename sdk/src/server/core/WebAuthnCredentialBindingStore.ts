@@ -31,6 +31,12 @@ export interface WebAuthnCredentialBindingStore {
   put(record: WebAuthnCredentialBindingRecord): Promise<void>;
   del(rpId: string, credentialIdB64u: string): Promise<void>;
   getMaxDeviceNumber?(input: { userId: string; rpId?: string }): Promise<number | null>;
+  /**
+   * List credential bindings for a user (optionally scoped to an RP ID).
+   *
+   * Optional because not all backing stores can efficiently enumerate keys.
+   */
+  listByUserId?(input: { userId: string; rpId?: string }): Promise<WebAuthnCredentialBindingRecord[]>;
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -133,6 +139,22 @@ class InMemoryWebAuthnCredentialBindingStore implements WebAuthnCredentialBindin
     const c = toOptionalTrimmedString(credentialIdB64u);
     if (!r || !c) return;
     this.map.delete(this.key(r, c));
+  }
+
+  async listByUserId(input: { userId: string; rpId?: string }): Promise<WebAuthnCredentialBindingRecord[]> {
+    const uid = toOptionalTrimmedString(input.userId);
+    const rpId = toOptionalTrimmedString(input.rpId);
+    if (!uid) return [];
+    const out: WebAuthnCredentialBindingRecord[] = [];
+    for (const v of this.map.values()) {
+      const parsed = parseWebAuthnCredentialBindingRecord(v);
+      if (!parsed) continue;
+      if (parsed.userId !== uid) continue;
+      if (rpId && parsed.rpId !== rpId) continue;
+      out.push(parsed);
+    }
+    out.sort((a, b) => a.deviceNumber - b.deviceNumber);
+    return out;
   }
 }
 
@@ -281,6 +303,35 @@ class PostgresWebAuthnCredentialBindingStore implements WebAuthnCredentialBindin
     const raw = rows[0]?.max_device_number;
     const n = typeof raw === 'number' ? raw : Number(raw);
     return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+  }
+
+  async listByUserId(input: { userId: string; rpId?: string }): Promise<WebAuthnCredentialBindingRecord[]> {
+    const userId = toOptionalTrimmedString(input.userId);
+    const rpId = toOptionalTrimmedString(input.rpId);
+    if (!userId) return [];
+    const pool = await this.poolPromise;
+    const query = rpId
+      ? `
+          SELECT record_json
+          FROM tatchi_webauthn_credential_bindings
+          WHERE namespace = $1 AND rp_id = $2 AND record_json->>'userId' = $3
+          ORDER BY (record_json->>'deviceNumber')::int ASC
+        `
+      : `
+          SELECT record_json
+          FROM tatchi_webauthn_credential_bindings
+          WHERE namespace = $1 AND record_json->>'userId' = $2
+          ORDER BY (record_json->>'deviceNumber')::int ASC
+        `;
+    const values = rpId ? [this.namespace, rpId, userId] : [this.namespace, userId];
+    const { rows } = await pool.query(query, values);
+    const out: WebAuthnCredentialBindingRecord[] = [];
+    for (const row of rows || []) {
+      const parsed = parseWebAuthnCredentialBindingRecord(row?.record_json);
+      if (parsed) out.push(parsed);
+    }
+    out.sort((a, b) => a.deviceNumber - b.deviceNumber);
+    return out;
   }
 }
 

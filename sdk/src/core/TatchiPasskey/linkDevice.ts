@@ -280,6 +280,21 @@ export class LinkDeviceFlow {
       throw new Error(derived.error || 'Failed to derive threshold client verifying share');
     }
 
+    const localSignerEnabled = this.options?.localSignerEnabled !== false;
+    let localPublicKey: string | null = null;
+    if (localSignerEnabled) {
+      const localKeyResult = await this.context.webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
+        credential,
+        nearAccountId: String(nearAccountId),
+        options: { deviceNumber: resolvedDeviceNumber },
+      });
+      if (!localKeyResult.success || !localKeyResult.publicKey) {
+        throw new Error(localKeyResult.error || 'Failed to derive local signer key');
+      }
+      localPublicKey = ensureEd25519Prefix(String(localKeyResult.publicKey || '').trim());
+      if (!localPublicKey) throw new Error('Local signer public key is empty');
+    }
+
     const credentialForRelay = removePrfOutputGuard(normalizeRegistrationCredential(credential));
     const prepareResp = await fetch(`${relayerUrl.replace(/\/$/, '')}/link-device/prepare`, {
       method: 'POST',
@@ -287,6 +302,7 @@ export class LinkDeviceFlow {
       body: JSON.stringify({
         account_id: String(nearAccountId),
         device_number: resolvedDeviceNumber,
+        ...(localPublicKey ? { local_public_key: localPublicKey } : {}),
         threshold_ed25519: { client_verifying_share_b64u: derived.clientVerifyingShareB64u },
         rp_id: rpId,
         webauthn_registration: credentialForRelay,
@@ -302,21 +318,6 @@ export class LinkDeviceFlow {
     const relayerVerifyingShareB64u = String(prepareJson?.thresholdEd25519?.relayerVerifyingShareB64u || '').trim();
     if (!thresholdPublicKey || !relayerKeyId || !relayerVerifyingShareB64u) {
       throw new Error('link-device/prepare returned incomplete threshold key material');
-    }
-
-    const localSignerEnabled = this.options?.localSignerEnabled !== false;
-    let localPublicKey: string | null = null;
-    if (localSignerEnabled) {
-      const localKeyResult = await this.context.webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
-        credential,
-        nearAccountId: String(nearAccountId),
-        options: { deviceNumber: resolvedDeviceNumber },
-      });
-      if (!localKeyResult.success || !localKeyResult.publicKey) {
-        throw new Error(localKeyResult.error || 'Failed to derive local signer key');
-      }
-      localPublicKey = ensureEd25519Prefix(String(localKeyResult.publicKey || '').trim());
-      if (!localPublicKey) throw new Error('Local signer public key is empty');
     }
 
     this.safeOnEvent({

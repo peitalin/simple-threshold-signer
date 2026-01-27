@@ -3,12 +3,23 @@ import { useTatchi } from '../../context';
 import './LinkedDevicesModal.css';
 import { useTheme, Theme } from '../theme';
 import type { AccessKeyList } from '@/core/NearClient';
+import { IndexedDBManager } from '@/core/IndexedDBManager';
 
 interface LinkedDevicesModalProps {
   nearAccountId: string;
   isOpen: boolean;
   onClose: () => void;
 }
+
+type RelayAuthenticatorRow = {
+  credentialIdB64u: string;
+  deviceNumber?: number;
+  publicKey?: string;
+  createdAtMs?: number;
+  updatedAtMs?: number;
+};
+
+type AccessKeyKind = 'threshold' | 'local' | 'backup';
 
 export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
   nearAccountId,
@@ -17,13 +28,16 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
 }) => {
   const { tatchi, loginState, viewAccessKeyList } = useTatchi();
   const { theme } = useTheme();
+  const pageSize = 3;
   // Authenticators list: credentialId + registered timestamp + device number
   const [authRows, setAuthRows] = useState<Array<{
     credentialId: string;
     registered: string;
     deviceNumber: number;
     nearPublicKey: string | null;
-  }>>([{ credentialId: 'placeholder', registered: '', deviceNumber: 0, nearPublicKey: null }]);
+    keyKind: AccessKeyKind;
+  }>>([{ credentialId: 'placeholder', registered: '', deviceNumber: 0, nearPublicKey: null, keyKind: 'backup' }]);
+  const [page, setPage] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accessKeyList, setAccessKeyList] = useState<AccessKeyList | null>(null);
@@ -40,24 +54,15 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      setPage(0);
       loadAuthenticators();
-      // Also resolve current device number for highlighting
-      (async () => {
-        try {
-          if (!tatchi) return;
-          const { login } = await tatchi.getLoginSession(nearAccountId);
-          const dn = (login as any)?.userData?.deviceNumber;
-          if (typeof dn === 'number' && Number.isFinite(dn)) {
-            setCurrentDeviceNumber(dn);
-          } else {
-            setCurrentDeviceNumber(null);
-          }
-        } catch {
-          setCurrentDeviceNumber(null);
-        }
-      })();
     }
-  }, [isOpen]);
+  }, [isOpen, nearAccountId]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setPage(0);
+  }, [isOpen, authRows.length]);
 
   // Close on ESC press while modal is open
   useEffect(() => {
@@ -80,11 +85,73 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
     setDeleteError(null);
 
     try {
+      // Resolve current device number for highlighting + local key lookups
+      let currentDeviceNumberFromState: number | null = null;
+      try {
+        const { login } = await tatchi.getLoginSession(nearAccountId);
+        const dn = (login as any)?.userData?.deviceNumber;
+        currentDeviceNumberFromState = (typeof dn === 'number' && Number.isFinite(dn)) ? Math.floor(dn) : null;
+      } catch {
+        currentDeviceNumberFromState = null;
+      }
+      setCurrentDeviceNumber(currentDeviceNumberFromState);
+
       const keys = await viewAccessKeyList(nearAccountId);
       setAccessKeyList(keys);
 
+      const keyMetaByPublicKey = new Map<string, { kind: AccessKeyKind; deviceNumber?: number; createdAtMs?: number; updatedAtMs?: number }>();
+
+      // Best-effort: fetch device metadata from relay-private WebAuthn stores (auth-protected).
+      // This annotates access keys with device numbers and registration timestamps.
+      const relayMetaByPublicKey = new Map<string, RelayAuthenticatorRow>();
+      try {
+        const relayerUrl = String((tatchi as any)?.configs?.relayer?.url || '').trim().replace(/\/$/, '');
+        if (relayerUrl) {
+          // Prefer the dedicated key metadata endpoint when available.
+          try {
+            const resp = await fetch(`${relayerUrl}/near/public-keys`, { method: 'GET', credentials: 'include' });
+            const json = await resp.json().catch(() => ({} as any));
+            const list = resp.ok && json?.ok === true && Array.isArray(json?.keys) ? json.keys as any[] : [];
+            for (const row of list) {
+              const pk = typeof row?.publicKey === 'string' ? row.publicKey.trim() : '';
+              const kind = typeof row?.kind === 'string' ? row.kind.trim() : '';
+              if (!pk || !kind) continue;
+              if (kind !== 'threshold' && kind !== 'local' && kind !== 'backup') continue;
+              const deviceNumber = typeof row?.deviceNumber === 'number' && Number.isFinite(row.deviceNumber) ? Math.floor(row.deviceNumber) : undefined;
+              const createdAtMs = typeof row?.createdAtMs === 'number' && Number.isFinite(row.createdAtMs) ? Math.floor(row.createdAtMs) : undefined;
+              const updatedAtMs = typeof row?.updatedAtMs === 'number' && Number.isFinite(row.updatedAtMs) ? Math.floor(row.updatedAtMs) : undefined;
+              keyMetaByPublicKey.set(pk, { kind: kind as AccessKeyKind, ...(deviceNumber ? { deviceNumber } : {}), ...(createdAtMs ? { createdAtMs } : {}), ...(updatedAtMs ? { updatedAtMs } : {}) });
+            }
+          } catch {
+            // ignore
+          }
+
+          const rpIdOverride = String((tatchi as any)?.configs?.rpIdOverride || '').trim();
+          const rpId = rpIdOverride || (typeof window !== 'undefined' ? String(window.location.hostname || '').trim() : '');
+          const url = `${relayerUrl}/webauthn/authenticators${rpId ? `?rpId=${encodeURIComponent(rpId)}` : ''}`;
+          const resp = await fetch(url, { method: 'GET', credentials: 'include' });
+          const json = await resp.json().catch(() => ({} as any));
+          const list: RelayAuthenticatorRow[] =
+            resp.ok && json?.ok === true && Array.isArray(json?.authenticators)
+              ? json.authenticators
+              : [];
+          for (const row of list) {
+            const pk = typeof row?.publicKey === 'string' ? row.publicKey.trim() : '';
+            if (!pk) continue;
+            relayMetaByPublicKey.set(pk, row);
+          }
+        }
+      } catch {
+        // Ignore relay metadata failures; fallback is pure on-chain access key listing.
+      }
+
       const currentKey = loginState?.nearPublicKey || null;
-      const currentDeviceNumberFromState = currentDeviceNumber;
+      const localKeyMaterial = currentDeviceNumberFromState != null
+        ? await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(nearAccountId, currentDeviceNumberFromState).catch(() => null)
+        : null;
+      const thresholdKeyMaterial = currentDeviceNumberFromState != null
+        ? await IndexedDBManager.nearKeysDB.getThresholdKeyMaterial(nearAccountId, currentDeviceNumberFromState).catch(() => null)
+        : null;
 
       const nextDeviceNumber = (() => {
         let next = 1;
@@ -94,19 +161,58 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
         };
       })();
 
-      const rows: Array<{ credentialId: string; registered: string; deviceNumber: number; nearPublicKey: string | null }> = [];
+      const rows: Array<{
+        credentialId: string;
+        registered: string;
+        deviceNumber: number;
+        nearPublicKey: string | null;
+        keyKind: AccessKeyKind;
+      }> = [];
       const items = Array.isArray((keys as any)?.keys) ? (keys as any).keys as Array<{ public_key?: unknown }> : [];
       for (const item of items) {
         const publicKey = typeof item?.public_key === 'string' ? item.public_key : null;
         const isCurrent = !!publicKey && !!currentKey && publicKey === currentKey;
-        const deviceNumber = isCurrent && currentDeviceNumberFromState != null
-          ? currentDeviceNumberFromState
-          : nextDeviceNumber();
+        const keyMeta = publicKey ? keyMetaByPublicKey.get(publicKey) : undefined;
+        const relayMeta = publicKey ? relayMetaByPublicKey.get(publicKey) : undefined;
+        const metaDeviceNumber = keyMeta && typeof keyMeta.deviceNumber === 'number' && Number.isFinite(keyMeta.deviceNumber)
+          ? Math.floor(keyMeta.deviceNumber)
+          : null;
+        const relayDeviceNumber = relayMeta && typeof relayMeta.deviceNumber === 'number' && Number.isFinite(relayMeta.deviceNumber)
+          ? Math.floor(relayMeta.deviceNumber)
+          : null;
+        const deviceNumber =
+          isCurrent && currentDeviceNumberFromState != null
+            ? currentDeviceNumberFromState
+            : (metaDeviceNumber && metaDeviceNumber >= 1 ? metaDeviceNumber : (relayDeviceNumber && relayDeviceNumber >= 1 ? relayDeviceNumber : nextDeviceNumber()));
+
+        const keyKind: AccessKeyKind = (() => {
+          if (keyMeta?.kind) return keyMeta.kind;
+          if (publicKey && relayMetaByPublicKey.has(publicKey)) return 'threshold';
+          if (publicKey && thresholdKeyMaterial?.publicKey && publicKey === thresholdKeyMaterial.publicKey) return 'threshold';
+          if (publicKey && localKeyMaterial?.publicKey && publicKey === localKeyMaterial.publicKey) return 'local';
+          return 'backup';
+        })();
+
+        const registered = (() => {
+          const createdAtMsFromMeta = keyMeta && typeof keyMeta.createdAtMs === 'number' ? keyMeta.createdAtMs : null;
+          if (createdAtMsFromMeta && Number.isFinite(createdAtMsFromMeta) && createdAtMsFromMeta > 0) {
+            try { return new Date(createdAtMsFromMeta).toISOString(); } catch { return ''; }
+          }
+          const createdAtMs = relayMeta && typeof relayMeta.createdAtMs === 'number' ? relayMeta.createdAtMs : null;
+          if (createdAtMs && Number.isFinite(createdAtMs) && createdAtMs > 0) {
+            try { return new Date(createdAtMs).toISOString(); } catch { return ''; }
+          }
+          if (keyKind === 'local' && localKeyMaterial?.timestamp && Number.isFinite(localKeyMaterial.timestamp)) {
+            try { return new Date(localKeyMaterial.timestamp).toISOString(); } catch { return ''; }
+          }
+          return '';
+        })();
         rows.push({
           credentialId: publicKey || `access-key-${deviceNumber}`,
-          registered: '',
+          registered,
           deviceNumber,
           nearPublicKey: publicKey,
+          keyKind,
         });
       }
       setAuthRows(rows);
@@ -185,7 +291,7 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
   };
 
   return (
-    <Theme>
+    <Theme theme={theme}>
       <div className={`w3a-access-keys-modal-backdrop theme-${theme}`}
         onClick={handleBackdropClick}
         onMouseDown={(e) => e.stopPropagation()}
@@ -235,9 +341,16 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
                 const current = (currentDeviceNumber != null)
                   ? rows.find(r => r.deviceNumber === currentDeviceNumber)
                   : null;
-                const others = (currentDeviceNumber != null)
+                const othersAll = (currentDeviceNumber != null)
                   ? rows.filter(r => r.deviceNumber !== currentDeviceNumber)
                   : rows;
+
+                const totalOthers = othersAll.length;
+                const totalPages = Math.max(1, Math.ceil(totalOthers / pageSize));
+                const pageSafe = Math.min(page, Math.max(0, totalPages - 1));
+                const startIndex = pageSafe * pageSize;
+                const endIndex = Math.min(totalOthers, startIndex + pageSize);
+                const others = othersAll.slice(startIndex, endIndex);
 
                 const items: React.ReactNode[] = [];
 
@@ -256,6 +369,9 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
                               <span className="w3a-device-badge">Device {current.deviceNumber}</span>
                               <span className="w3a-current-device-text">(current device)</span>
                             </div>
+                          </div>
+                          <div className="mono w3a-key-kind">
+                            Type: <span className={`w3a-key-kind-badge w3a-key-kind-${current.keyKind}`}>{current.keyKind}</span>
                           </div>
                           <div className="mono w3a-registered">Registered: {formatDateTime(current.registered)}</div>
                           {currentKey && (
@@ -304,6 +420,7 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
                 }
 
                 others.forEach((item, i) => {
+                  const globalIndex = startIndex + i;
                   const canDelete = !!accessKeyList && accessKeyList.keys.length > 1;
                   const isDeletingThisKey = !!item.nearPublicKey && deletingKeyPublicKey === item.nearPublicKey;
                   items.push(
@@ -315,20 +432,23 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
                               <span className="w3a-device-badge">Device {item.deviceNumber}</span>
                             </div>
                           </div>
+                          <div className="mono w3a-key-kind">
+                            Type: <span className={`w3a-key-kind-badge w3a-key-kind-${item.keyKind}`}>{item.keyKind}</span>
+                          </div>
                           <div className="mono w3a-registered">Registered: {formatDateTime(item.registered)}</div>
                           {item.nearPublicKey && (
                             <div
                               className="mono w3a-copyable-key"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                copyToClipboard(item.nearPublicKey!, 10 + i);
+                                copyToClipboard(item.nearPublicKey!, 10 + globalIndex);
                               }}
-                              onMouseEnter={() => setTooltipVisible(10 + i)}
+                              onMouseEnter={() => setTooltipVisible(10 + globalIndex)}
                               onMouseLeave={() => setTooltipVisible(null)}
                               title="Click to copy"
                             >
                               Access Key: {item.nearPublicKey}
-                              {tooltipVisible === 10 + i && (
+                              {tooltipVisible === 10 + globalIndex && (
                                 <div className="w3a-copy-tooltip">Click to copy</div>
                               )}
                             </div>
@@ -364,6 +484,56 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
                 return items;
               })()}
             </div>
+          )}
+
+          {!error && authRows.filter(r => r.credentialId !== 'placeholder').length > 0 && (
+            (() => {
+              const rows = authRows.filter(r => r.credentialId !== 'placeholder');
+              const current = (currentDeviceNumber != null)
+                ? rows.find(r => r.deviceNumber === currentDeviceNumber)
+                : null;
+              const othersAll = (currentDeviceNumber != null && current)
+                ? rows.filter(r => r.deviceNumber !== currentDeviceNumber)
+                : rows;
+              const totalOthers = othersAll.length;
+              const totalPages = Math.max(1, Math.ceil(totalOthers / pageSize));
+              const pageSafe = Math.min(page, Math.max(0, totalPages - 1));
+              const startIndex = pageSafe * pageSize;
+              const endIndex = Math.min(totalOthers, startIndex + pageSize);
+              if (totalPages <= 1) return null;
+
+              return (
+                <div className="w3a-pagination" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    className="w3a-btn w3a-btn-primary"
+                    disabled={pageSafe <= 0}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setPage((p) => Math.max(0, p - 1));
+                    }}
+                  >
+                    Prev
+                  </button>
+                  <div className="w3a-pagination-info">
+                    {startIndex + 1}-{endIndex} of {totalOthers} (page {pageSafe + 1}/{totalPages})
+                  </div>
+                  <button
+                    type="button"
+                    className="w3a-btn w3a-btn-primary"
+                    disabled={pageSafe >= totalPages - 1}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setPage((p) => Math.min(totalPages - 1, p + 1));
+                    }}
+                  >
+                    Next
+                  </button>
+                </div>
+              );
+            })()
           )}
 
           {deleteError && (

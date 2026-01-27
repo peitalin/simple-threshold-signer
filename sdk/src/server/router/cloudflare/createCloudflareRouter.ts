@@ -15,7 +15,9 @@ import { handleSessionAuth, handleSessionLogout, handleSessionRefresh } from './
 import { handleSignedDelegate } from './routes/signedDelegate';
 import { handleSyncAccount } from './routes/syncAccount';
 import { handleThresholdEd25519 } from './routes/thresholdEd25519';
+import { handleWebAuthnAuthenticators } from './routes/webauthnAuthenticators';
 import { handleWebAuthnLogin } from './routes/webauthnLogin';
+import { handleNearPublicKeys } from './routes/nearPublicKeys';
 import { handleWellKnown } from './routes/wellKnown';
 import { resolveThresholdOption } from '../routerOptions';
 
@@ -61,6 +63,8 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
     handleLinkDevice,
     handleEmailRecoveryPrepare,
     handleThresholdEd25519,
+    handleWebAuthnAuthenticators,
+    handleNearPublicKeys,
     handleSessionAuth,
     handleSessionLogout,
     handleSessionRefresh,

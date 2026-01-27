@@ -2,6 +2,7 @@ import type { NormalizedLogger } from './logger';
 import type { ThresholdEd25519KeyStoreConfigInput } from './types';
 import { THRESHOLD_PREFIX_DEFAULT } from './defaultConfigsServer';
 import { isObject as isObjectLoose, toOptionalTrimmedString } from '../../utils/validation';
+import { RedisTcpClient, UpstashRedisRestClient, redisDel, redisGetJson, redisSetJson } from './ThresholdService/kv';
 import { getPostgresPool, getPostgresUrlFromConfig } from '../storage/postgres';
 
 export type DeviceLinkingSessionRecord = {
@@ -169,6 +170,86 @@ class PostgresDeviceLinkingSessionStore implements DeviceLinkingSessionStore {
   }
 }
 
+class UpstashRedisRestDeviceLinkingSessionStore implements DeviceLinkingSessionStore {
+  private readonly client: UpstashRedisRestClient;
+  private readonly prefix: string;
+
+  constructor(input: { url: string; token: string; prefix: string }) {
+    this.client = new UpstashRedisRestClient({ url: input.url, token: input.token });
+    this.prefix = input.prefix;
+  }
+
+  private key(sessionId: string): string {
+    return `${this.prefix}${sessionId}`;
+  }
+
+  async get(sessionId: string): Promise<DeviceLinkingSessionRecord | null> {
+    const id = toOptionalTrimmedString(sessionId);
+    if (!id) return null;
+    const raw = await this.client.getJson(this.key(id));
+    const parsed = parseDeviceLinkingSessionRecord(raw);
+    if (!parsed) return null;
+    if (Date.now() > parsed.expiresAtMs) {
+      await this.del(id);
+      return null;
+    }
+    return parsed;
+  }
+
+  async put(record: DeviceLinkingSessionRecord): Promise<void> {
+    const parsed = parseDeviceLinkingSessionRecord(record);
+    if (!parsed) throw new Error('Invalid device linking session record');
+    const ttlMs = Math.max(1, parsed.expiresAtMs - Date.now());
+    await this.client.setJson(this.key(parsed.sessionId), parsed, ttlMs);
+  }
+
+  async del(sessionId: string): Promise<void> {
+    const id = toOptionalTrimmedString(sessionId);
+    if (!id) return;
+    await this.client.del(this.key(id));
+  }
+}
+
+class RedisTcpDeviceLinkingSessionStore implements DeviceLinkingSessionStore {
+  private readonly client: RedisTcpClient;
+  private readonly prefix: string;
+
+  constructor(input: { redisUrl: string; prefix: string }) {
+    this.client = new RedisTcpClient(input.redisUrl);
+    this.prefix = input.prefix;
+  }
+
+  private key(sessionId: string): string {
+    return `${this.prefix}${sessionId}`;
+  }
+
+  async get(sessionId: string): Promise<DeviceLinkingSessionRecord | null> {
+    const id = toOptionalTrimmedString(sessionId);
+    if (!id) return null;
+    const raw = await redisGetJson(this.client, this.key(id));
+    const parsed = parseDeviceLinkingSessionRecord(raw);
+    if (!parsed) return null;
+    if (Date.now() > parsed.expiresAtMs) {
+      await this.del(id);
+      return null;
+    }
+    return parsed;
+  }
+
+  async put(record: DeviceLinkingSessionRecord): Promise<void> {
+    const parsed = parseDeviceLinkingSessionRecord(record);
+    if (!parsed) throw new Error('Invalid device linking session record');
+    const ttlMs = Math.max(1, parsed.expiresAtMs - Date.now());
+    await redisSetJson(this.client, this.key(parsed.sessionId), parsed, ttlMs);
+  }
+
+  async del(sessionId: string): Promise<void> {
+    const id = toOptionalTrimmedString(sessionId);
+    if (!id) return;
+    await redisDel(this.client, this.key(id));
+  }
+}
+
 export function createDeviceLinkingSessionStore(input: {
   config?: ThresholdEd25519KeyStoreConfigInput | null;
   logger: NormalizedLogger;
@@ -176,8 +257,39 @@ export function createDeviceLinkingSessionStore(input: {
 }): DeviceLinkingSessionStore {
   const config = (isObject(input.config) ? input.config : {}) as Record<string, unknown>;
   const namespace = toDeviceLinkingSessionPrefix(config);
+  const allowInMemory = toOptionalTrimmedString(config.THRESHOLD_ALLOW_IN_MEMORY_STORES) === '1';
+  const requirePersistent = !input.isNode && !allowInMemory;
 
   const kind = toOptionalTrimmedString(config.kind);
+  if (kind === 'in-memory') {
+    if (requirePersistent) {
+      throw new Error('[link-device] In-memory session store is not supported in this runtime; configure Upstash/Redis');
+    }
+    input.logger.info('[link-device] Using in-memory session store (non-persistent)');
+    return new InMemoryDeviceLinkingSessionStore({ namespace });
+  }
+  if (kind === 'upstash-redis-rest') {
+    const url = toOptionalTrimmedString(config.url) || toOptionalTrimmedString(config.UPSTASH_REDIS_REST_URL);
+    const token = toOptionalTrimmedString(config.token) || toOptionalTrimmedString(config.UPSTASH_REDIS_REST_TOKEN);
+    if (!url || !token) {
+      throw new Error('[link-device] upstash-redis-rest session store enabled but url/token are not both set');
+    }
+    input.logger.info('[link-device] Using Upstash REST session store');
+    return new UpstashRedisRestDeviceLinkingSessionStore({ url, token, prefix: namespace });
+  }
+  if (kind === 'redis-tcp') {
+    if (!input.isNode) {
+      if (requirePersistent) {
+        throw new Error('[link-device] redis-tcp session store is not supported in this runtime; configure Upstash/Redis REST');
+      }
+      input.logger.warn('[link-device] redis-tcp session store is not supported in this runtime; falling back to in-memory');
+      return new InMemoryDeviceLinkingSessionStore({ namespace });
+    }
+    const redisUrl = toOptionalTrimmedString(config.redisUrl) || toOptionalTrimmedString(config.REDIS_URL);
+    if (!redisUrl) throw new Error('[link-device] redis-tcp session store enabled but REDIS_URL is not set');
+    input.logger.info('[link-device] Using redis-tcp session store');
+    return new RedisTcpDeviceLinkingSessionStore({ redisUrl, prefix: namespace });
+  }
   if (kind === 'postgres') {
     if (!input.isNode) throw new Error('[link-device] postgres session store is not supported in this runtime');
     const postgresUrl = getPostgresUrlFromConfig(config);
@@ -186,11 +298,39 @@ export function createDeviceLinkingSessionStore(input: {
     return new PostgresDeviceLinkingSessionStore({ postgresUrl, namespace });
   }
 
+  // Env-shaped config: prefer Redis/Upstash for session storage (TTL + lower Postgres churn).
+  const upstashUrl = toOptionalTrimmedString(config.UPSTASH_REDIS_REST_URL);
+  const upstashToken = toOptionalTrimmedString(config.UPSTASH_REDIS_REST_TOKEN);
+  if (upstashUrl || upstashToken) {
+    if (!upstashUrl || !upstashToken) {
+      throw new Error('[link-device] Upstash session store enabled but UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN are not both set');
+    }
+    input.logger.info('[link-device] Using Upstash REST session store');
+    return new UpstashRedisRestDeviceLinkingSessionStore({ url: upstashUrl, token: upstashToken, prefix: namespace });
+  }
+
+  const redisUrl = toOptionalTrimmedString(config.REDIS_URL);
+  if (redisUrl) {
+    if (!input.isNode) {
+      if (requirePersistent) {
+        throw new Error('[link-device] REDIS_URL is set but TCP Redis is not supported in this runtime; use Upstash/Redis REST');
+      }
+      input.logger.warn('[link-device] REDIS_URL is set but TCP Redis is not supported in this runtime; falling back to in-memory');
+      return new InMemoryDeviceLinkingSessionStore({ namespace });
+    }
+    input.logger.info('[link-device] Using redis-tcp session store');
+    return new RedisTcpDeviceLinkingSessionStore({ redisUrl, prefix: namespace });
+  }
+
   const postgresUrl = getPostgresUrlFromConfig(config);
   if (postgresUrl) {
     if (!input.isNode) throw new Error('[link-device] POSTGRES_URL is set but Postgres is not supported in this runtime');
     input.logger.info('[link-device] Using Postgres session store');
     return new PostgresDeviceLinkingSessionStore({ postgresUrl, namespace });
+  }
+
+  if (requirePersistent) {
+    throw new Error('[link-device] Device linking sessions require persistent storage in this runtime; configure UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN');
   }
 
   input.logger.info('[link-device] Using in-memory session store (non-persistent)');

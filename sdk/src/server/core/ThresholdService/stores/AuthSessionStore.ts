@@ -283,12 +283,12 @@ class PostgresThresholdEd25519AuthSessionStore implements ThresholdEd25519AuthSe
     const pool = await this.poolPromise;
     await pool.query(
       `
-        INSERT INTO tatchi_threshold_ed25519_auth_sessions (namespace, session_id, record_json, expires_at_ms, remaining_uses)
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (namespace, session_id)
+        INSERT INTO tatchi_threshold_ed25519_sessions (namespace, kind, session_id, record_json, expires_at_ms, remaining_uses)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (namespace, kind, session_id)
         DO UPDATE SET record_json = EXCLUDED.record_json, expires_at_ms = EXCLUDED.expires_at_ms, remaining_uses = EXCLUDED.remaining_uses
       `,
-      [this.namespace, id, parsed, expiresAtMs, remainingUses],
+      [this.namespace, 'auth', id, parsed, expiresAtMs, remainingUses],
     );
   }
 
@@ -298,11 +298,11 @@ class PostgresThresholdEd25519AuthSessionStore implements ThresholdEd25519AuthSe
     const { rows } = await pool.query(
       `
         SELECT record_json
-        FROM tatchi_threshold_ed25519_auth_sessions
-        WHERE namespace = $1 AND session_id = $2 AND expires_at_ms > $3
+        FROM tatchi_threshold_ed25519_sessions
+        WHERE namespace = $1 AND kind = $2 AND session_id = $3 AND expires_at_ms > $4
         LIMIT 1
       `,
-      [this.namespace, id, nowMs],
+      [this.namespace, 'auth', id, nowMs],
     );
     return parseThresholdEd25519AuthSessionRecord(rows[0]?.record_json);
   }
@@ -312,11 +312,11 @@ class PostgresThresholdEd25519AuthSessionStore implements ThresholdEd25519AuthSe
     const { rows } = await pool.query(
       `
         SELECT expires_at_ms, remaining_uses
-        FROM tatchi_threshold_ed25519_auth_sessions
-        WHERE namespace = $1 AND session_id = $2
+        FROM tatchi_threshold_ed25519_sessions
+        WHERE namespace = $1 AND kind = $2 AND session_id = $3
         LIMIT 1
       `,
-      [this.namespace, id],
+      [this.namespace, 'auth', id],
     );
     const row = rows[0];
     if (!row) return { code: 'unauthorized', message: 'threshold session expired or invalid' };
@@ -333,12 +333,12 @@ class PostgresThresholdEd25519AuthSessionStore implements ThresholdEd25519AuthSe
       const nowMs = Date.now();
       const { rows } = await pool.query(
         `
-          UPDATE tatchi_threshold_ed25519_auth_sessions
+          UPDATE tatchi_threshold_ed25519_sessions
           SET remaining_uses = remaining_uses - 1
-          WHERE namespace = $1 AND session_id = $2 AND expires_at_ms > $3 AND remaining_uses > 0
+          WHERE namespace = $1 AND kind = $2 AND session_id = $3 AND expires_at_ms > $4 AND remaining_uses > 0
           RETURNING remaining_uses, record_json
         `,
-        [this.namespace, id, nowMs],
+        [this.namespace, 'auth', id, nowMs],
       );
       const row = rows[0];
       if (!row) {
@@ -363,12 +363,12 @@ class PostgresThresholdEd25519AuthSessionStore implements ThresholdEd25519AuthSe
       const nowMs = Date.now();
       const { rows } = await pool.query(
         `
-          UPDATE tatchi_threshold_ed25519_auth_sessions
+          UPDATE tatchi_threshold_ed25519_sessions
           SET remaining_uses = remaining_uses - 1
-          WHERE namespace = $1 AND session_id = $2 AND expires_at_ms > $3 AND remaining_uses > 0
+          WHERE namespace = $1 AND kind = $2 AND session_id = $3 AND expires_at_ms > $4 AND remaining_uses > 0
           RETURNING remaining_uses
         `,
-        [this.namespace, id, nowMs],
+        [this.namespace, 'auth', id, nowMs],
       );
       const row = rows[0];
       if (!row) {
@@ -439,15 +439,7 @@ export function createThresholdEd25519AuthSessionStore(input: {
     return new PostgresThresholdEd25519AuthSessionStore({ postgresUrl, namespace: toOptionalTrimmedString(config.keyPrefix) || envPrefix });
   }
 
-  const postgresUrl = getPostgresUrlFromConfig(config);
-  if (postgresUrl) {
-    if (!input.isNode) {
-      throw new Error('[threshold-ed25519] POSTGRES_URL is set but Postgres is not supported in this runtime');
-    }
-    input.logger.info('[threshold-ed25519] Using Postgres store for threshold auth sessions');
-    return new PostgresThresholdEd25519AuthSessionStore({ postgresUrl, namespace: envPrefix || '' });
-  }
-
+  // Env-shaped config: prefer Redis/Upstash for auth session storage (TTL + counters) to avoid Postgres churn.
   const upstashUrl = toOptionalTrimmedString(config.UPSTASH_REDIS_REST_URL);
   const upstashToken = toOptionalTrimmedString(config.UPSTASH_REDIS_REST_TOKEN);
   if (upstashUrl || upstashToken) {
@@ -469,6 +461,15 @@ export function createThresholdEd25519AuthSessionStore(input: {
     }
     input.logger.info('[threshold-ed25519] Using redis-tcp store for threshold auth sessions');
     return new RedisTcpThresholdEd25519AuthSessionStore({ redisUrl, keyPrefix: envPrefix || undefined });
+  }
+
+  const postgresUrl = getPostgresUrlFromConfig(config);
+  if (postgresUrl) {
+    if (!input.isNode) {
+      throw new Error('[threshold-ed25519] POSTGRES_URL is set but Postgres is not supported in this runtime');
+    }
+    input.logger.info('[threshold-ed25519] Using Postgres store for threshold auth sessions');
+    return new PostgresThresholdEd25519AuthSessionStore({ postgresUrl, namespace: envPrefix || '' });
   }
 
   if (requirePersistent) {
