@@ -28,7 +28,7 @@ export function HomeHero() {
     <>
       <section className="hero" aria-labelledby="hero-title">
         <h1 className="hero-title">
-          Tatchi Passkey Wallet
+          Simple Threshold Signer
           <span className="touch-icon-pattern-position" aria-hidden="true">
             <TouchIcon
               style={{ color: theme == 'dark' ? 'var(--w3a-colors-surface)' : 'var(--w3a-colors-surface2)'}}
@@ -39,27 +39,11 @@ export function HomeHero() {
           </span>
         </h1>
         <h3 className="hero-subtitle">
-          A TouchID native wallet
+          Simple Threshold Signer
         </h3>
         <p className="hero-description">
           Tatchi is a browser embedded wallet allows users to
           sign transactions without popups, managing keys, or installing extensions.
-        </p>
-        <h3 className="hero-subtitle">
-          No popups. No keys. No passwords.
-        </h3>
-        <p className="hero-description">
-          Keep full control of your UI with zero popups,
-          serverless WebAuthn authentication with VRF challenges designed for security and speed.
-        </p>
-        <h3 className="hero-subtitle">
-          Fearless account recovery
-        </h3>
-        <p className="hero-description">
-          Your passkey is your wallet.
-          Tatchi derives wallets from Passkeys and saves authenticator metadata onchain,
-          meaning your users can sync accounts, and link multiple devices all by themselves without
-          intermediaries.
         </p>
         <div className="hero-ctas">
           <a

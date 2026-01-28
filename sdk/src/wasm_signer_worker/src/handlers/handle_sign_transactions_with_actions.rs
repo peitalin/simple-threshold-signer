@@ -222,7 +222,7 @@ pub async fn handle_sign_transactions_with_actions(
     send_progress_message(
         ProgressMessageType::ExecuteActionsProgress,
         ProgressStep::TransactionSigningProgress,
-        "Decrypting private key and signing transactions...",
+        "Signing transactions...",
         Some(
             &ProgressData::new(4, 4)
                 .with_transaction_count(tx_batch_request.tx_signing_requests.len()),
@@ -292,7 +292,8 @@ pub async fn handle_sign_transactions_with_actions(
 
     // Send completion progress message
     send_completion_message(
-        ProgressMessageType::ExecuteActionsProgress,
+        // Mark as terminal success so UIs don't remain "stuck" treating this as in-progress.
+        ProgressMessageType::ExecuteActionsComplete,
         ProgressStep::TransactionSigningComplete,
         &format!("{} transactions signed successfully", tx_count),
         Some(
