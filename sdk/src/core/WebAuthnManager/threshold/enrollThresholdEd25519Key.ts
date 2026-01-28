@@ -15,6 +15,8 @@ export type EnrollThresholdEd25519KeyHandlerContext = {
     deriveThresholdEd25519ClientVerifyingShare: (args: {
       sessionId: string;
       nearAccountId: AccountId;
+      prfFirstB64u: string;
+      wrapKeySalt: string;
     }) => Promise<DeriveThresholdClientShareResult>;
   };
   touchIdPrompt: Pick<TouchIdPrompt, 'getRpId'>;
@@ -32,6 +34,8 @@ export async function enrollThresholdEd25519KeyHandler(
     sessionId: string;
     nearAccountId: AccountId | string;
     webauthnAuthentication: WebAuthnAuthenticationCredential;
+    prfFirstB64u: string;
+    wrapKeySalt: string;
     keygenSessionId?: string;
   }
 ): Promise<{
@@ -53,10 +57,14 @@ export async function enrollThresholdEd25519KeyHandler(
     if (!sessionId) throw new Error('Missing sessionId');
     if (!relayerUrl) throw new Error('Missing relayer url (configs.relayer.url)');
     if (!args.webauthnAuthentication) throw new Error('Missing webauthnAuthentication for threshold keygen');
+    if (!args.prfFirstB64u) throw new Error('Missing PRF.first output for threshold keygen');
+    if (!args.wrapKeySalt) throw new Error('Missing wrapKeySalt for threshold keygen');
 
     const derived = await ctx.signerWorkerManager.deriveThresholdEd25519ClientVerifyingShare({
       sessionId,
       nearAccountId,
+      prfFirstB64u: args.prfFirstB64u,
+      wrapKeySalt: args.wrapKeySalt,
     });
     if (!derived.success) {
       throw new Error(derived.error || 'Failed to derive threshold client verifying share');

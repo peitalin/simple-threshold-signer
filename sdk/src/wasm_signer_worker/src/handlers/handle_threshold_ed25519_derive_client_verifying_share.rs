@@ -18,6 +18,12 @@ pub struct DeriveThresholdEd25519ClientVerifyingShareRequest {
     pub near_account_id: String,
     #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
     pub session_id: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "prfFirstB64u")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prf_first_b64u: Option<String>,
+    #[wasm_bindgen(getter_with_clone, js_name = "wrapKeySalt")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wrap_key_salt: Option<String>,
 }
 
 #[wasm_bindgen]

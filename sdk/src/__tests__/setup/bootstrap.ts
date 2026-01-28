@@ -193,10 +193,10 @@ async function waitForEnvironmentStabilization(page: Page): Promise<void> {
  *
  * NOTE (SecureConfirm worker):
  * - The dynamically loaded TatchiPasskey instance wires:
- *   - SecureConfirm worker as the sole owner of WebAuthn PRF + SecureConfirm
+ *   - SecureConfirm worker as the owner of WebAuthn PRF + SecureConfirm
  *     (via awaitSecureConfirmationV2 in the SecureConfirm worker bundle).
- *   - Signer worker as a WrapKeySeed/KEK/NEAR‑signature enclave that only ever
- *     sees WrapKeySeed over the internal MessagePort channel (no PRF secrets).
+ *   - Signer worker as a WrapKeySeed/KEK/NEAR‑signature enclave that derives
+ *     WrapKeySeed from prfFirstB64u + wrapKeySalt supplied in wallet-origin requests.
  */
 async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestConfig): Promise<void> {
   // Wait for the page to be ready before attempting imports.

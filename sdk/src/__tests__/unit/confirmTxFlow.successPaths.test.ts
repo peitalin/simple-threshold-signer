@@ -81,7 +81,7 @@ test.describe('confirmTxFlow – success paths', () => {
     }, { paths: IMPORT_PATHS });
 
     expect(result.ok).toBe(true);
-    // LocalOnly decrypt now forwards the credential and lets the SecureConfirm worker extract PRF internally.
+    // LocalOnly decrypt returns the credential; PRF outputs are handled after confirmation.
     expect(result.prf).toBeUndefined();
     expect(result.cred?.id).toBe('cred-id');
     // LocalOnly decrypt flows should not surface wrap key material on the main thread.

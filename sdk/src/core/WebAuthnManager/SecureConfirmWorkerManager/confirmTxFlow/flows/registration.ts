@@ -123,8 +123,7 @@ export async function handleRegistrationFlow(
     }
 
     // We require registration credentials to include dual PRF outputs (first + second)
-    // so PRF-based NEAR key derivation can happen inside the workers without passing PRF outputs
-    // as separate main-thread values.
+    // so wallet-origin code can pass PRF outputs directly to signer workers when deriving keys.
     const serialized: WebAuthnRegistrationCredential = isSerializedRegistrationCredential(credential)
       ? (credential as unknown as WebAuthnRegistrationCredential)
       : serializeRegistrationCredentialWithPRF({

@@ -21,12 +21,16 @@ export async function exportNearKeypairUi({
   variant,
   theme,
   sessionId,
+  prfFirstB64u,
+  wrapKeySalt,
 }: {
   ctx: SignerWorkerManagerContext;
   nearAccountId: AccountId;
   variant?: 'drawer' | 'modal';
   theme?: 'dark' | 'light';
   sessionId: string;
+  prfFirstB64u: string;
+  wrapKeySalt: string;
 }): Promise<void> {
   const accountId = toAccountId(nearAccountId);
 
@@ -40,8 +44,16 @@ export async function exportNearKeypairUi({
   if (!keyData || !publicKey) {
     throw new Error('Missing local key material for export. Re-register to upgrade vault.');
   }
+  const prfFirst = String(prfFirstB64u || '').trim();
+  const wrapKeySaltB64u = String(wrapKeySalt || '').trim();
+  if (!prfFirst) {
+    throw new Error('Missing PRF.first output for export decrypt');
+  }
+  if (!wrapKeySaltB64u) {
+    throw new Error('Missing wrapKeySalt for export decrypt');
+  }
 
-  // Decrypt inside signer worker using the reserved session
+  // Decrypt inside signer worker using direct PRF inputs
   const response = await ctx.sendMessage<WorkerRequestType.DecryptPrivateKeyWithPrf>({
     sessionId,
     message: {
@@ -50,6 +62,8 @@ export async function exportNearKeypairUi({
         nearAccountId: accountId,
         encryptedPrivateKeyData: keyData.encryptedSk,
         encryptedPrivateKeyChacha20NonceB64u: keyData.chacha20NonceB64u,
+        prfFirstB64u: prfFirst,
+        wrapKeySalt: wrapKeySaltB64u,
       },
     },
   });

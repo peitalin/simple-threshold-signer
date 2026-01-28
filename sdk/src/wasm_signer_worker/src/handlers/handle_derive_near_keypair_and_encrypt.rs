@@ -23,6 +23,15 @@ pub struct DeriveNearKeypairAndEncryptRequest {
     pub authenticator_options: Option<AuthenticatorOptions>,
     #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
     pub session_id: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "prfFirstB64u")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prf_first_b64u: Option<String>,
+    #[wasm_bindgen(getter_with_clone, js_name = "wrapKeySalt")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wrap_key_salt: Option<String>,
+    #[wasm_bindgen(getter_with_clone, js_name = "prfSecondB64u")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prf_second_b64u: Option<String>,
 }
 
 #[wasm_bindgen]
@@ -70,16 +79,16 @@ impl DeriveNearKeypairAndEncryptResult {
 
 /// **Handles:** `WorkerRequestType::DeriveNearKeypairAndEncrypt`
 /// This is the primary handler for new device setup and linking. It performs the following operations:
-/// 1. Derives Ed25519 keypair from PRF.second (delivered via MessagePort) using HKDF with account-specific salt
-/// 2. Encrypts the private key using KEK derived from WrapKeySeed (delivered via MessagePort)
+/// 1. Derives Ed25519 keypair from PRF.second using HKDF with account-specific salt
+/// 2. Encrypts the private key using KEK derived from WrapKeySeed (prf_first_b64u + wrap_key_salt)
 ///
 /// # Security Note
-/// PRF outputs are delivered via MessagePort from SecureConfirm worker and never exposed to main thread.
+/// PRF outputs are supplied directly in the request payload (wallet-origin only) and never persisted.
 ///
 /// # Arguments
 /// * `request` - Contains account ID and WebAuthn credential metadata for derivation
-/// * `wrap_key` - WrapKeySeed and wrapKeySalt delivered from SecureConfirm worker via MessagePort
-/// * `prf_second_b64u` - PRF.second output retrieved from session storage (delivered via MessagePort)
+/// * `wrap_key` - WrapKeySeed and wrapKeySalt derived from prf_first_b64u + wrap_key_salt
+/// * `prf_second_b64u` - PRF.second output provided in the request
 ///
 /// # Returns
 /// * `DeriveNearKeypairResult` - Contains derived public key, encrypted private key data, and optional signed transaction
@@ -88,9 +97,9 @@ pub async fn handle_derive_near_keypair_and_encrypt(
     wrap_key: WrapKey,
     prf_second_b64u: String,
 ) -> Result<DeriveNearKeypairAndEncryptResult, String> {
-    debug!("[rust wasm]: starting PRF-based keypair derivation (secure MessagePort flow)");
+    debug!("[rust wasm]: starting PRF-based keypair derivation (direct PRF flow)");
 
-    // Derive Ed25519 keypair from PRF.second (delivered securely via MessagePort)
+    // Derive Ed25519 keypair from PRF.second
     let (near_private_key, near_public_key) = crate::crypto::derive_ed25519_key_from_prf_output(
         &prf_second_b64u,
         &request.near_account_id,

@@ -10,8 +10,7 @@ use wasm_bindgen::prelude::*;
 use crate::WrapKey;
 
 // Export/decrypt confirmation has been moved to the SecureConfirm bridge; signer no longer owns awaitSecureConfirmationV2.
-// Export flows must be SecureConfirm-prepared: this handler expects WrapKeySeed material injected via the
-// session-bound WrapKeySeed MessagePort, never raw PRF outputs in the request payload.
+// Export flows must be SecureConfirm-prepared: this handler expects prf_first_b64u + wrap_key_salt in the request payload.
 
 #[wasm_bindgen]
 #[derive(Debug, Clone, Deserialize)]
@@ -26,6 +25,12 @@ pub struct DecryptPrivateKeyRequest {
     pub encrypted_private_key_chacha20_nonce_b64u: String,
     #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
     pub session_id: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "prfFirstB64u")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prf_first_b64u: Option<String>,
+    #[wasm_bindgen(getter_with_clone, js_name = "wrapKeySalt")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wrap_key_salt: Option<String>,
 }
 
 #[wasm_bindgen]
@@ -42,6 +47,8 @@ impl DecryptPrivateKeyRequest {
             encrypted_private_key_data,
             encrypted_private_key_chacha20_nonce_b64u,
             session_id,
+            prf_first_b64u: None,
+            wrap_key_salt: None,
         }
     }
 }
@@ -69,7 +76,7 @@ impl DecryptPrivateKeyResult {
 
 /// **Handles:** `WorkerRequestType::DecryptPrivateKeyWithPrf`
 /// This handler takes encrypted private key data and decrypts it using a KEK derived from
-/// WrapKeySeed material delivered via a session-bound MessagePort.
+/// WrapKeySeed material computed from prf_first_b64u + wrap_key_salt.
 ///
 /// # Arguments
 /// * `request` - Contains account ID, sessionId, and encrypted private key data with nonce

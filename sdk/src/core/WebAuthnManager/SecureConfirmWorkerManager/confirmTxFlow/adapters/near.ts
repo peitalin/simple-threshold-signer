@@ -15,7 +15,11 @@ export async function fetchNearContext(
   try {
     // Prefer NonceManager when initialized (signing flows).
     // Use cached transaction context if fresh; avoid forcing a refresh here.
-    const transactionContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient);
+    const cached = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient);
+    // IMPORTANT: `NonceManager` returns its cached `transactionContext` object by reference.
+    // Never mutate it in-place here, otherwise concurrent signing requests can race and overwrite
+    // `nextNonce` for each other, leading to duplicate nonces (InvalidNonce) under load.
+    const transactionContext: TransactionContext = { ...cached };
 
     const txCount = opts.txCount || 1;
     let reservedNonces: string[] | undefined;

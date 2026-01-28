@@ -13,7 +13,6 @@ mod tests;
 mod threshold;
 mod transaction;
 mod types;
-mod wrap_key_handshake;
 
 use crate::types::worker_messages::{
     parse_typed_payload, parse_worker_request_envelope, worker_request_type_name,
@@ -21,7 +20,6 @@ use crate::types::worker_messages::{
     WorkerResponseType,
 };
 use crate::types::*;
-use crate::wrap_key_handshake::{get_prf_second_b64u, get_wrap_key_shards};
 use log::debug;
 use wasm_bindgen::prelude::*;
 
@@ -75,7 +73,6 @@ pub use types::wasm_to_json::{
 };
 
 pub use crate::crypto::WrapKey;
-pub use wrap_key_handshake::attach_wrap_key_seed_port;
 
 #[wasm_bindgen]
 pub fn init_worker() {
@@ -148,6 +145,42 @@ pub fn send_progress_message(message_type: u32, step: u32, message: &str, data: 
     }
 }
 
+fn require_field(
+    field_name: &str,
+    value: &Option<String>,
+    request_type: WorkerRequestType,
+) -> Result<String, JsValue> {
+    let trimmed = value.as_deref().unwrap_or("").trim();
+    if trimmed.is_empty() {
+        return Err(JsValue::from_str(&format!(
+            "Missing {} for {}",
+            field_name,
+            worker_request_type_name(request_type)
+        )));
+    }
+    Ok(trimmed.to_string())
+}
+
+fn wrap_key_from_request(
+    prf_first_b64u: &Option<String>,
+    wrap_key_salt: &Option<String>,
+    request_type: WorkerRequestType,
+) -> Result<WrapKey, JsValue> {
+    let wrap_key_seed = require_field("prfFirstB64u", prf_first_b64u, request_type)?;
+    let wrap_key_salt = require_field("wrapKeySalt", wrap_key_salt, request_type)?;
+    Ok(WrapKey {
+        wrap_key_seed,
+        wrap_key_salt,
+    })
+}
+
+fn prf_second_from_request(
+    prf_second_b64u: &Option<String>,
+    request_type: WorkerRequestType,
+) -> Result<String, JsValue> {
+    require_field("prfSecondB64u", prf_second_b64u, request_type)
+}
+
 // === MESSAGE HANDLER FUNCTIONS ===
 
 /// Unified message handler for all signer worker operations
@@ -176,9 +209,12 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
         WorkerRequestType::DeriveNearKeypairAndEncrypt => {
             let request: DeriveNearKeypairAndEncryptRequest =
                 parse_typed_payload(&payload_js, request_type)?;
-            let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
-            let prf_second_b64u =
-                get_prf_second_b64u(&request.session_id, request_type, 2000).await?;
+            let wrap_key = wrap_key_from_request(
+                &request.prf_first_b64u,
+                &request.wrap_key_salt,
+                request_type,
+            )?;
+            let prf_second_b64u = prf_second_from_request(&request.prf_second_b64u, request_type)?;
             let result = handlers::handle_derive_near_keypair_and_encrypt(
                 request,
                 wrap_key,
@@ -190,14 +226,22 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
         }
         WorkerRequestType::RecoverKeypairFromPasskey => {
             let request: RecoverKeypairRequest = parse_typed_payload(&payload_js, request_type)?;
-            let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
+            let wrap_key = wrap_key_from_request(
+                &request.prf_first_b64u,
+                &request.wrap_key_salt,
+                request_type,
+            )?;
             let result = handlers::handle_recover_keypair_from_passkey(request, wrap_key).await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
         WorkerRequestType::DecryptPrivateKeyWithPrf => {
             let request: DecryptPrivateKeyRequest = parse_typed_payload(&payload_js, request_type)?;
-            let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
+            let wrap_key = wrap_key_from_request(
+                &request.prf_first_b64u,
+                &request.wrap_key_salt,
+                request_type,
+            )?;
             let result = handlers::handle_decrypt_private_key_with_prf(request, wrap_key).await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
@@ -205,7 +249,11 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
         WorkerRequestType::SignTransactionsWithActions => {
             let request: SignTransactionsWithActionsRequest =
                 parse_typed_payload(&payload_js, request_type)?;
-            let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
+            let wrap_key = wrap_key_from_request(
+                &request.prf_first_b64u,
+                &request.wrap_key_salt,
+                request_type,
+            )?;
             let result = handlers::handle_sign_transactions_with_actions(request, wrap_key).await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
@@ -213,7 +261,11 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
         WorkerRequestType::SignDelegateAction => {
             let request: SignDelegateActionRequest =
                 parse_typed_payload(&payload_js, request_type)?;
-            let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
+            let wrap_key = wrap_key_from_request(
+                &request.prf_first_b64u,
+                &request.wrap_key_salt,
+                request_type,
+            )?;
             let result = handlers::handle_sign_delegate_action(request, wrap_key).await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
@@ -224,8 +276,8 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
         }
-        // NOTE: Does not need session-bound WrapKeySeed material.
-        // The only method that does not require SecureConfirm/session material to sign.
+        // NOTE: Does not need PRF-derived WrapKey material.
+        // The only method that does not require SecureConfirm/WebAuthn material to sign.
         WorkerRequestType::SignTransactionWithKeyPair => {
             let request: SignTransactionWithKeyPairRequest =
                 parse_typed_payload(&payload_js, request_type)?;
@@ -235,7 +287,11 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
         }
         WorkerRequestType::SignNep413Message => {
             let request: SignNep413Request = parse_typed_payload(&payload_js, request_type)?;
-            let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
+            let wrap_key = wrap_key_from_request(
+                &request.prf_first_b64u,
+                &request.wrap_key_salt,
+                request_type,
+            )?;
             let result = handlers::handle_sign_nep413_message(request, wrap_key).await?;
             serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&format!("Failed to serialize result: {:?}", e)))?
@@ -243,9 +299,12 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
         WorkerRequestType::RegisterDevice2WithDerivedKey => {
             let request: handlers::RegisterDevice2WithDerivedKeyRequest =
                 parse_typed_payload(&payload_js, request_type)?;
-            let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
-            let prf_second_b64u =
-                get_prf_second_b64u(&request.session_id, request_type, 2000).await?;
+            let wrap_key = wrap_key_from_request(
+                &request.prf_first_b64u,
+                &request.wrap_key_salt,
+                request_type,
+            )?;
+            let prf_second_b64u = prf_second_from_request(&request.prf_second_b64u, request_type)?;
             let result = handlers::handle_register_device2_with_derived_key(
                 request,
                 wrap_key,
@@ -258,7 +317,11 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
         WorkerRequestType::DeriveThresholdEd25519ClientVerifyingShare => {
             let request: DeriveThresholdEd25519ClientVerifyingShareRequest =
                 parse_typed_payload(&payload_js, request_type)?;
-            let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
+            let wrap_key = wrap_key_from_request(
+                &request.prf_first_b64u,
+                &request.wrap_key_salt,
+                request_type,
+            )?;
             let result =
                 handlers::handle_threshold_ed25519_derive_client_verifying_share(request, wrap_key)
                     .await?;
@@ -268,7 +331,11 @@ pub async fn handle_signer_message(message_val: JsValue) -> Result<JsValue, JsVa
         WorkerRequestType::SignAddKeyThresholdPublicKeyNoPrompt => {
             let request: SignAddKeyThresholdPublicKeyNoPromptRequest =
                 parse_typed_payload(&payload_js, request_type)?;
-            let wrap_key = get_wrap_key_shards(&request.session_id, request_type, 2000).await?;
+            let wrap_key = wrap_key_from_request(
+                &request.prf_first_b64u,
+                &request.wrap_key_salt,
+                request_type,
+            )?;
             let result =
                 handlers::handle_sign_add_key_threshold_public_key_no_prompt(request, wrap_key)
                     .await?;

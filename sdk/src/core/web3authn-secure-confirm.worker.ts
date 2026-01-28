@@ -13,7 +13,6 @@ import {
   awaitSecureConfirmationV2,
   SecureConfirmMessageType,
 } from './WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow';
-import { WorkerControlMessage } from './workerControlMessages';
 
 // Expose the confirmation bridge under the JS name expected by wasm-bindgen.
 // awaitSecureConfirmationV2 expects a SecureConfirmRequest object.
@@ -30,7 +29,6 @@ type OkDispenseResult = OkResult & { prfFirstB64u: string };
 type ErrResult = { ok: false; code: string; message: string };
 
 const prfFirstSessionCache = new Map<string, ThresholdPrfFirstCacheEntry>();
-const wrapKeySeedPortsBySessionId = new Map<string, MessagePort>();
 
 function nowMs(): number {
   return Date.now();
@@ -41,10 +39,6 @@ function normalizeSessionId(input: unknown): string {
 }
 
 function normalizeB64u(input: unknown): string {
-  return typeof input === 'string' ? input.trim() : '';
-}
-
-function normalizeWrapKeySalt(input: unknown): string {
   return typeof input === 'string' ? input.trim() : '';
 }
 
@@ -81,19 +75,6 @@ function dispensePrfFirstEntry(sessionId: string, uses: number): OkDispenseResul
   return { ok: true, prfFirstB64u: entry.prfFirstB64u, remainingUses: entry.remainingUses, expiresAtMs: entry.expiresAtMs };
 }
 
-function closeWrapKeySeedPort(sessionId: string): void {
-  const existing = wrapKeySeedPortsBySessionId.get(sessionId);
-  if (!existing) return;
-  wrapKeySeedPortsBySessionId.delete(sessionId);
-  try { existing.close(); } catch {}
-}
-
-function setWrapKeySeedPort(sessionId: string, port: MessagePort): void {
-  if (!sessionId) return;
-  closeWrapKeySeedPort(sessionId);
-  wrapKeySeedPortsBySessionId.set(sessionId, port);
-}
-
 function postSecureConfirmWorkerResponse(id: unknown, payload: { success: boolean; data?: unknown; error?: string }): void {
   const response = {
     ...(typeof id === 'string' && id.trim() ? { id: id.trim() } : {}),
@@ -109,24 +90,6 @@ function postSecureConfirmWorkerResponse(id: unknown, payload: { success: boolea
 self.onmessage = (event: MessageEvent) => {
   const eventType = (event.data as any)?.type;
   if (eventType === SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE) return;
-
-  if (eventType === WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT) {
-    const sessionId = normalizeSessionId((event.data as any)?.sessionId);
-    const port = (event as MessageEvent & { ports?: MessagePort[] }).ports?.[0];
-    if (!sessionId || !port) {
-      postSecureConfirmWorkerResponse(undefined, { success: false, error: 'Missing sessionId or MessagePort for ATTACH_WRAP_KEY_SEED_PORT' });
-      try { self.postMessage({ type: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR, sessionId, error: 'Missing sessionId or MessagePort' }); } catch {}
-      return;
-    }
-    try {
-      setWrapKeySeedPort(sessionId, port);
-      try { self.postMessage({ type: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_OK, sessionId }); } catch {}
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      try { self.postMessage({ type: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR, sessionId, error: msg }); } catch {}
-    }
-    return;
-  }
 
   const id = (event.data as any)?.id;
 
@@ -180,71 +143,6 @@ self.onmessage = (event: MessageEvent) => {
     const sessionId = normalizeSessionId(payload?.sessionId);
     if (sessionId) prfFirstSessionCache.delete(sessionId);
     postSecureConfirmWorkerResponse(id, { success: true, data: { ok: true } });
-    return;
-  }
-
-  if (eventType === 'THRESHOLD_CLEAR_WRAP_KEY_SEED_PORT') {
-    const payload = (event.data as any)?.payload as any;
-    const sessionId = normalizeSessionId(payload?.sessionId);
-    if (sessionId) closeWrapKeySeedPort(sessionId);
-    postSecureConfirmWorkerResponse(id, { success: true, data: { ok: true } });
-    return;
-  }
-
-  if (eventType === 'THRESHOLD_PRF_FIRST_SEND_TO_SIGNER') {
-    try {
-      const payload = (event.data as any)?.payload as any;
-      const sessionId = normalizeSessionId(payload?.sessionId);
-      const prfFirstB64u = normalizeB64u(payload?.prfFirstB64u);
-      const wrapKeySalt = normalizeWrapKeySalt(payload?.wrapKeySalt);
-      if (!sessionId || !prfFirstB64u || !wrapKeySalt) {
-        postSecureConfirmWorkerResponse(id, { success: true, data: { ok: false, code: 'invalid_args', message: 'Missing sessionId, prfFirstB64u, or wrapKeySalt' } satisfies ErrResult });
-        return;
-      }
-      const port = wrapKeySeedPortsBySessionId.get(sessionId);
-      if (!port) {
-        postSecureConfirmWorkerResponse(id, { success: true, data: { ok: false, code: 'not_found', message: 'No WrapKeySeed port registered for session' } satisfies ErrResult });
-        return;
-      }
-      port.postMessage({ ok: true, wrap_key_seed: prfFirstB64u, wrapKeySalt });
-      try { port.close(); } catch {}
-      wrapKeySeedPortsBySessionId.delete(sessionId);
-      postSecureConfirmWorkerResponse(id, { success: true, data: { ok: true } });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      postSecureConfirmWorkerResponse(id, { success: false, error: msg });
-    }
-    return;
-  }
-
-  if (eventType === 'THRESHOLD_PRF_FIRST_DISPENSE_TO_SIGNER') {
-    try {
-      const payload = (event.data as any)?.payload as any;
-      const sessionId = normalizeSessionId(payload?.sessionId);
-      const wrapKeySalt = normalizeWrapKeySalt(payload?.wrapKeySalt);
-      const uses = Math.max(1, Math.floor(Number(payload?.uses) || 1));
-      if (!sessionId || !wrapKeySalt) {
-        postSecureConfirmWorkerResponse(id, { success: true, data: { ok: false, code: 'invalid_args', message: 'Missing sessionId or wrapKeySalt' } satisfies ErrResult });
-        return;
-      }
-      const port = wrapKeySeedPortsBySessionId.get(sessionId);
-      if (!port) {
-        postSecureConfirmWorkerResponse(id, { success: true, data: { ok: false, code: 'not_found', message: 'No WrapKeySeed port registered for session' } satisfies ErrResult });
-        return;
-      }
-      const dispensed = dispensePrfFirstEntry(sessionId, uses);
-      if (!dispensed.ok) {
-        postSecureConfirmWorkerResponse(id, { success: true, data: dispensed });
-        return;
-      }
-      port.postMessage({ ok: true, wrap_key_seed: dispensed.prfFirstB64u, wrapKeySalt });
-      try { port.close(); } catch {}
-      wrapKeySeedPortsBySessionId.delete(sessionId);
-      postSecureConfirmWorkerResponse(id, { success: true, data: { ok: true, remainingUses: dispensed.remainingUses, expiresAtMs: dispensed.expiresAtMs } satisfies OkResult });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      postSecureConfirmWorkerResponse(id, { success: false, error: msg });
-    }
     return;
   }
 

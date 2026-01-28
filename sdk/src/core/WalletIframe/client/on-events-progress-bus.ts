@@ -124,18 +124,20 @@ export class OnEventsProgressBus {
    * Register a subscriber for a requestId.
    * Initializes demand tracking to 'none' (neutral) until phases arrive.
    */
-  register({ requestId, onProgress, sticky = false }: {
+  register({ requestId, onProgress, sticky = false, initialDemand = 'none' }: {
     requestId: string,
     sticky: boolean,
     onProgress?: (p: ProgressPayload) => void,
+    initialDemand?: 'show' | 'hide' | 'none',
   }): void {
+    const demand = (initialDemand === 'show' || initialDemand === 'hide') ? initialDemand : 'none';
     this.subs.set(requestId, {
       onProgress,
       sticky,
       stats: { count: 0, lastPhase: null, lastAt: null }
     });
-    // Initialize demand tracking for this request as neutral
-    this.overlayDemands.set(requestId, 'none');
+    // Initialize demand tracking for this request (used to prevent racey hides).
+    this.overlayDemands.set(requestId, demand);
     this.log('register', { requestId, sticky });
   }
 
@@ -179,8 +181,12 @@ export class OnEventsProgressBus {
     const phase = String((payload || {}).phase || '');
     const action = this.heuristic(payload);
 
-    // Update the latest demand for this request
-    this.overlayDemands.set(requestId, action);
+    // Update the latest demand for this request.
+    // If the heuristic returns 'none', preserve any existing demand to avoid
+    // clearing a preflight "show" before real phases arrive.
+    const prevDemand = this.overlayDemands.get(requestId) || 'none';
+    const nextDemand = action === 'none' ? prevDemand : action;
+    this.overlayDemands.set(requestId, nextDemand);
 
     // Apply aggregated overlay visibility:
     // - If any request currently demands 'show', ensure overlay is visible

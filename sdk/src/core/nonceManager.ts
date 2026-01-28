@@ -81,6 +81,13 @@ export class NonceManager {
    * Initialize or update the manager with user information
    */
   public initializeUser(nearAccountId: AccountId, nearPublicKeyStr: string): void {
+    // Idempotent initialization: avoid clearing cached context/reservations when the
+    // identity (account + access key) is unchanged. This is important for concurrent
+    // signing flows that share the same access key; clearing here can drop nonce
+    // reservations and lead to duplicate nonces (InvalidNonce) under load.
+    if (this.nearAccountId === nearAccountId && this.nearPublicKeyStr === nearPublicKeyStr) {
+      return;
+    }
     this.nearAccountId = nearAccountId;
     this.nearPublicKeyStr = nearPublicKeyStr;
     this.clearTransactionContext();

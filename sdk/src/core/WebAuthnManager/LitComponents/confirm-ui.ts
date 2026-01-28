@@ -35,6 +35,30 @@ function postWalletUiMessage(type: 'WALLET_UI_OPENED' | 'WALLET_UI_CLOSED'): voi
   } catch {}
 }
 
+const CONFIRM_STACK_CSS_VAR = '--w3a-confirm-stack-index';
+// Cap stack depth so the topmost confirmer doesn't drift too far.
+const MAX_STACK_DEPTH = 4;
+
+function updateConfirmPortalState(portal: HTMLElement): void {
+  const children = Array.from(portal.children) as HTMLElement[];
+  const total = children.length;
+
+  // Topmost (last child) is depth=0; older/pending confirmers are offset progressively.
+  for (let i = 0; i < total; i++) {
+    const child = children[i];
+    const depth = Math.min(total - 1 - i, MAX_STACK_DEPTH);
+    try {
+      child.style.setProperty(CONFIRM_STACK_CSS_VAR, String(depth));
+    } catch {}
+  }
+
+  if (total > 0) {
+    portal.classList.add('w3a-portal--visible');
+  } else {
+    portal.classList.remove('w3a-portal--visible');
+  }
+}
+
 // Minimal host element interface for the inline confirmer wrapper.
 interface HostTxConfirmerElement extends HTMLElement {
   variant?: 'modal' | 'drawer';
@@ -207,6 +231,8 @@ function createHostConfirmHandle(el: HostTxConfirmerElement): ConfirmUIHandle {
     close: (_confirmed: boolean) => {
       try {
         el.remove();
+        const portal = document.getElementById(W3A_CONFIRM_PORTAL_ID) as HTMLElement | null;
+        if (portal) updateConfirmPortalState(portal);
       } finally {
         postWalletUiMessage('WALLET_UI_CLOSED');
       }
@@ -248,11 +274,8 @@ function applyHostElementProps(el: HostTxConfirmerElement, props?: ConfirmUIUpda
 function cleanupExistingConfirmers(): void {
   const portal = document.getElementById(W3A_CONFIRM_PORTAL_ID);
   if (portal) {
-    const existing = Array.from(portal.querySelectorAll('*')) as HTMLElement[];
-    for (const el of existing) {
-      el.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, { bubbles: true, composed: true }));
-    }
-    portal.replaceChildren();
+    // Concurrent requests intentionally stack confirmers in the same portal.
+    // Avoid auto-cancelling in-flight confirm UIs here.
     return;
   }
 
@@ -339,13 +362,18 @@ function mountHostElement({
     el.title = 'Sign Delegate Action';
   }
   const portal = ensureConfirmPortal();
-  // Ensure hidden state (idempotent) and mount
-  portal.classList.remove('w3a-portal--visible');
-  portal.replaceChildren(el);
-  // Reveal in the next frame via class toggle
-  requestAnimationFrame(() => {
-    portal.classList.add('w3a-portal--visible');
-  });
+  // Mount (stack if others are already present).
+  // Insert behind the existing topmost confirmer so confirmations remain FIFO.
+  const wasEmpty = portal.childElementCount === 0;
+  portal.insertBefore(el, portal.firstChild);
+  updateConfirmPortalState(portal);
+  // Reveal in the next frame on first mount to avoid a flash before styles load.
+  if (wasEmpty) {
+    portal.classList.remove('w3a-portal--visible');
+    requestAnimationFrame(() => {
+      portal.classList.add('w3a-portal--visible');
+    });
+  }
   postWalletUiMessage('WALLET_UI_OPENED');
   const handle = createHostConfirmHandle(el);
   return { el, handle };

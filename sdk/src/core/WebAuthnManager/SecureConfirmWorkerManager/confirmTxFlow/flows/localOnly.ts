@@ -95,7 +95,7 @@ export async function handleLocalOnlyFlow(
   }
 
   // DECRYPT_PRIVATE_KEY_WITH_PRF: collect an authentication credential (with PRF extension results)
-  // and return it to the SecureConfirm worker; SecureConfirm extracts PRF outputs internally.
+  // and return it; wallet-origin code extracts PRF outputs for signer-worker requests.
   if (request.type === SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF) {
     if (__isWalletIframeHostMode()) {
       confirmationConfig.uiMode = 'none';

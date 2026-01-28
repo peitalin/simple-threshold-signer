@@ -3,7 +3,7 @@
  *
  * The legacy VRF WASM worker has been removed from the lite threshold-signer stack.
  * This manager retains the worker/main-thread handshake for SecureConfirm UI orchestration
- * and wallet-origin key material delivery (e.g., WrapKeySeed via MessagePort).
+ * and the PRF.first warm-session cache.
  */
 
 import type {
@@ -31,7 +31,6 @@ import type { ThemeName } from '../../types/tatchi';
 import type { RegistrationCredentialConfirmationPayload } from '../SignerWorkerManager/handlers/validation';
 import { handlePromptUserConfirmInJsMainThread } from './confirmTxFlow';
 import type { SecureConfirmWorkerManagerHandlerContext } from './handlers/types';
-import { WorkerControlMessage } from '../../workerControlMessages';
 import {
   confirmAndPrepareSigningSession,
   requestRegistrationCredentialConfirmation,
@@ -92,134 +91,6 @@ export class SecureConfirmWorkerManager {
         this.worker.postMessage(message, transfer as any);
       },
     };
-  }
-
-  /**
-   * Create a worker-owned MessageChannel for signing and return the signer-facing port.
-   * SecureConfirm retains the sibling port for WrapKeySeed delivery.
-   */
-  async createSigningSessionChannel(sessionId: string): Promise<MessagePort> {
-    await this.ensureWorkerReady(true);
-    if (!this.worker) {
-      throw new Error('SecureConfirm worker not available');
-    }
-
-    const channel = new MessageChannel();
-
-    // Wait for worker ACK to avoid a race where PRF delivery runs before
-    // the worker has stored the port (WrapKeySeed delivery would silently no-op).
-    const ackPromise = new Promise<void>((resolve, reject) => {
-      const worker = this.worker!;
-      const timeout = setTimeout(() => {
-        cleanup();
-        reject(new Error(`Timeout waiting for SecureConfirm WrapKeySeed port attach for session ${sessionId}`));
-      }, 2000);
-
-      const onMessage = (event: MessageEvent) => {
-        const msg = (event as any)?.data as any;
-        if (!msg || typeof msg.type !== 'string') return;
-        if (msg.sessionId !== sessionId) return;
-
-        if (msg.type === WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR) {
-          cleanup();
-          reject(new Error(String(msg.error || 'SecureConfirm worker failed to attach WrapKeySeed port')));
-          return;
-        }
-        if (msg.type === WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_OK) {
-          cleanup();
-          resolve();
-        }
-      };
-
-      const cleanup = () => {
-        clearTimeout(timeout);
-        worker.removeEventListener('message', onMessage);
-      };
-
-      worker.addEventListener('message', onMessage);
-    });
-
-    this.worker.postMessage(
-      { type: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT, sessionId },
-      [channel.port1],
-    );
-
-    await ackPromise;
-    return channel.port2;
-  }
-
-  /**
-   * Attach a WrapKeySeed sender port (connected to a signer worker) to the SecureConfirm worker.
-   *
-   * In the lite threshold-signer refactor, we keep the worker bundle and use it as an in-memory
-   * cache + delivery bridge for PRF.first material (warm sessions). The worker stores the port
-   * keyed by `sessionId` and uses it to send WrapKeySeed to the signer without exposing secrets
-   * to the main thread beyond the initial WebAuthn ceremony.
-   */
-  async attachWrapKeySeedPort(sessionId: string, port: MessagePort): Promise<void> {
-    await this.ensureWorkerReady(true);
-    if (!this.worker) {
-      throw new Error('SecureConfirm worker not available');
-    }
-    if (!sessionId) {
-      throw new Error('attachWrapKeySeedPort: missing sessionId');
-    }
-    if (!port) {
-      throw new Error('attachWrapKeySeedPort: missing MessagePort');
-    }
-
-    const ackPromise = new Promise<void>((resolve, reject) => {
-      const worker = this.worker!;
-      const timeout = setTimeout(() => {
-        cleanup();
-        reject(new Error(`Timeout waiting for SecureConfirm WrapKeySeed port attach for session ${sessionId}`));
-      }, 2000);
-
-      const onMessage = (event: MessageEvent) => {
-        const msg = (event as any)?.data as any;
-        if (!msg || typeof msg.type !== 'string') return;
-        if (msg.sessionId !== sessionId) return;
-
-        if (msg.type === WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR) {
-          cleanup();
-          reject(new Error(String(msg.error || 'SecureConfirm worker failed to attach WrapKeySeed port')));
-          return;
-        }
-        if (msg.type === WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_OK) {
-          cleanup();
-          resolve();
-        }
-      };
-
-      const cleanup = () => {
-        clearTimeout(timeout);
-        worker.removeEventListener('message', onMessage);
-      };
-
-      worker.addEventListener('message', onMessage);
-    });
-
-    this.worker.postMessage(
-      { type: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT, sessionId },
-      [port],
-    );
-
-    await ackPromise;
-  }
-
-  /**
-   * Best-effort cleanup for WrapKeySeed ports held by the SecureConfirm worker.
-   */
-  async clearWrapKeySeedPort(sessionId: string): Promise<void> {
-    await this.ensureWorkerReady(false);
-    const res = await this.sendMessage({
-      type: 'THRESHOLD_CLEAR_WRAP_KEY_SEED_PORT',
-      id: this.generateMessageId(),
-      payload: { sessionId } as any,
-    });
-    if (!res?.success) {
-      throw new Error(String(res?.error || 'Failed to clear WrapKeySeed port'));
-    }
   }
 
   async putPrfFirstForThresholdSession(args: {
@@ -285,42 +156,6 @@ export class SecureConfirmWorkerManager {
     if (!res?.success) {
       throw new Error(String(res?.error || 'Failed to clear PRF.first cache for threshold session'));
     }
-  }
-
-  async sendPrfFirstToSigner(args: {
-    sessionId: string;
-    prfFirstB64u: string;
-    wrapKeySalt: string;
-  }): Promise<{ ok: true } | { ok: false; code: string; message: string }> {
-    await this.ensureWorkerReady(false);
-    const res = await this.sendMessage({
-      type: 'THRESHOLD_PRF_FIRST_SEND_TO_SIGNER',
-      id: this.generateMessageId(),
-      payload: args as any,
-    });
-    const data = res?.data as any;
-    if (res?.success !== true || !data || typeof data.ok !== 'boolean') {
-      return { ok: false, code: 'worker_error', message: String(res?.error || 'Failed to send PRF.first to signer') };
-    }
-    return data;
-  }
-
-  async dispensePrfFirstToSigner(args: {
-    sessionId: string;
-    uses?: number;
-    wrapKeySalt: string;
-  }): Promise<{ ok: true; remainingUses: number; expiresAtMs: number } | { ok: false; code: string; message: string }> {
-    await this.ensureWorkerReady(false);
-    const res = await this.sendMessage({
-      type: 'THRESHOLD_PRF_FIRST_DISPENSE_TO_SIGNER',
-      id: this.generateMessageId(),
-      payload: args as any,
-    });
-    const data = res?.data as any;
-    if (res?.success !== true || !data || typeof data.ok !== 'boolean') {
-      return { ok: false, code: 'worker_error', message: String(res?.error || 'Failed to dispense PRF.first to signer') };
-    }
-    return data;
   }
 
   /**

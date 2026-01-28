@@ -89,33 +89,17 @@ export async function connectThresholdEd25519SessionLite(args: {
 
   // 2) Derive client verifying share using the signer worker (share stays inside the worker).
   const sessionId = policy.sessionId;
-  const { wrapKeySeedSenderPort } = await args.signerWorkerManager.reserveSignerWorkerSession(sessionId);
-  try {
-    if (!wrapKeySeedSenderPort) {
-      return { ok: false, code: 'internal', message: 'Failed to create WrapKeySeed channel for signer worker' };
-    }
-    wrapKeySeedSenderPort.postMessage({
-      ok: true,
-      // Reuse the existing WrapKeySeed channel to deliver PRF.first.
-      wrap_key_seed: prfFirstB64u,
-      // Threshold share derivation ignores wrapKeySalt; keep a fixed value for compatibility.
-      wrapKeySalt: DUMMY_WRAP_KEY_SALT_B64U,
-    });
-  } finally {
-    try { wrapKeySeedSenderPort?.close(); } catch {}
-  }
-
   const derive = await deriveThresholdEd25519ClientVerifyingShare({
     ctx: args.signerWorkerManager.getContext(),
     sessionId,
     nearAccountId: args.nearAccountId,
+    prfFirstB64u,
+    wrapKeySalt: DUMMY_WRAP_KEY_SALT_B64U,
   });
   if (!derive.success) {
-    args.signerWorkerManager.releaseSigningSession(sessionId);
     return { ok: false, code: 'internal', message: derive.error || 'Failed to derive client verifying share' };
   }
   const clientVerifyingShareB64u = derive.clientVerifyingShareB64u;
-  args.signerWorkerManager.releaseSigningSession(sessionId);
 
   // 3) Mint threshold auth session token/cookie with standard WebAuthn verification.
   const minted = await mintThresholdEd25519AuthSessionLite({

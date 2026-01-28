@@ -30,6 +30,10 @@ pub struct SignTransactionsWithActionsRequest {
     pub rpc_call: RpcCallPayload,
     pub session_id: String,
     pub created_at: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prf_first_b64u: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wrap_key_salt: Option<String>,
     pub decryption: DecryptionPayload,
     /// Threshold signer config (required when `signer_mode == threshold-signer`).
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -9,6 +9,8 @@ export async function deriveThresholdEd25519ClientVerifyingShare(args: {
   ctx: SignerWorkerManagerContext;
   sessionId: string;
   nearAccountId: string;
+  prfFirstB64u: string;
+  wrapKeySalt: string;
 }): Promise<{
   success: boolean;
   nearAccountId: string;
@@ -22,12 +24,19 @@ export async function deriveThresholdEd25519ClientVerifyingShare(args: {
   try {
     if (!sessionId) throw new Error('Missing sessionId');
     if (!nearAccountId) throw new Error('Missing nearAccountId');
+    if (!args.prfFirstB64u || !args.wrapKeySalt) {
+      throw new Error('Missing PRF.first or wrapKeySalt for share derivation');
+    }
 
     const response = await ctx.sendMessage<WorkerRequestType.DeriveThresholdEd25519ClientVerifyingShare>({
       sessionId,
       message: {
         type: WorkerRequestType.DeriveThresholdEd25519ClientVerifyingShare,
-        payload: { nearAccountId },
+        payload: {
+          nearAccountId,
+          prfFirstB64u: args.prfFirstB64u,
+          wrapKeySalt: args.wrapKeySalt,
+        },
       },
     });
 

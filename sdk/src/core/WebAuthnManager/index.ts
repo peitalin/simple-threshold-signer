@@ -39,7 +39,6 @@ import { getLastLoggedInDeviceNumber } from './SignerWorkerManager/getDeviceNumb
 import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
 import { hasAccessKey } from '../rpcCalls';
 import { ensureEd25519Prefix } from '../../utils/validation';
-import { base64UrlEncode } from '../../utils/encoders';
 import { enrollThresholdEd25519KeyHandler } from './threshold/enrollThresholdEd25519Key';
 import { rotateThresholdEd25519KeyPostRegistrationHandler } from './threshold/rotateThresholdEd25519KeyPostRegistration';
 import { connectThresholdEd25519SessionLite } from '../threshold/connectThresholdEd25519SessionLite';
@@ -49,15 +48,7 @@ import { deriveNearKeypairFromPrfSecondB64u } from '../nearCrypto';
 import { runSecureConfirm } from './SecureConfirmWorkerManager/secureConfirmBridge';
 import { SecureConfirmationType, type SecureConfirmRequest } from './SecureConfirmWorkerManager/confirmTxFlow/types';
 
-type SigningSessionOptions = {
-  /** PRF-bearing credential; PRF outputs are extracted in wallet origin */
-  credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
-  /**
-   * Optional wrapKeySalt for WrapKeySeed delivery.
-   * When provided, it is used as-is; otherwise a fresh random value is generated.
-   */
-  wrapKeySalt?: string;
-};
+const DUMMY_WRAP_KEY_SALT_B64U = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
 /**
  * WebAuthnManager - Main orchestrator for WebAuthn operations
@@ -193,13 +184,8 @@ export class WebAuthnManager {
   }
 
   /**
-   * WebAuthnManager-level orchestrator for wallet-origin signing sessions.
-   * Creates sessionId, wires `MessagePort` between SecureConfirm and signer workers, and ensures cleanup.
-   *
-   * Overload 1: plain signing session (no WrapKeySeed derivation).
-   * Overload 2: signing session with WrapKeySeed derivation, when `SigningSessionOptions`
-   *             (PRF.first_auth) are provided. wrapKeySalt is generated in wallet origin
-   *             when a new vault entry is being created.
+   * Generate a unique session id for signer-worker requests.
+   * Session ids also key the wallet-origin warm PRF cache.
    */
   private generateSessionId(prefix: string): string {
     return (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
@@ -226,6 +212,17 @@ export class WebAuthnManager {
     return { ttlMs, remainingUses };
   }
 
+  private extractPrfFirstB64u(
+    credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential,
+  ): string {
+    const prfFirst = (credential as any)?.clientExtensionResults?.prf?.results?.first;
+    const trimmed = typeof prfFirst === 'string' ? prfFirst.trim() : '';
+    if (!trimmed) {
+      throw new Error('Missing PRF.first output from credential (requires a PRF-enabled passkey)');
+    }
+    return trimmed;
+  }
+
   private getOrCreateActiveSigningSessionId(nearAccountId: AccountId): string {
     const key = String(toAccountId(nearAccountId));
     const existing = this.activeSigningSessionIds.get(key);
@@ -233,91 +230,6 @@ export class WebAuthnManager {
     const sessionId = this.generateSessionId('signing-session');
     this.activeSigningSessionIds.set(key, sessionId);
     return sessionId;
-  }
-
-  private async withSigningSession<T>(args: {
-    sessionId?: string;
-    prefix?: string;
-    options?: SigningSessionOptions;
-    attachWrapKeySeedPortToSecureConfirmWorker?: boolean;
-    handler: (sessionId: string) => Promise<T>;
-  }): Promise<T> {
-    if (typeof args.handler !== 'function') {
-      throw new Error('withSigningSession requires a handler function');
-    }
-    const sessionId = args.sessionId || (args.prefix ? this.generateSessionId(args.prefix) : '');
-    if (!sessionId) {
-      throw new Error('withSigningSession requires a sessionId or prefix');
-    }
-    return await this.withSigningSessionInternal({
-      sessionId,
-      options: args.options,
-      attachWrapKeySeedPortToSecureConfirmWorker: args.attachWrapKeySeedPortToSecureConfirmWorker,
-      handler: args.handler,
-    });
-  }
-
-  private async withSigningSessionInternal<T>(args: {
-    sessionId: string;
-    options?: SigningSessionOptions;
-    attachWrapKeySeedPortToSecureConfirmWorker?: boolean;
-    handler: (sessionId: string) => Promise<T>;
-  }): Promise<T> {
-    const { wrapKeySeedSenderPort } = await this.signerWorkerManager.reserveSignerWorkerSession(args.sessionId);
-    const shouldAttachPortToWorker = args.attachWrapKeySeedPortToSecureConfirmWorker === true && !args.options;
-    let attachedPortToWorker = false;
-    try {
-      if (shouldAttachPortToWorker) {
-        if (!wrapKeySeedSenderPort) {
-          throw new Error('Failed to create WrapKeySeed channel for signer worker');
-        }
-        await this.secureConfirmWorkerManager.attachWrapKeySeedPort(args.sessionId, wrapKeySeedSenderPort);
-        this.signerWorkerManager.detachWrapKeySeedSenderPort(args.sessionId);
-        attachedPortToWorker = true;
-      }
-      if (args.options) {
-        const prfResults = (args.options.credential as any)?.clientExtensionResults?.prf?.results as
-          | { first?: string; second?: string }
-          | undefined;
-        const prfFirstB64u = typeof prfResults?.first === 'string' ? prfResults.first.trim() : '';
-        const prfSecondB64u = typeof prfResults?.second === 'string' ? prfResults.second.trim() : '';
-
-        const wrapKeySalt =
-          String(args.options.wrapKeySalt || '').trim()
-          || (() => {
-            const bytes = new Uint8Array(32);
-            crypto.getRandomValues(bytes);
-            return base64UrlEncode(bytes);
-          })();
-
-        if (!wrapKeySeedSenderPort) {
-          throw new Error('Failed to create WrapKeySeed channel for signer worker');
-        }
-
-        try {
-          if (!prfFirstB64u) {
-            wrapKeySeedSenderPort.postMessage({ ok: false, error: 'Missing PRF.first output from credential' });
-            throw new Error('Missing PRF.first output from credential');
-          }
-          wrapKeySeedSenderPort.postMessage({
-            ok: true,
-            wrap_key_seed: prfFirstB64u,
-            wrapKeySalt,
-            ...(prfSecondB64u ? { prfSecond: prfSecondB64u } : {}),
-          });
-        } finally {
-          try { wrapKeySeedSenderPort.close(); } catch { /* noop */ }
-        }
-      }
-      return await args.handler(args.sessionId);
-    } finally {
-      if (attachedPortToWorker) {
-        // Best-effort cleanup: if the signing flow failed before sending WrapKeySeed,
-        // ensure the SecureConfirm worker releases the transferred port.
-        await this.secureConfirmWorkerManager.clearWrapKeySeedPort(args.sessionId).catch(() => {});
-      }
-      this.signerWorkerManager.releaseSigningSession(args.sessionId);
-    }
   }
 
   /**
@@ -393,16 +305,12 @@ export class WebAuthnManager {
     wrapKeySalt?: string;
     error?: string;
   }> {
-    return this.withSigningSession({
-      prefix: 'reg',
-      options: { credential },
-      handler: (sessionId) =>
-        this.signerWorkerManager.deriveNearKeypairAndEncryptFromSerialized({
-          credential,
-          nearAccountId: toAccountId(nearAccountId),
-          options,
-          sessionId,
-        }),
+    const sessionId = this.generateSessionId('reg');
+    return this.signerWorkerManager.deriveNearKeypairAndEncryptFromSerialized({
+      credential,
+      nearAccountId: toAccountId(nearAccountId),
+      options,
+      sessionId,
     });
   }
 
@@ -640,22 +548,17 @@ export class WebAuthnManager {
     const signingSessionPolicy = this.resolveSigningSessionPolicy({});
     const resolvedSessionId = String(sessionId || '').trim()
       || this.getOrCreateActiveSigningSessionId(toAccountId(rpcCall.nearAccountId));
-    return this.withSigningSession({
+    return this.signerWorkerManager.signTransactionsWithActions({
+      transactions,
+      rpcCall,
+      signerMode,
+      confirmationConfigOverride,
+      title,
+      body,
+      onEvent,
+      signingSessionTtlMs: signingSessionPolicy.ttlMs,
+      signingSessionRemainingUses: signingSessionPolicy.remainingUses,
       sessionId: resolvedSessionId,
-      attachWrapKeySeedPortToSecureConfirmWorker: true,
-      handler: (sessionId) =>
-        this.signerWorkerManager.signTransactionsWithActions({
-          transactions,
-          rpcCall,
-          signerMode,
-          confirmationConfigOverride,
-          title,
-          body,
-          onEvent,
-          signingSessionTtlMs: signingSessionPolicy.ttlMs,
-          signingSessionRemainingUses: signingSessionPolicy.remainingUses,
-          sessionId,
-        }),
     });
   }
 
@@ -705,58 +608,57 @@ export class WebAuthnManager {
       throw new Error('wrapKeySalt mismatch for AddKey(thresholdPublicKey) signing');
     }
 
-    return await this.withSigningSession({
-      prefix: 'no-prompt-add-threshold-key',
-      options: { credential: args.credential, wrapKeySalt },
-      handler: async (sessionId) => {
-        const response = await this.signerWorkerManager.getContext().sendMessage({
-          sessionId,
-          message: {
-            type: INTERNAL_WORKER_REQUEST_TYPE_SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT,
-            payload: {
-              createdAt: Date.now(),
-              decryption: {
-                encryptedPrivateKeyData: localKeyMaterial.encryptedSk,
-                encryptedPrivateKeyChacha20NonceB64u: localKeyMaterial.chacha20NonceB64u,
-              },
-              transactionContext: args.transactionContext,
-              nearAccountId,
-              thresholdPublicKey,
-              relayerVerifyingShareB64u,
-              clientParticipantId: typeof args.clientParticipantId === 'number' ? args.clientParticipantId : undefined,
-              relayerParticipantId: typeof args.relayerParticipantId === 'number' ? args.relayerParticipantId : undefined,
-            },
+    const prfFirstB64u = this.extractPrfFirstB64u(args.credential);
+    const sessionId = this.generateSessionId('no-prompt-add-threshold-key');
+
+    const response = await this.signerWorkerManager.getContext().sendMessage({
+      sessionId,
+      message: {
+        type: INTERNAL_WORKER_REQUEST_TYPE_SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT,
+        payload: {
+          createdAt: Date.now(),
+          decryption: {
+            encryptedPrivateKeyData: localKeyMaterial.encryptedSk,
+            encryptedPrivateKeyChacha20NonceB64u: localKeyMaterial.chacha20NonceB64u,
           },
-          onEvent: args.onEvent,
-        });
-
-        if (!isSignAddKeyThresholdPublicKeyNoPromptSuccess(response)) {
-          throw new Error('AddKey(thresholdPublicKey) signing failed');
-        }
-        if (!response.payload.success) {
-          throw new Error(response.payload.error || 'AddKey(thresholdPublicKey) signing failed');
-        }
-
-        const signedTransactions = response.payload.signedTransactions || [];
-        if (signedTransactions.length !== 1) {
-          throw new Error(`Expected 1 signed transaction but received ${signedTransactions.length}`);
-        }
-
-        const signedTx = signedTransactions[0];
-        if (!signedTx || !(signedTx as any).transaction || !(signedTx as any).signature) {
-          throw new Error('Incomplete signed transaction data received for AddKey(thresholdPublicKey)');
-        }
-        return {
-          signedTransaction: new SignedTransaction({
-            transaction: (signedTx as any).transaction,
-            signature: (signedTx as any).signature,
-            borsh_bytes: Array.from((signedTx as any).borshBytes || []),
-          }),
-          nearAccountId: String(nearAccountId),
-          logs: response.payload.logs || [],
-        };
+          transactionContext: args.transactionContext,
+          nearAccountId,
+          thresholdPublicKey,
+          relayerVerifyingShareB64u,
+          clientParticipantId: typeof args.clientParticipantId === 'number' ? args.clientParticipantId : undefined,
+          relayerParticipantId: typeof args.relayerParticipantId === 'number' ? args.relayerParticipantId : undefined,
+          prfFirstB64u,
+          wrapKeySalt,
+        },
       },
+      onEvent: args.onEvent,
     });
+
+    if (!isSignAddKeyThresholdPublicKeyNoPromptSuccess(response)) {
+      throw new Error('AddKey(thresholdPublicKey) signing failed');
+    }
+    if (!response.payload.success) {
+      throw new Error(response.payload.error || 'AddKey(thresholdPublicKey) signing failed');
+    }
+
+    const signedTransactions = response.payload.signedTransactions || [];
+    if (signedTransactions.length !== 1) {
+      throw new Error(`Expected 1 signed transaction but received ${signedTransactions.length}`);
+    }
+
+    const signedTx = signedTransactions[0];
+    if (!signedTx || !(signedTx as any).transaction || !(signedTx as any).signature) {
+      throw new Error('Incomplete signed transaction data received for AddKey(thresholdPublicKey)');
+    }
+    return {
+      signedTransaction: new SignedTransaction({
+        transaction: (signedTx as any).transaction,
+        signature: (signedTx as any).signature,
+        borsh_bytes: Array.from((signedTx as any).borshBytes || []),
+      }),
+      nearAccountId: String(nearAccountId),
+      logs: response.payload.logs || [],
+    };
   }
 
   async signDelegateAction({
@@ -792,24 +694,18 @@ export class WebAuthnManager {
 
     try {
       const activeSessionId = this.getOrCreateActiveSigningSessionId(nearAccountId);
-      return await this.withSigningSession({
+      console.debug('[WebAuthnManager][delegate] session created', { sessionId: activeSessionId });
+      return await this.signerWorkerManager.signDelegateAction({
+        delegate,
+        rpcCall: normalizedRpcCall,
+        signerMode,
+        confirmationConfigOverride,
+        title,
+        body,
+        onEvent,
+        signingSessionTtlMs: signingSessionPolicy.ttlMs,
+        signingSessionRemainingUses: signingSessionPolicy.remainingUses,
         sessionId: activeSessionId,
-        attachWrapKeySeedPortToSecureConfirmWorker: true,
-        handler: (sessionId) => {
-          console.debug('[WebAuthnManager][delegate] session created', { sessionId });
-          return this.signerWorkerManager.signDelegateAction({
-            delegate,
-            rpcCall: normalizedRpcCall,
-            signerMode,
-            confirmationConfigOverride,
-            title,
-            body,
-            onEvent,
-            signingSessionTtlMs: signingSessionPolicy.ttlMs,
-            signingSessionRemainingUses: signingSessionPolicy.remainingUses,
-            sessionId,
-          });
-        }
       });
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -841,18 +737,13 @@ export class WebAuthnManager {
       const signingSessionPolicy = this.resolveSigningSessionPolicy({});
       const contractId = this.tatchiPasskeyConfigs.contractId;
       const nearRpcUrl = (this.tatchiPasskeyConfigs.nearRpcUrl.split(',')[0] || this.tatchiPasskeyConfigs.nearRpcUrl);
-      const result = await this.withSigningSession({
+      const result = await this.signerWorkerManager.signNep413Message({
+        ...payload,
         sessionId: activeSessionId,
-        attachWrapKeySeedPortToSecureConfirmWorker: true,
-        handler: (sessionId) =>
-          this.signerWorkerManager.signNep413Message({
-            ...payload,
-            sessionId,
-            contractId,
-            nearRpcUrl,
-            signingSessionTtlMs: signingSessionPolicy.ttlMs,
-            signingSessionRemainingUses: signingSessionPolicy.remainingUses,
-          }),
+        contractId,
+        nearRpcUrl,
+        signingSessionTtlMs: signingSessionPolicy.ttlMs,
+        signingSessionRemainingUses: signingSessionPolicy.remainingUses,
       });
       if (result.success) {
         return result;
@@ -948,19 +839,17 @@ export class WebAuthnManager {
         throw new Error('Missing WebAuthn credential for decrypt request');
       }
 
-      // Phase 2 + 3: deliver WrapKeySeed to the signer worker, decrypt, then show UI.
-      await this.withSigningSession({
-        prefix: 'export-session',
-        options: {
-          credential: decision.credential as WebAuthnAuthenticationCredential,
-          wrapKeySalt,
-        },
-        handler: async (sessionId) => this.signerWorkerManager.exportNearKeypairUi({
-          nearAccountId,
-          variant: options?.variant,
-          theme: resolvedTheme,
-          sessionId,
-        }),
+      const prfFirstB64u = this.extractPrfFirstB64u(decision.credential as WebAuthnAuthenticationCredential);
+      const sessionId = requestId;
+
+      // Phase 2 + 3: decrypt in signer worker using direct PRF, then show UI.
+      await this.signerWorkerManager.exportNearKeypairUi({
+        nearAccountId,
+        variant: options?.variant,
+        theme: resolvedTheme,
+        sessionId,
+        prfFirstB64u,
+        wrapKeySalt,
       });
       return;
     }
@@ -1097,15 +986,11 @@ export class WebAuthnManager {
       // Extract PRF.first for WrapKeySeed derivation
       // Orchestrate a SecureConfirm-owned signing session with WrapKeySeed derivation, then ask
       // the signer to recover and re-encrypt the NEAR keypair.
-      const result = await this.withSigningSession({
-        prefix: 'recover',
-        options: { credential: authenticationCredential },
-        handler: (sessionId) =>
-          this.signerWorkerManager.recoverKeypairFromPasskey({
-            credential: authenticationCredential,
-            accountIdHint,
-            sessionId,
-          }),
+      const sessionId = this.generateSessionId('recover');
+      const result = await this.signerWorkerManager.recoverKeypairFromPasskey({
+        credential: authenticationCredential,
+        accountIdHint,
+        sessionId,
       });
       return result;
 
@@ -1263,14 +1148,13 @@ export class WebAuthnManager {
   }> {
     const nearAccountId = toAccountId(args.nearAccountId);
     try {
-      return await this.withSigningSession({
-        prefix: 'threshold-client-share',
-        options: { credential: args.credential },
-        handler: (sessionId) =>
-          this.signerWorkerManager.deriveThresholdEd25519ClientVerifyingShare({
-            sessionId,
-            nearAccountId,
-          }),
+      const prfFirstB64u = this.extractPrfFirstB64u(args.credential);
+      const sessionId = this.generateSessionId('threshold-client-share');
+      return await this.signerWorkerManager.deriveThresholdEd25519ClientVerifyingShare({
+        sessionId,
+        nearAccountId,
+        prfFirstB64u,
+        wrapKeySalt: DUMMY_WRAP_KEY_SALT_B64U,
       });
     } catch (error: unknown) {
       const message = String((error as { message?: unknown })?.message ?? error);
@@ -1450,30 +1334,29 @@ export class WebAuthnManager {
         : await getLastLoggedInDeviceNumber(nearAccountId, IndexedDBManager.clientDB).catch(() => 1);
 
       const keygenSessionId = String(args.keygenSessionId || '').trim() || undefined;
-      const keygen = await this.withSigningSession({
-        ...(keygenSessionId ? { sessionId: keygenSessionId } : { prefix: 'threshold-keygen' }),
-        options: { credential: args.credential },
-        handler: (sessionId) =>
-          enrollThresholdEd25519KeyHandler(
-            {
-              signerWorkerManager: this.signerWorkerManager,
-              touchIdPrompt: this.touchIdPrompt,
-              relayerUrl,
-            },
-            {
-              sessionId,
-              keygenSessionId,
-              nearAccountId,
-              webauthnAuthentication: (() => {
-                const c = args.credential as WebAuthnAuthenticationCredential;
-                if (!(c as any)?.response?.authenticatorData) {
-                  throw new Error('Authentication credential required for threshold keygen');
-                }
-                return c;
-              })(),
-            },
-          ),
-      });
+      const sessionId = keygenSessionId || this.generateSessionId('threshold-keygen');
+      const prfFirstB64u = this.extractPrfFirstB64u(args.credential);
+      const keygen = await enrollThresholdEd25519KeyHandler(
+        {
+          signerWorkerManager: this.signerWorkerManager,
+          touchIdPrompt: this.touchIdPrompt,
+          relayerUrl,
+        },
+        {
+          sessionId,
+          keygenSessionId,
+          nearAccountId,
+          prfFirstB64u,
+          wrapKeySalt: DUMMY_WRAP_KEY_SALT_B64U,
+          webauthnAuthentication: (() => {
+            const c = args.credential as WebAuthnAuthenticationCredential;
+            if (!(c as any)?.response?.authenticatorData) {
+              throw new Error('Authentication credential required for threshold keygen');
+            }
+            return c;
+          })(),
+        },
+      );
 
       if (!keygen.success) {
         throw new Error(keygen.error || 'Threshold keygen failed');

@@ -45,7 +45,6 @@ import {
 } from './types/signer-worker';
 // Import WASM binary directly
 import init, {
-  attach_wrap_key_seed_port,
   handle_signer_message,
 } from '../wasm_signer_worker/pkg/wasm_signer_worker.js';
 import { resolveWasmUrl } from './sdkPaths/wasm-loader';
@@ -133,9 +132,6 @@ function sendProgressMessage(
 // Important: Make sendProgressMessage available globally for WASM to call
 (globalThis as any).sendProgressMessage = sendProgressMessage;
 
-// NOTE: The signer WASM now awaits WrapKeySeed internally. We intentionally do not
-// emit a separate WRAP_KEY_SEED_READY control message; readiness is implied by the
-// ability to complete the signing request once the seed arrives over the MessagePort.
 
 /**
  * Initialize WASM module
@@ -199,7 +195,7 @@ function getFailureResponseType(requestType: SignerWorkerRequestType): SignerWor
  */
 async function processWorkerMessage(event: MessageEvent): Promise<void> {
   try {
-    // Guardrail: PRF outputs must never traverse into signer payloads
+    // Guardrail: raw PRF fields must never traverse into signer payloads
     assertNoPrfSecretsInSignerPayload(event.data);
     // Initialize WASM
     await initializeWasm();
@@ -228,81 +224,29 @@ async function processWorkerMessage(event: MessageEvent): Promise<void> {
 self.onmessage = async (event: MessageEvent<SignerWorkerMessage<WorkerRequestType, WasmRequestPayload>>): Promise<void> => {
   const eventType = (event.data as any)?.type;
 
-  // Attach WrapKeySeed MessagePort for a signing session.
-  // This handler intentionally lives in JS instead of Rust:
-  // - MessagePort objects only exist at the JS boundary; they cannot be serialized into
-  //   the JSON string passed to `handle_signer_message`.
-  // - The Rust entrypoint (`handle_signer_message`) is also used in non-worker environments
-  //   (e.g. server-side AuthService) where no MessagePort is available.
-  // - The signer worker’s main Rust handler is designed as a one-shot JSON request/response
-  //   pipeline; attaching the port is a separate control path that must keep the worker alive
-  //   for subsequent signing requests sharing the same session.
-  if (eventType === WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT) {
-    await handleAttachWrapKeySeedPort(event);
-    return;
-  }
-
   if (typeof eventType !== 'number') {
     console.warn('[signer-worker]: Ignoring message with invalid non-numeric type:', eventType);
     return;
   }
 
   // Serialize worker operations to keep WASM state predictable and to avoid
-  // overlapping accesses to session-bound WrapKeySeed and relayer state.
+  // overlapping accesses to PRF-derived material and relayer state.
   messageQueue = messageQueue
     .catch(() => undefined)
     .then(() => processWorkerMessage(event));
   await messageQueue;
 };
 
-async function handleAttachWrapKeySeedPort(
-  event: MessageEvent<SignerWorkerMessage<WorkerRequestType, WasmRequestPayload> | any>
-): Promise<void> {
-  const sessionId = (event.data as any)?.sessionId as string | undefined;
-  const port = event.ports?.[0];
-
-  if (!sessionId || !port) {
-    console.error('[signer-worker]: ATTACH_WRAP_KEY_SEED_PORT missing sessionId or MessagePort');
-    self.postMessage({
-      type: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR,
-      sessionId: sessionId || 'unknown',
-      error: 'Missing sessionId or MessagePort'
-    });
-    return;
-  }
-
-  // Hand the port to WASM; Rust owns WrapKeySeed delivery/storage and session-bound injection.
-  try {
-    await initializeWasm();
-    attach_wrap_key_seed_port(sessionId, port);
-
-    // Emit success ACK to main thread
-    self.postMessage({
-      type: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_OK,
-      sessionId,
-    });
-  } catch (err) {
-    console.error('[signer-worker]: Failed to attach WrapKeySeed port in WASM', err);
-
-    // Emit error control message first (for early detection)
-    self.postMessage({
-      type: WorkerControlMessage.ATTACH_WRAP_KEY_SEED_PORT_ERROR,
-      sessionId,
-      error: errorMessage(err)
-    });
-
-    // Also bubble up a failure response so session can be cleaned up.
-    self.postMessage({
-      type: WorkerResponseType.SignTransactionsWithActionsFailure,
-      payload: { error: 'Failed to attach WrapKeySeed port' }
-    });
-  }
-}
-
 function assertNoPrfSecretsInSignerPayload(data: any): void {
   const payload = data?.payload;
   if (!payload || typeof payload !== 'object') return;
-  const forbiddenKeys = ['prfOutput', 'prf_output', 'prfFirst', 'prf_first', 'prf'];
+  const forbiddenKeys = [
+    'prfOutput',
+    'prf_output',
+    'prfFirst',
+    'prf_first',
+    'prf',
+  ];
   for (const key of forbiddenKeys) {
     if ((payload as any)[key] !== undefined) {
       throw new Error(`Forbidden secret field in signer payload: ${key}`);

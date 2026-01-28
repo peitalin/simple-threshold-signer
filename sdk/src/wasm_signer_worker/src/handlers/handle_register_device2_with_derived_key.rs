@@ -14,14 +14,23 @@ use crate::WrapKey;
 use bs58;
 
 /// Request for combined Device2 registration flow.
-/// Assumes WrapKeySeed and PRF.second have already been delivered to the signer worker via MessagePort.
+/// Expects prf_first_b64u + wrap_key_salt (and prf_second_b64u) to be provided in the request payload.
 #[wasm_bindgen]
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RegisterDevice2WithDerivedKeyRequest {
-    /// Session ID (identifies the MessagePort session where WrapKeySeed and PRF.second were delivered)
+    /// Session ID (request correlation; no MessagePort required)
     #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
     pub session_id: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "prfFirstB64u")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prf_first_b64u: Option<String>,
+    #[wasm_bindgen(getter_with_clone, js_name = "wrapKeySalt")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wrap_key_salt: Option<String>,
+    #[wasm_bindgen(getter_with_clone, js_name = "prfSecondB64u")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prf_second_b64u: Option<String>,
 
     /// Serialized registration credential (contains PRF.second in client extension results)
     #[wasm_bindgen(getter_with_clone)]
@@ -108,7 +117,7 @@ impl RegisterDevice2WithDerivedKeyResult {
 /// Handler for combined Device2 registration.
 ///
 /// This handler performs:
-/// 1. Retrieve PRF.second from session storage (delivered via MessagePort)
+/// 1. Retrieve PRF.second from request payload
 /// 2. Derive NEAR ed25519 keypair from PRF.second using HKDF
 /// 3. Encrypt NEAR private key with KEK (derived from WrapKeySeed + wrapKeySalt)
 /// 4. Build Device2 registration transaction (`link_device_register_user`)
@@ -117,8 +126,8 @@ impl RegisterDevice2WithDerivedKeyResult {
 ///
 /// # Arguments
 /// * `request` - Contains sessionId, account ID, transaction context, contract args JSON
-/// * `wrap_key` - Contains WrapKeySeed (delivered from SecureConfirm via MessagePort) and wrapKeySalt
-/// * `prf_second_b64u` - PRF.second output retrieved from session storage
+/// * `wrap_key` - Contains WrapKeySeed (derived from prf_first_b64u + wrap_key_salt) and wrapKeySalt
+/// * `prf_second_b64u` - PRF.second output from the request payload
 ///
 /// # Returns
 /// * `RegisterDevice2WithDerivedKeyResult` - Public key, encrypted key data, signed tx

@@ -1324,6 +1324,7 @@ export class WalletIframeRouter {
     const requestId = `${Date.now()}-${++this.state.reqCounter}`;
     const full: ParentToChildEnvelope = { ...(envelope as ParentToChildEnvelope), requestId };
     const { options } = full;
+    const overlayIntent = this.computeOverlayIntent(envelope.type);
     const timeoutMs = postOpts?.timeoutMs ?? this.opts.requestTimeoutMs;
 
     return new Promise<PostResult<T>>((resolve, reject) => {
@@ -1366,6 +1367,7 @@ export class WalletIframeRouter {
             options?.onProgress?.(payload);
           } catch {}
         },
+        initialDemand: overlayIntent.mode === 'fullscreen' ? 'show' : 'none',
       });
 
       try {
@@ -1379,8 +1381,7 @@ export class WalletIframeRouter {
 
         // Step 7: Apply overlay intent (conservative) if not already visible, then post
         if (!this.overlayState.controller.getState().visible) {
-          const intent = this.computeOverlayIntent(serializableFull.type);
-          if (intent.mode === 'fullscreen') {
+          if (overlayIntent.mode === 'fullscreen') {
             this.overlayState.controller.setSticky(!!(wireOptions && (wireOptions as { sticky?: boolean }).sticky));
             this.overlayState.controller.showFullscreen();
           }

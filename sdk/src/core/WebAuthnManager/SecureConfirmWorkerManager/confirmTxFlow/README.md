@@ -6,7 +6,7 @@ Secure confirmation is coordinated in the main thread and split into small, test
 
 - The **SecureConfirm worker** is the canonical initiator: it requests confirmation via `awaitSecureConfirmationV2(...)`.
 - The **main thread** classifies the request and delegates to a per‑flow handler that prepares NEAR context, renders UI, optionally collects WebAuthn credentials, and responds back.
-- For signing flows, the main thread can also trigger SecureConfirm‑owned secret delivery (via a `MessagePort`) so sensitive PRF‑derived seeds never enter the main thread.
+- For signing flows, the main thread extracts PRF outputs from the credential and passes them directly to signer-worker payloads; confirmTxFlow envelopes stay secret-free.
 
 High‑level phases: Classify → Prepare → Confirm UI → Collect Credentials → Respond → Cleanup.
 
@@ -29,7 +29,7 @@ High‑level phases: Classify → Prepare → Confirm UI → Collect Credentials
 
 For `SecureConfirmationType.SIGN_TRANSACTION` / `SIGN_NEP413_MESSAGE`:
 - The request payload must not contain secrets like `prfOutput`, `wrapKeySeed`, or `wrapKeySalt` (validated in `handleSecureConfirmRequest.ts`).
-- The main-thread response intentionally omits `prfOutput`, `wrapKeySeed`, and `wrapKeySalt` for signing. Sensitive seed material is delivered only via a dedicated SecureConfirm→Signer `MessagePort` when needed.
+- The main-thread response intentionally omits `prfOutput`, `wrapKeySeed`, and `wrapKeySalt` for signing. PRF outputs are extracted from the credential after confirmation and sent directly to signer-worker requests.
 
 ### Canonical Initiator (Signing)
 
@@ -51,8 +51,8 @@ For signing flows, the canonical initiator is the **SecureConfirm worker**:
 
 - Registration / LinkDevice
   - Fetches NEAR block context; renders UI per config
-  - Collects create() credentials; retries on `InvalidStateError` by bumping deviceNumber
-  - Serializes credential (PRF outputs are embedded in the serialized credential so wallet-origin code can derive required keys/shares without passing PRF outputs through main-thread messages)
+- Collects create() credentials; retries on `InvalidStateError` by bumping deviceNumber
+- Serializes credential (PRF outputs live inside the serialized credential so wallet-origin code can pass them directly to signer workers without adding them to confirmTxFlow envelopes)
 
 - Signing / NEP‑413
   - Fetches NEAR context via NonceManager (reserving per‑request nonces)
@@ -60,7 +60,7 @@ For signing flows, the canonical initiator is the **SecureConfirm worker**:
   - Supports a single flow with two signing modes, controlled by `payload.signingAuthMode`:
     - `webauthn` (default): collect get() credentials for a challenge digest (e.g. intent digest or threshold session policy digest).
     - `warmSession`: skip WebAuthn entirely when a wallet-origin warm session is available (e.g. PRF.first cached inside SecureConfirm).
-  - Signing responses intentionally omit PRF outputs; sensitive seed material never crosses the main thread.
+- Signing responses intentionally omit PRF outputs; confirmTxFlow never carries PRF material.
   - Releases reserved nonces on cancel/negative confirmation
 
 ## UI Behavior
@@ -88,7 +88,7 @@ For signing flows, the canonical initiator is the **SecureConfirm worker**:
 3. Per‑flow handler prepares NEAR context and (when needed) a WebAuthn challenge digest
 4. UI is rendered per config (none/modal/drawer); user confirms or cancels
 5. If required, credentials are collected (create/get) and serialized
-6. For signing flows, the main thread can trigger SecureConfirm-owned secret delivery over the attached `MessagePort`
+6. For signing flows, wallet-origin code extracts PRF outputs from the credential and calls the signer worker directly
 7. Response is sent back; nonces released on cancel; UI closed as appropriate
 
 ## Notes

@@ -14,8 +14,8 @@ export enum SecureConfirmMessageType {
 
 /**
  * Type-level guardrail: these secrets must never appear in main-thread
- * request/response envelopes. WrapKeySeed is delivered only over the dedicated
- * SecureConfirm→Signer MessagePort, and PRF outputs should only exist inside credentials.
+ * request/response envelopes. PRF outputs are extracted from credentials and
+ * passed directly to signer-worker payloads in wallet origin only.
  */
 export type ForbiddenMainThreadSecrets = {
   prfOutput?: never;
@@ -137,7 +137,7 @@ export interface SignTransactionPayload {
   sessionPolicyDigest32?: string;
   /**
    * Controls whether confirmTxFlow should collect a WebAuthn credential.
-   * - `webauthn`: prompt TouchID/FaceID and derive WrapKeySeed from PRF.first_auth.
+   * - `webauthn`: prompt TouchID/FaceID and collect PRF outputs for signer requests.
    * - `warmSession`: skip WebAuthn when a wallet-origin warm session is available (e.g. cached PRF.first).
    */
   signingAuthMode?: SigningAuthMode;

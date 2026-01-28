@@ -179,10 +179,18 @@ export type RpcCallPayload = StripFree<wasmModule.RpcCallPayload>;
  * }
  */
 
-export type WasmDeriveNearKeypairAndEncryptRequest = StripFree<wasmModule.DeriveNearKeypairAndEncryptRequest>;
-export type WasmRecoverKeypairRequest = StripFree<wasmModule.RecoverKeypairRequest>;
+type DirectPrfFields = {
+  prfFirstB64u?: string;
+  wrapKeySalt?: string;
+  prfSecondB64u?: string;
+};
+
+export type WasmDeriveNearKeypairAndEncryptRequest =
+  StripFree<wasmModule.DeriveNearKeypairAndEncryptRequest> & DirectPrfFields;
+export type WasmRecoverKeypairRequest =
+  StripFree<wasmModule.RecoverKeypairRequest> & DirectPrfFields;
 export type WasmDeriveThresholdEd25519ClientVerifyingShareRequest =
-  StripFree<wasmModule.DeriveThresholdEd25519ClientVerifyingShareRequest>;
+  StripFree<wasmModule.DeriveThresholdEd25519ClientVerifyingShareRequest> & DirectPrfFields;
 export interface WasmSignTransactionsWithActionsRequest {
   signerMode: SignerMode['mode'];
   rpcCall: RpcCallPayload;
@@ -194,6 +202,8 @@ export interface WasmSignTransactionsWithActionsRequest {
   intentDigest?: string;
   transactionContext?: TransactionContext;
   credential?: string;
+  prfFirstB64u?: string;
+  wrapKeySalt?: string;
 }
 
 export interface WasmSignAddKeyThresholdPublicKeyNoPromptRequest {
@@ -206,6 +216,8 @@ export interface WasmSignAddKeyThresholdPublicKeyNoPromptRequest {
   clientParticipantId?: number;
   relayerParticipantId?: number;
   transactionContext: TransactionContext;
+  prfFirstB64u?: string;
+  wrapKeySalt?: string;
 }
 
 export interface WasmSignDelegateActionRequest {
@@ -219,6 +231,8 @@ export interface WasmSignDelegateActionRequest {
   intentDigest?: string;
   transactionContext?: TransactionContext;
   credential?: string;
+  prfFirstB64u?: string;
+  wrapKeySalt?: string;
 }
 export interface DelegatePayload {
   senderId: string;
@@ -228,7 +242,8 @@ export interface DelegatePayload {
   maxBlockHeight: string;
   publicKey: string;
 }
-export type WasmDecryptPrivateKeyRequest = StripFree<wasmModule.DecryptPrivateKeyRequest>;
+export type WasmDecryptPrivateKeyRequest =
+  StripFree<wasmModule.DecryptPrivateKeyRequest> & DirectPrfFields;
 export type WasmExtractCosePublicKeyRequest = StripFree<wasmModule.ExtractCoseRequest>;
 export interface WasmSignNep413MessageRequest {
   signerMode: SignerMode['mode'];
@@ -242,6 +257,8 @@ export interface WasmSignNep413MessageRequest {
   nonce: string;
   state?: string;
   credential?: string;
+  prfFirstB64u?: string;
+  wrapKeySalt?: string;
 }
 export interface WasmSignTransactionWithKeyPairRequest {
   nearPrivateKey: string;
@@ -252,7 +269,8 @@ export interface WasmSignTransactionWithKeyPairRequest {
   actions: ActionArgsWasm[];
 }
 // Combined Device2 registration handler (derive + sign in one step)
-export type WasmRegisterDevice2WithDerivedKeyRequest = StripFree<wasmModule.RegisterDevice2WithDerivedKeyRequest>;
+export type WasmRegisterDevice2WithDerivedKeyRequest =
+  StripFree<wasmModule.RegisterDevice2WithDerivedKeyRequest> & DirectPrfFields;
 
 export type WasmRequestPayload = WasmDeriveNearKeypairAndEncryptRequest
   | WasmRecoverKeypairRequest

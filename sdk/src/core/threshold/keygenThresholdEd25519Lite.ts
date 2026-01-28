@@ -83,24 +83,11 @@ export async function keygenThresholdEd25519Lite(args: {
 
   // 2) Derive the client verifying share inside the signer worker.
   try {
-    const { wrapKeySeedSenderPort } = await args.signerWorkerManager.reserveSignerWorkerSession(keygenSessionId);
-    if (!wrapKeySeedSenderPort) {
-      return { ok: false, code: 'internal', message: 'Failed to create WrapKeySeed channel for signer worker' };
-    }
-
-    try {
-      wrapKeySeedSenderPort.postMessage({
-        ok: true,
-        wrap_key_seed: prfFirstB64u,
-        wrapKeySalt: DUMMY_WRAP_KEY_SALT_B64U,
-      });
-    } finally {
-      try { wrapKeySeedSenderPort.close(); } catch { /* noop */ }
-    }
-
     const derived = await args.signerWorkerManager.deriveThresholdEd25519ClientVerifyingShare({
       sessionId: keygenSessionId,
       nearAccountId: toAccountId(args.nearAccountId),
+      prfFirstB64u,
+      wrapKeySalt: DUMMY_WRAP_KEY_SALT_B64U,
     });
     if (!derived.success) {
       return { ok: false, code: 'internal', message: derived.error || 'Failed to derive client verifying share' };
@@ -139,7 +126,5 @@ export async function keygenThresholdEd25519Lite(args: {
   } catch (e: unknown) {
     const msg = (e && typeof e === 'object' && 'message' in e) ? String((e as any).message || 'keygen failed') : String(e || 'keygen failed');
     return { ok: false, code: 'internal', message: msg };
-  } finally {
-    try { args.signerWorkerManager.releaseSigningSession(keygenSessionId); } catch { }
   }
 }

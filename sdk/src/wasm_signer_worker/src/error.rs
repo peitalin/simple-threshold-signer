@@ -24,7 +24,7 @@ impl QuoteStyle {
 }
 
 const REDACTED: &str = "[REDACTED]";
-const SECRET_STRING_FIELDS: [(&str, QuoteStyle); 32] = [
+const SECRET_STRING_FIELDS: [(&str, QuoteStyle); 36] = [
     ("\"nearPrivateKey\"", QuoteStyle::Plain),
     ("\"near_private_key\"", QuoteStyle::Plain),
     ("\\\"nearPrivateKey\\\"", QuoteStyle::Escaped),
@@ -54,9 +54,13 @@ const SECRET_STRING_FIELDS: [(&str, QuoteStyle); 32] = [
     ("\\\"chacha20PrfOutputBase64\\\"", QuoteStyle::Escaped),
     ("\\\"ed25519PrfOutputBase64\\\"", QuoteStyle::Escaped),
     ("\"prfSecondB64u\"", QuoteStyle::Plain),
+    ("\"prfFirstB64u\"", QuoteStyle::Plain),
     ("\"prf_second_b64u\"", QuoteStyle::Plain),
+    ("\"prf_first_b64u\"", QuoteStyle::Plain),
     ("\\\"prfSecondB64u\\\"", QuoteStyle::Escaped),
+    ("\\\"prfFirstB64u\\\"", QuoteStyle::Escaped),
     ("\\\"prf_second_b64u\\\"", QuoteStyle::Escaped),
+    ("\\\"prf_first_b64u\\\"", QuoteStyle::Escaped),
 ];
 
 fn scrub_json_string_fields(input: &str, patterns: &[(&str, QuoteStyle)]) -> String {

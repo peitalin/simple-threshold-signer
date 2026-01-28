@@ -165,8 +165,8 @@ export async function setupWebAuthnMocks(page: Page): Promise<void> {
      * - These deterministic PRF outputs feed the SecureConfirm worker in tests:
      *   - Registration flows may use PRF outputs to derive deterministic key material.
      *   - Signing/decrypt flows use PRF.first to drive WrapKeySeed derivation.
-     * - Signer worker never sees these PRF bytes directly; it only receives WrapKeySeed
-     *   via the internal SecureConfirm→Signer MessagePort channel.
+     * - Signer worker receives PRF outputs via direct request fields (wallet-origin only);
+     *   confirmTxFlow envelopes never include raw PRF material.
      */
     const createMockPRFOutput = (seed: string, accountHint: string = '', length: number = 32): ArrayBuffer => {
       const encoder = new TextEncoder();

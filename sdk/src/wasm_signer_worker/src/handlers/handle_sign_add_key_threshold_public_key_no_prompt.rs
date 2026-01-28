@@ -21,6 +21,10 @@ use crate::encoders::base64_url_decode;
 pub struct SignAddKeyThresholdPublicKeyNoPromptRequest {
     pub session_id: String,
     pub created_at: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prf_first_b64u: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wrap_key_salt: Option<String>,
     pub decryption: DecryptionPayload,
     pub near_account_id: String,
     pub threshold_public_key: String,

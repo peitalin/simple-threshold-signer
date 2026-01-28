@@ -97,6 +97,94 @@ test.describe('NonceManager Pure Unit Tests', () => {
     console.log('NonceManager basic reservation test passed');
   });
 
+  test('NonceManager - initializeUser is idempotent for same access key', async ({ page }) => {
+    const result = await page.evaluate(async ({ paths }) => {
+      try {
+        // @ts-ignore - Runtime import
+        const nonceManager = (await import(paths.nonceManager)).default;
+        nonceManager.clear();
+
+        // Initialize with test data
+        nonceManager.initializeUser('test-account', 'test-public-key');
+
+        // Mock transaction context
+        const mockTransactionContext = {
+          nearPublicKeyStr: 'test-public-key',
+          accessKeyInfo: { nonce: '10' },
+          nextNonce: '11',
+          txBlockHeight: '1000',
+          txBlockHash: 'test-block-hash',
+        };
+
+        // Seed cache + reservations
+        (nonceManager as any).transactionContext = mockTransactionContext;
+        (nonceManager as any).lastNonceUpdate = Date.now();
+        (nonceManager as any).lastBlockHeightUpdate = Date.now();
+        nonceManager.reserveNonces(2); // 11, 12
+
+        const reservedBefore = (nonceManager as any).reservedNonces;
+        const before = {
+          hasContext: !!(nonceManager as any).transactionContext,
+          reservedCount: reservedBefore.size,
+          lastReservedNonce: (nonceManager as any).lastReservedNonce,
+        };
+
+        // Re-initialize with the same identity; should be a no-op
+        nonceManager.initializeUser('test-account', 'test-public-key');
+
+        const reservedAfter = (nonceManager as any).reservedNonces;
+        const after = {
+          hasContext: !!(nonceManager as any).transactionContext,
+          reservedCount: reservedAfter.size,
+          lastReservedNonce: (nonceManager as any).lastReservedNonce,
+        };
+
+        // Sanity: switching keys should clear
+        nonceManager.initializeUser('test-account', 'different-public-key');
+        const switched = {
+          hasContext: !!(nonceManager as any).transactionContext,
+          reservedCount: (nonceManager as any).reservedNonces.size,
+          lastReservedNonce: (nonceManager as any).lastReservedNonce,
+        };
+
+        return {
+          success: true,
+          before,
+          after,
+          switched,
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error.message,
+          stack: error.stack
+        };
+      }
+    }, { paths: IMPORT_PATHS });
+
+    if (!result.success) {
+      if (handleInfrastructureErrors(result)) {
+        return;
+      }
+      console.error('NonceManager initializeUser idempotence test failed:', result.error);
+      expect(result.success).toBe(true);
+      return;
+    }
+
+    expect(result.before.hasContext).toBe(true);
+    expect(result.before.reservedCount).toBe(2);
+
+    expect(result.after.hasContext).toBe(true);
+    expect(result.after.reservedCount).toBe(2);
+    expect(result.after.lastReservedNonce).toBe(result.before.lastReservedNonce);
+
+    expect(result.switched.hasContext).toBe(false);
+    expect(result.switched.reservedCount).toBe(0);
+    expect(result.switched.lastReservedNonce).toBe(null);
+
+    console.log('NonceManager initializeUser idempotence test passed');
+  });
+
   test('NonceManager - Batch Transaction Scenarios', async ({ page }) => {
     const result = await page.evaluate(async ({ paths }) => {
       try {

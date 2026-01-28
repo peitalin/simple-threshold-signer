@@ -27,7 +27,6 @@ import {
 } from '../../types/signer-worker';
 import type { ThresholdBehavior } from '../../types/signer-worker';
 import { TouchIdPrompt } from "../touchIdPrompt";
-import { isSignerWorkerControlMessage } from './sessionMessages';
 import { WorkerControlMessage } from '../../workerControlMessages';
 
 import {
@@ -49,22 +48,10 @@ import type { ThemeName } from '../../types/tatchi';
 import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../types';
 import { toError } from '@/utils/errors';
 import { withSessionId } from './handlers/session';
-import { attachSessionPort } from './sessionHandshake.js';
 
 type WithOptionalSessionId<T> = T extends { sessionId: string }
   ? Omit<T, 'sessionId'> & { sessionId?: string }
   : T;
-
-type SigningSessionEntry = {
-  worker: Worker;
-  wrapKeySeedPort?: MessagePort;
-  wrapKeySeedSenderPort?: MessagePort;
-  createdAt: number;
-};
-
-export type WrapKeySeedDeliveryMessage =
-  | { ok: true; wrap_key_seed: string; wrapKeySalt: string; prfSecond?: string }
-  | { ok: false; error: string };
 
 export interface SignerWorkerManagerContext {
   touchIdPrompt: TouchIdPrompt;
@@ -77,7 +64,6 @@ export interface SignerWorkerManagerContext {
   rpIdOverride?: string;
   nearExplorerUrl?: string;
   secureConfirmWorkerManager?: SecureConfirmWorkerManager;
-  postWrapKeySeedToSigner: (args: { sessionId: string; message: WrapKeySeedDeliveryMessage }) => void;
   sendMessage: <T extends keyof WorkerRequestTypeMap>(args: {
     message: {
       type: T;
@@ -147,7 +133,6 @@ export class SignerWorkerManager {
       rpIdOverride: this.touchIdPrompt.getRpId(),
       nearExplorerUrl: this.nearExplorerUrl,
       relayerUrl: this.relayerUrl,
-      postWrapKeySeedToSigner: this.postWrapKeySeedToSigner.bind(this),
     };
   }
 
@@ -187,9 +172,6 @@ export class SignerWorkerManager {
    */
   private workerPool: Worker[] = [];
   private readonly MAX_WORKER_POOL_SIZE = 3; // Increased for security model
-  // Map of active signing sessions to reserved workers and optional WrapKeySeed ports
-  private signingSessions: Map<string, SigningSessionEntry> = new Map();
-  private readonly SIGNING_SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
   private getWorkerFromPool(): Worker {
     if (this.workerPool.length > 0) {
@@ -203,126 +185,6 @@ export class SignerWorkerManager {
     worker.terminate();
     // Asynchronously create a replacement worker for the pool
     this.createReplacementWorker();
-  }
-
-  /**
-   * Reserve a signer worker "session"
-   *
-   * What this does:
-   * - Reserves a specific `Worker` instance from the pool and pins it to `sessionId`.
-   * - Ensures the signer worker has a dedicated `MessagePort` attached for receiving `WrapKeySeed`
-   *   from the SecureConfirm worker (SecureConfirm → Signer channel).
-   *
-   * Port wiring:
-   * - The SecureConfirm worker retains one end of a `MessageChannel` and the signer worker receives the other.
-   * - This method attaches the signer-facing port via a control message (`ATTACH_WRAP_KEY_SEED_PORT`)
-   *   and waits for an ACK (`ATTACH_WRAP_KEY_SEED_PORT_OK`) before exposing the session.
-   *
-   * @param sessionId - Session identifier used to correlate MessagePorts + ready signals.
-   * @param opts.signerPort - Optional signer-facing `MessagePort` created/owned by the caller.
-   *                         If omitted, this method creates a fresh `MessageChannel` and returns `wrapKeySeedSenderPort`
-   *                         so the caller can transfer it to the SecureConfirm worker.
-   * @returns `{ worker, signerPort, wrapKeySeedSenderPort }` where `wrapKeySeedSenderPort` is only present when we created the channel here.
-   */
-  async reserveSignerWorkerSession(sessionId: string, opts?: { signerPort?: MessagePort }): Promise<{ worker: Worker; signerPort?: MessagePort; wrapKeySeedSenderPort?: MessagePort }> {
-    if (this.signingSessions.has(sessionId)) {
-      throw new Error(`Signing session already exists for id: ${sessionId}`);
-    }
-    // Reserve a worker from the pool for this sessionId.
-    const worker = this.getWorkerFromPool();
-    let signerPort = opts?.signerPort;
-    let wrapKeySeedSenderPort: MessagePort | undefined;
-    if (!signerPort) {
-      // If caller did not provide a signer-facing port, create a channel.
-      // - port1 => signer worker (receiver)
-      // - port2 => SecureConfirm worker (sender) returned to caller
-      const channel = new MessageChannel();
-      signerPort = channel.port1;
-      wrapKeySeedSenderPort = channel.port2;
-    }
-
-    // Attach the signerPort to the worker and wait for ACK before adding to signingSessions
-    try {
-      if (!signerPort) {
-        throw new Error('Missing signerPort for signing session');
-      }
-
-      // Use centralized handshake logic (registers listener, sends message, waits for ACK)
-      await attachSessionPort(worker, sessionId, signerPort);
-
-      // Only add to signingSessions after successful attachment
-      // (prevents callers from observing a session that can't receive WrapKeySeed yet).
-      this.signingSessions.set(sessionId, {
-        worker,
-        wrapKeySeedPort: signerPort,
-        wrapKeySeedSenderPort,
-        createdAt: Date.now(),
-      });
-
-    } catch (err) {
-      console.error('[SignerWorkerManager]: Failed to attach WrapKeySeed port to signer worker', err);
-      // Best-effort cleanup
-      try { signerPort?.close(); } catch {}
-      try { wrapKeySeedSenderPort?.close(); } catch {}
-      this.terminateAndReplaceWorker(worker);
-      this.signingSessions.delete(sessionId);
-      throw err;
-    }
-    return { worker, signerPort, wrapKeySeedSenderPort };
-  }
-
-  postWrapKeySeedToSigner(args: { sessionId: string; message: WrapKeySeedDeliveryMessage }): void {
-    const sessionId = String(args.sessionId || '').trim();
-    if (!sessionId) throw new Error('postWrapKeySeedToSigner: missing sessionId');
-    const entry = this.signingSessions.get(sessionId);
-    if (!entry?.wrapKeySeedSenderPort) {
-      throw new Error(`postWrapKeySeedToSigner: no sender port for signing session ${sessionId}`);
-    }
-    try {
-      entry.wrapKeySeedSenderPort.postMessage(args.message);
-    } finally {
-      try { entry.wrapKeySeedSenderPort.close(); } catch {}
-      entry.wrapKeySeedSenderPort = undefined;
-    }
-  }
-
-  /**
-   * Detach (but do not close) the WrapKeySeed sender port for a signing session.
-   *
-   * This is used when we transfer ownership of the sender port to another worker
-   * (e.g., the SecureConfirm worker) so the main thread does not attempt to use
-   * or close a transferred (detached) port.
-   */
-  detachWrapKeySeedSenderPort(sessionId: string): void {
-    const key = String(sessionId || '').trim();
-    if (!key) return;
-    const entry = this.signingSessions.get(key);
-    if (!entry) return;
-    entry.wrapKeySeedSenderPort = undefined;
-  }
-
-  /**
-   * Release a signing session: close ports and terminate/replace the worker to zeroize state.
-   */
-  releaseSigningSession(sessionId: string): void {
-    const entry = this.signingSessions.get(sessionId);
-    if (!entry) return;
-    try { entry.wrapKeySeedPort?.close() } catch {}
-    try { entry.wrapKeySeedSenderPort?.close() } catch {}
-    try { this.terminateAndReplaceWorker(entry.worker) } catch {}
-    this.signingSessions.delete(sessionId);
-  }
-
-  /**
-   * Sweep expired signing sessions based on createdAt and timeout.
-   */
-  sweepExpiredSigningSessions(): void {
-    const now = Date.now();
-    for (const [sessionId, entry] of this.signingSessions.entries()) {
-      if (now - entry.createdAt > this.SIGNING_SESSION_TIMEOUT_MS) {
-        this.releaseSigningSession(sessionId);
-      }
-    }
   }
 
   private async createReplacementWorker(): Promise<void> {
@@ -427,9 +289,6 @@ export class SignerWorkerManager {
     timeoutMs?: number;
   }): Promise<WorkerResponseForRequest<T>> {
 
-    // Clean up any expired signing sessions before allocating a worker
-    this.sweepExpiredSigningSessions();
-
     const payloadSessionId = (message.payload as any)?.sessionId as string | undefined;
     if (sessionId && payloadSessionId && payloadSessionId !== sessionId) {
       throw new Error(
@@ -438,28 +297,18 @@ export class SignerWorkerManager {
     }
 
     const effectiveSessionId = sessionId || payloadSessionId;
-    const sessionEntry = effectiveSessionId ? this.signingSessions.get(effectiveSessionId) : undefined;
-    if (effectiveSessionId && !sessionEntry) {
-      throw new Error(`Signing session not found for id: ${effectiveSessionId}`);
-    }
 
     // Normalize/inject sessionId into payload once to avoid duplication at call sites.
     const finalPayload = effectiveSessionId
       ? withSessionId(effectiveSessionId, message.payload)
       : (message.payload);
 
-    const worker = sessionEntry ? sessionEntry.worker : this.getWorkerFromPool();
-    const isSessionWorker = !!sessionEntry;
+    const worker = this.getWorkerFromPool();
 
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         try {
-          if (isSessionWorker && effectiveSessionId) {
-            // Release reserved session to avoid leaking worker/port
-            this.releaseSigningSession(effectiveSessionId);
-          } else {
-            this.terminateAndReplaceWorker(worker);
-          }
+          this.terminateAndReplaceWorker(worker);
         } catch {}
         // Notify any open modal host to transition to error state
         try {
@@ -473,10 +322,6 @@ export class SignerWorkerManager {
 
       worker.onmessage = async (event) => {
         try {
-          // Ignore control messages (lifecycle/session setup) – they are handled elsewhere.
-          if (isSignerWorkerControlMessage(event?.data)) {
-            return;
-          }
           // Ignore readiness pings that can arrive if a worker was just spawned
           if (event?.data?.type === WorkerControlMessage.WORKER_READY || event?.data?.ready) {
             return; // not a response to an operation
@@ -495,7 +340,7 @@ export class SignerWorkerManager {
           // Handle errors using WASM-generated enum
           if (isWorkerError(response)) {
             clearTimeout(timeoutId);
-            if (!isSessionWorker) this.terminateAndReplaceWorker(worker);
+            this.terminateAndReplaceWorker(worker);
             const errorResponse = response as WorkerErrorResponse;
             console.error('Worker error response:', errorResponse);
             reject(new Error(errorResponse.payload.error));
@@ -505,7 +350,7 @@ export class SignerWorkerManager {
           // Handle successful completion types using strong typing
           if (isWorkerSuccess(response)) {
             clearTimeout(timeoutId);
-            if (!isSessionWorker) this.terminateAndReplaceWorker(worker);
+            this.terminateAndReplaceWorker(worker);
             resolve(response as WorkerResponseForRequest<T>);
             return;
           }
@@ -518,7 +363,7 @@ export class SignerWorkerManager {
           // Check if it's a generic Error object
           if (isObject(response) && 'message' in response && 'stack' in response) {
             clearTimeout(timeoutId);
-            if (!isSessionWorker) this.terminateAndReplaceWorker(worker);
+            this.terminateAndReplaceWorker(worker);
             console.error('Worker sent generic Error object:', response);
             reject(new Error(`Worker sent generic error: ${(response as Error).message}`));
             return;
@@ -526,11 +371,11 @@ export class SignerWorkerManager {
 
           // Unknown response format
           clearTimeout(timeoutId);
-          if (!isSessionWorker) this.terminateAndReplaceWorker(worker);
+          this.terminateAndReplaceWorker(worker);
           reject(new Error(`Unknown worker response format: ${JSON.stringify(response)}`));
         } catch (error: unknown) {
           clearTimeout(timeoutId);
-          if (!isSessionWorker) this.terminateAndReplaceWorker(worker);
+          this.terminateAndReplaceWorker(worker);
           console.error('Error processing worker message:', error);
           const err = toError(error);
           reject(new Error(`Worker message processing error: ${err.message}`));
@@ -539,7 +384,7 @@ export class SignerWorkerManager {
 
       worker.onerror = (event) => {
         clearTimeout(timeoutId);
-        if (!isSessionWorker) this.terminateAndReplaceWorker(worker);
+        this.terminateAndReplaceWorker(worker);
         const errorMessage = event.error?.message || event.message || 'Unknown worker error';
         console.error('Worker error details (progress):', {
           message: errorMessage,
@@ -588,6 +433,8 @@ export class SignerWorkerManager {
   async deriveThresholdEd25519ClientVerifyingShare(args: {
     sessionId: string;
     nearAccountId: AccountId;
+    prfFirstB64u: string;
+    wrapKeySalt: string;
   }): Promise<{
     success: boolean;
     nearAccountId: string;
@@ -598,6 +445,8 @@ export class SignerWorkerManager {
       ctx: this.getContext(),
       sessionId: args.sessionId,
       nearAccountId: String(args.nearAccountId),
+      prfFirstB64u: args.prfFirstB64u,
+      wrapKeySalt: args.wrapKeySalt,
     });
   }
 
@@ -608,6 +457,8 @@ export class SignerWorkerManager {
     nearAccountId: AccountId,
     authenticators: ClientAuthenticatorData[],
     sessionId: string,
+    prfFirstB64u?: string;
+    wrapKeySalt?: string;
   }): Promise<{
     decryptedPrivateKey: string;
     nearAccountId: AccountId
@@ -754,6 +605,8 @@ export class SignerWorkerManager {
     variant?: 'drawer'|'modal',
     theme?: 'dark'|'light',
     sessionId: string,
+    prfFirstB64u: string;
+    wrapKeySalt: string;
   }): Promise<void> {
     return exportNearKeypairUi({ ctx: this.getContext(), ...args });
   }

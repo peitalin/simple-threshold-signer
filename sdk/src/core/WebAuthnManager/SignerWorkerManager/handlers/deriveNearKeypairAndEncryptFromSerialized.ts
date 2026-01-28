@@ -11,6 +11,7 @@ import { SignerWorkerManagerContext } from '..';
 import type { WebAuthnRegistrationCredential } from '@/core/types/webauthn';
 import { toEnumUserVerificationPolicy } from '../../../types/authenticatorOptions';
 import { withSessionId } from './session';
+import { base64UrlEncode } from '../../../../utils/encoders';
 
 /**
  * Derive NEAR keypair and encrypt it from a serialized WebAuthn registration credential
@@ -43,9 +44,22 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
   error?: string;
 }> {
   try {
-    // PRF outputs are extracted in wallet-origin code and delivered to the signer worker via MessagePort.
-    // No PRF outputs should traverse the main thread.
-    if (!sessionId) throw new Error('Missing sessionId for registration WrapKeySeed delivery');
+    if (!sessionId) throw new Error('Missing sessionId for registration request');
+
+    const prfResults = (credential as any)?.clientExtensionResults?.prf?.results as
+      | { first?: string; second?: string }
+      | undefined;
+    const prfFirstB64u = typeof prfResults?.first === 'string' ? prfResults.first.trim() : '';
+    const prfSecondB64u = typeof prfResults?.second === 'string' ? prfResults.second.trim() : '';
+    if (!prfFirstB64u || !prfSecondB64u) {
+      throw new Error('Dual PRF outputs required for registration (PRF.first + PRF.second)');
+    }
+
+    const wrapKeySalt = (() => {
+      const bytes = new Uint8Array(32);
+      crypto.getRandomValues(bytes);
+      return base64UrlEncode(bytes);
+    })();
 
     const response = await ctx.sendMessage<WorkerRequestType.DeriveNearKeypairAndEncrypt>({
       sessionId,
@@ -58,6 +72,9 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
             userVerification: toEnumUserVerificationPolicy(options.authenticatorOptions.userVerification),
             originPolicy: options.authenticatorOptions.originPolicy,
           } : undefined,
+          prfFirstB64u,
+          wrapKeySalt,
+          prfSecondB64u,
         })
       },
     });

@@ -26,6 +26,10 @@ pub struct SignNep413Request {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub threshold: Option<crate::types::ThresholdSignerConfig>,
     pub session_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prf_first_b64u: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wrap_key_salt: Option<String>,
     /// Serialized WebAuthn authentication credential JSON (used only for relayer authorization in threshold mode).
     pub credential: Option<String>,
 }

@@ -4,7 +4,7 @@
  * The legacy VRF WASM worker has been removed from the threshold-only lite stack.
  * The SecureConfirm worker now hosts:
  * - the SecureConfirm bridge (`awaitSecureConfirmationV2`) used by confirmTxFlow, and
- * - a small PRF.first cache + WrapKeySeed MessagePort wiring for threshold signing.
+ * - a small PRF.first cache for threshold warm sessions.
  */
 
 export interface SecureConfirmWorkerManagerConfig {
@@ -18,10 +18,7 @@ export type SecureConfirmWorkerMessageType =
   | 'THRESHOLD_PRF_FIRST_CACHE_PUT'
   | 'THRESHOLD_PRF_FIRST_CACHE_PEEK'
   | 'THRESHOLD_PRF_FIRST_CACHE_DISPENSE'
-  | 'THRESHOLD_PRF_FIRST_CACHE_CLEAR'
-  | 'THRESHOLD_PRF_FIRST_SEND_TO_SIGNER'
-  | 'THRESHOLD_PRF_FIRST_DISPENSE_TO_SIGNER'
-  | 'THRESHOLD_CLEAR_WRAP_KEY_SEED_PORT';
+  | 'THRESHOLD_PRF_FIRST_CACHE_CLEAR';
 
 export interface SecureConfirmWorkerMessage<TPayload = unknown> {
   type: SecureConfirmWorkerMessageType;
@@ -35,4 +32,3 @@ export interface SecureConfirmWorkerResponse<TData = unknown> {
   data?: TData;
   error?: string;
 }
-

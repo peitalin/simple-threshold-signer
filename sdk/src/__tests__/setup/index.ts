@@ -56,10 +56,9 @@ import type { PasskeyTestConfig, PasskeyTestSetupOptions } from './types';
  *
  * SecureConfirm context:
  * - The wallet iframe now loads two cooperating workers:
- *   - SecureConfirm worker: owns WebAuthn PRF + SecureConfirm (`awaitSecureConfirmationV2`),
- *     derives WrapKeySeed, and sends WrapKeySeed + wrapKeySalt over a dedicated MessagePort.
- *   - Signer worker: consumes WrapKeySeed via that channel and performs NEAR signing;
- *     it never calls SecureConfirm and never sees PRF secrets directly.
+ *   - SecureConfirm worker: owns WebAuthn PRF + SecureConfirm (`awaitSecureConfirmationV2`).
+ *   - Signer worker: derives WrapKeySeed from prfFirstB64u + wrapKeySalt supplied in wallet-origin
+ *     requests and performs NEAR signing; confirmTxFlow never carries raw PRF material.
  *
  * 1. ENVIRONMENT SETUP: Configure WebAuthn Virtual Authenticator first
  * 2. IMPORT MAP INJECTION: Add module resolution mappings to the page

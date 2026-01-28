@@ -16,11 +16,15 @@ export async function decryptPrivateKeyWithPrf({
   nearAccountId,
   authenticators,
   sessionId,
+  prfFirstB64u,
+  wrapKeySalt,
 }: {
   ctx: SignerWorkerManagerContext,
   nearAccountId: AccountId,
   authenticators: ClientAuthenticatorData[],
   sessionId: string,
+  prfFirstB64u?: string;
+  wrapKeySalt?: string;
 }): Promise<{ decryptedPrivateKey: string; nearAccountId: AccountId }> {
   try {
     console.info('WebAuthnManager: Starting private key decryption with dual PRF (local operation)');
@@ -29,6 +33,14 @@ export async function decryptPrivateKeyWithPrf({
     const keyMaterial = await ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceNumber);
     if (!keyMaterial) {
       throw new Error(`No key material found for account: ${nearAccountId}`);
+    }
+    const prfFirst = String(prfFirstB64u || '').trim();
+    const wrapKeySaltB64u = String(wrapKeySalt || keyMaterial.wrapKeySalt || '').trim();
+    if (!prfFirst) {
+      throw new Error('Missing PRF.first output for private key decryption');
+    }
+    if (!wrapKeySaltB64u) {
+      throw new Error('Missing wrapKeySalt for private key decryption');
     }
 
     const response = await ctx.sendMessage({
@@ -39,6 +51,8 @@ export async function decryptPrivateKeyWithPrf({
           nearAccountId: nearAccountId,
           encryptedPrivateKeyData: keyMaterial.encryptedSk,
           encryptedPrivateKeyChacha20NonceB64u: keyMaterial.chacha20NonceB64u,
+          prfFirstB64u: prfFirst,
+          wrapKeySalt: wrapKeySaltB64u,
         })
       },
     });

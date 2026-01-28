@@ -219,6 +219,31 @@ w3a-modal-tx-confirmer {
   pointer-events: none;
 }
 
+.w3a-portal > w3a-tx-confirmer {
+  /* Set by confirm-ui.ts for stacked confirmers; default to 0 for single modal. */
+  --w3a-confirm-stack-index: 0;
+}
+
+/* When multiple confirmers are present, offset older ones so they appear like stacked cards. */
+#w3a-confirm-portal > w3a-tx-confirmer .modal-backdrop {
+  transform: translate(
+    calc(var(--w3a-confirm-stack-index) * -1rem),
+    calc(var(--w3a-confirm-stack-index) * -1rem)
+  );
+}
+
+/* Avoid stacking multiple backdrop layers (darkening) and prevent interacting with non-top modals. */
+#w3a-confirm-portal > w3a-tx-confirmer:not(:last-child) .modal-backdrop-blur {
+  opacity: 0;
+  pointer-events: none;
+  backdrop-filter: none;
+}
+#w3a-confirm-portal > w3a-tx-confirmer:not(:last-child) .modal-backdrop > * {
+  pointer-events: none;
+  opacity: 0.92;
+  filter: saturate(0.9);
+}
+
 .modal-backdrop > * {
   pointer-events: auto;
 }

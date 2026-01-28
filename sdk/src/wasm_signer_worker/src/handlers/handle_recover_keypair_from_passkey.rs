@@ -19,6 +19,15 @@ pub struct RecoverKeypairRequest {
     pub account_id_hint: Option<String>,
     #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
     pub session_id: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "prfFirstB64u")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prf_first_b64u: Option<String>,
+    #[wasm_bindgen(getter_with_clone, js_name = "wrapKeySalt")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wrap_key_salt: Option<String>,
+    #[wasm_bindgen(getter_with_clone, js_name = "prfSecondB64u")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prf_second_b64u: Option<String>,
 }
 
 #[wasm_bindgen]
@@ -74,12 +83,22 @@ pub async fn handle_recover_keypair_from_passkey(
     wrap_key: WrapKey,
 ) -> Result<RecoverKeypairResult, String> {
     let ed25519_prf_output = request
-        .credential
-        .client_extension_results
-        .prf
-        .results
-        .second
-        .ok_or_else(|| "Missing PRF output (second) in credential".to_string())?;
+        .prf_second_b64u
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(str::to_string)
+        .or_else(|| {
+            request
+                .credential
+                .client_extension_results
+                .prf
+                .results
+                .second
+                .map(|v| v.trim().to_string())
+        })
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| "Missing PRF output (second) in request".to_string())?;
 
     debug!(
         "RUST: Parsed authentication credential with ID: {}",

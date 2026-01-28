@@ -20,7 +20,6 @@ import { SignerWorkerManagerContext } from '..';
 import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../../../defaultConfigs2';
 import { toAccountId } from '../../../types/accountIds';
 import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
-import { generateSessionId } from '../sessionHandshake.js';
 import { WebAuthnAuthenticationCredential } from '../../../types';
 import { removePrfOutputGuard } from '../../credentialsHelpers';
 import { isRelayerThresholdEd25519Configured, resolveSignerModeForThresholdSigning } from '../../../threshold/thresholdEd25519RelayerHealth';
@@ -63,6 +62,10 @@ function getPrfResultsFromCredential(credential: unknown): { first?: string; sec
   } catch {
     return {};
   }
+}
+
+function generateSessionId(): string {
+  return `sess-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 const DUMMY_WRAP_KEY_SALT_B64U = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
@@ -127,6 +130,8 @@ export async function signTransactionsWithActions({
     ? await ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceNumber)
     : null;
   const localWrapKeySalt = String(localKeyMaterial?.wrapKeySalt || '').trim();
+  // Threshold share derivation must use the same wrapKeySalt that was used at keygen time.
+  const thresholdWrapKeySalt = String(thresholdKeyMaterial?.wrapKeySalt || '').trim() || DUMMY_WRAP_KEY_SALT_B64U;
 
   // If the caller defaulted to local-signer but the account is threshold-only, prefer threshold-signer.
   if (resolvedSignerMode === 'local-signer' && !localKeyMaterial && !!thresholdKeyMaterial) {
@@ -156,12 +161,6 @@ export async function signTransactionsWithActions({
   }
 
   const canFallbackToLocal = thresholdBehavior === 'fallback' && !!localKeyMaterial && !!localWrapKeySalt;
-  // The threshold share derivation ignores wrapKeySalt. If present, we keep using the local wrapKeySalt so
-  // fallback-to-local can reuse the same signing session; otherwise a fixed dummy is used.
-  const wrapKeySaltForSignerWorker =
-    (resolvedSignerMode === 'local-signer' || canFallbackToLocal)
-      ? localWrapKeySalt
-      : DUMMY_WRAP_KEY_SALT_B64U;
 
   const signingContext = validateAndPrepareSigningContext({
     nearAccountId,
@@ -198,6 +197,7 @@ export async function signTransactionsWithActions({
   if (!ctx.secureConfirmWorkerManager) {
     throw new Error('SecureConfirmWorkerManager not available for signing');
   }
+  const secureConfirmWorkerManager = ctx.secureConfirmWorkerManager;
   const usesNeeded = Math.max(1, txSigningRequests.length);
   const desiredTtlMs =
     typeof signingSessionTtlMs === 'number' && Number.isFinite(signingSessionTtlMs) && signingSessionTtlMs > 0
@@ -220,19 +220,19 @@ export async function signTransactionsWithActions({
       warmOk = peek.ok && peek.remainingUses >= usesNeeded;
     }
 
-	    signingAuthMode = warmOk ? 'warmSession' : 'webauthn';
-	    if (!warmOk) {
-	      const rpId = String(ctx.touchIdPrompt.getRpId() || '').trim();
-	      thresholdSessionPlan = await buildThresholdSessionPolicy({
-	        nearAccountId,
-	        rpId,
-	        relayerKeyId: signingContext.threshold.thresholdKeyMaterial.relayerKeyId,
-	        participantIds: signingContext.threshold.thresholdKeyMaterial.participants.map((p) => p.id),
-	        ...(desiredTtlMs !== undefined ? { ttlMs: desiredTtlMs } : {}),
-	        remainingUses: Math.max(usesNeeded, desiredRemainingUses ?? usesNeeded),
-	      });
-	    }
-	  }
+    signingAuthMode = warmOk ? 'warmSession' : 'webauthn';
+    if (!warmOk) {
+      const rpId = String(ctx.touchIdPrompt.getRpId() || '').trim();
+      thresholdSessionPlan = await buildThresholdSessionPolicy({
+        nearAccountId,
+        rpId,
+        relayerKeyId: signingContext.threshold.thresholdKeyMaterial.relayerKeyId,
+        participantIds: signingContext.threshold.thresholdKeyMaterial.participants.map((p) => p.id),
+        ...(desiredTtlMs !== undefined ? { ttlMs: desiredTtlMs } : {}),
+        remainingUses: Math.max(usesNeeded, desiredRemainingUses ?? usesNeeded),
+      });
+    }
+  }
   const confirmation = await ctx.secureConfirmWorkerManager.confirmAndPrepareSigningSession({
     ctx,
     sessionId,
@@ -257,34 +257,32 @@ export async function signTransactionsWithActions({
     ? JSON.stringify(removePrfOutputGuard(credentialWithPrf))
     : undefined;
 
-  let wrapKeySeedSent = false;
   let prfFirstB64u: string | undefined;
 
-  // Resolve PRF.first to deliver WrapKeySeed to the signer worker.
+  // Resolve PRF.first for signer worker.
   if (signingContext.threshold && signingAuthMode === 'warmSession') {
-    const dispensed = await ctx.secureConfirmWorkerManager.dispensePrfFirstToSigner({
+    const delivered = await secureConfirmWorkerManager.dispensePrfFirstForThresholdSession({
       sessionId,
       uses: usesNeeded,
-      wrapKeySalt: wrapKeySaltForSignerWorker,
     });
-    if (dispensed.ok) {
-      wrapKeySeedSent = true;
+    if (delivered.ok) {
+      prfFirstB64u = delivered.prfFirstB64u;
     } else {
-      // Cache says warm session, but dispense failed (expired/exhausted). Fall back to WebAuthn.
-      await ctx.secureConfirmWorkerManager.clearPrfFirstForThresholdSession({ sessionId }).catch(() => {});
+      // Warm session failed (expired/exhausted). Fall back to WebAuthn.
+      await secureConfirmWorkerManager.clearPrfFirstForThresholdSession({ sessionId }).catch(() => { });
       signingAuthMode = 'webauthn';
 
-	      const rpId = String(ctx.touchIdPrompt.getRpId() || '').trim();
-	      thresholdSessionPlan = await buildThresholdSessionPolicy({
-	        nearAccountId,
-	        rpId,
-	        relayerKeyId: signingContext.threshold.thresholdKeyMaterial.relayerKeyId,
-	        participantIds: signingContext.threshold.thresholdKeyMaterial.participants.map((p) => p.id),
-	        ...(desiredTtlMs !== undefined ? { ttlMs: desiredTtlMs } : {}),
-	        remainingUses: Math.max(usesNeeded, desiredRemainingUses ?? usesNeeded),
-	      });
+      const rpId = String(ctx.touchIdPrompt.getRpId() || '').trim();
+      thresholdSessionPlan = await buildThresholdSessionPolicy({
+        nearAccountId,
+        rpId,
+        relayerKeyId: signingContext.threshold.thresholdKeyMaterial.relayerKeyId,
+        participantIds: signingContext.threshold.thresholdKeyMaterial.participants.map((p) => p.id),
+        ...(desiredTtlMs !== undefined ? { ttlMs: desiredTtlMs } : {}),
+        remainingUses: Math.max(usesNeeded, desiredRemainingUses ?? usesNeeded),
+      });
 
-      const refreshed = await ctx.secureConfirmWorkerManager.confirmAndPrepareSigningSession({
+      const refreshed = await secureConfirmWorkerManager.confirmAndPrepareSigningSession({
         ctx,
         sessionId,
         kind: 'transaction',
@@ -303,34 +301,19 @@ export async function signTransactionsWithActions({
       credentialForRelayJson = credentialWithPrf ? JSON.stringify(removePrfOutputGuard(credentialWithPrf)) : undefined;
 
       prfFirstB64u = getPrfResultsFromCredential(credentialWithPrf).first;
+      if (!prfFirstB64u) {
+        throw new Error('Missing PRF.first output from credential (requires a PRF-enabled passkey)');
+      }
     }
   } else {
     prfFirstB64u = getPrfResultsFromCredential(credentialWithPrf).first;
-  }
-
-  if (!wrapKeySeedSent) {
     if (!prfFirstB64u) {
       throw new Error('Missing PRF.first output from credential (requires a PRF-enabled passkey)');
     }
-    const manager = ctx.secureConfirmWorkerManager as any;
-    if (manager && typeof manager.sendPrfFirstToSigner === 'function') {
-      const sent = await manager.sendPrfFirstToSigner({
-        sessionId,
-        prfFirstB64u,
-        wrapKeySalt: wrapKeySaltForSignerWorker,
-      });
-      if (!sent?.ok) {
-        throw new Error(sent?.message || 'Failed to deliver PRF.first to signer worker');
-      }
-    } else {
-      // Compatibility: older call sites and unit tests stub `postWrapKeySeedToSigner` but not
-      // the SecureConfirm worker PRF bridge helpers.
-      ctx.postWrapKeySeedToSigner({
-        sessionId,
-        message: { ok: true, wrap_key_seed: prfFirstB64u, wrapKeySalt: wrapKeySaltForSignerWorker },
-      });
-    }
-    wrapKeySeedSent = true;
+  }
+
+  if (!prfFirstB64u) {
+    throw new Error('Missing PRF.first output for signing');
   }
 
   // Threshold signer: if we're not using a warm session token, mint a fresh relay threshold session (lite).
@@ -346,6 +329,8 @@ export async function signTransactionsWithActions({
       ctx,
       sessionId,
       nearAccountId,
+      prfFirstB64u,
+      wrapKeySalt: thresholdWrapKeySalt,
     });
     if (!derived.success) {
       throw new Error(derived.error || 'Failed to derive client verifying share');
@@ -372,7 +357,7 @@ export async function signTransactionsWithActions({
         console.warn(msg);
         warnings.push(msg);
 
-        try { clearCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey); } catch {}
+        try { clearCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey); } catch { }
         signingContext.threshold.thresholdSessionJwt = undefined;
 
         ctx.nonceManager.initializeUser(toAccountId(nearAccountId), localKeyMaterial.publicKey);
@@ -388,6 +373,8 @@ export async function signTransactionsWithActions({
           intentDigest,
           transactionContext: localTxContext,
           credential: credentialForRelayJson,
+          prfFirstB64u,
+          wrapKeySalt: localWrapKeySalt,
           expectedTransactionCount: transactions.length,
           warnings,
         });
@@ -401,12 +388,12 @@ export async function signTransactionsWithActions({
     if (!prfFirstB64u) {
       throw new Error('Missing PRF.first output for threshold session cache');
     }
-    await ctx.secureConfirmWorkerManager.putPrfFirstForThresholdSession({
+    await secureConfirmWorkerManager.putPrfFirstForThresholdSession({
       sessionId,
       prfFirstB64u,
       expiresAtMs,
       remainingUses,
-    }).catch(() => {});
+    }).catch(() => { });
 
     putCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey, {
       sessionKind: 'jwt',
@@ -420,17 +407,19 @@ export async function signTransactionsWithActions({
     signingContext.threshold.thresholdSessionJwt = minted.jwt;
   }
 
-	  // Threshold signer: authorize with relayer and pass threshold config into the signer worker.
-		  if (signingContext.threshold) {
-	      if (!signingContext.threshold.thresholdSessionJwt) {
-	        throw new Error('Missing thresholdSessionJwt for threshold signing');
-	      }
-		    const requestPayload: Omit<WasmSignTransactionsWithActionsRequest, 'sessionId'> = {
-		      signerMode: signingContext.resolvedSignerMode,
-		      rpcCall: resolvedRpcCall,
-		      createdAt: Date.now(),
-		      decryption: {
-	        encryptedPrivateKeyData: '',
+  // Threshold signer: authorize with relayer and pass threshold config into the signer worker.
+  if (signingContext.threshold) {
+    if (!signingContext.threshold.thresholdSessionJwt) {
+      throw new Error('Missing thresholdSessionJwt for threshold signing');
+    }
+    const requestPayload: Omit<WasmSignTransactionsWithActionsRequest, 'sessionId'> = {
+      signerMode: signingContext.resolvedSignerMode,
+      rpcCall: resolvedRpcCall,
+      createdAt: Date.now(),
+      prfFirstB64u,
+      wrapKeySalt: thresholdWrapKeySalt,
+      decryption: {
+        encryptedPrivateKeyData: '',
         encryptedPrivateKeyChacha20NonceB64u: '',
       },
       threshold: {
@@ -446,190 +435,177 @@ export async function signTransactionsWithActions({
       intentDigest,
       transactionContext,
       credential: credentialForRelayJson,
-	    };
+    } as any;
 
-	    for (let attempt = 0; attempt < 2; attempt++) {
-	      try {
-	        const response = await ctx.sendMessage<typeof WorkerRequestType.SignTransactionsWithActions>({
-	          sessionId,
-	          message: { type: WorkerRequestType.SignTransactionsWithActions, payload: requestPayload },
-	          onEvent,
-	        });
-	        const okResponse = requireOkSignTransactionsWithActionsResponse(response);
-	        return toSignedTransactionResults({
-	          okResponse,
-	          expectedTransactionCount: transactions.length,
-	          nearAccountId,
-	          warnings,
-	        });
-	      } catch (e: unknown) {
-	        const err = e instanceof Error ? e : new Error(String(e));
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const response = await ctx.sendMessage<typeof WorkerRequestType.SignTransactionsWithActions>({
+          sessionId,
+          message: { type: WorkerRequestType.SignTransactionsWithActions, payload: requestPayload },
+          onEvent,
+        });
+        const okResponse = requireOkSignTransactionsWithActionsResponse(response);
+        return toSignedTransactionResults({
+          okResponse,
+          expectedTransactionCount: transactions.length,
+          nearAccountId,
+          warnings,
+        });
+      } catch (e: unknown) {
+        const err = e instanceof Error ? e : new Error(String(e));
 
-	        if (canFallbackToLocal && isThresholdSignerMissingKeyError(err)) {
-            if (!localKeyMaterial) throw new Error(`No local key material found for account: ${nearAccountId}`);
-	          const msg =
-	            '[WebAuthnManager] threshold-signer requested but the relayer is missing the signing share; falling back to local-signer';
-	          // eslint-disable-next-line no-console
-	          console.warn(msg);
-	          warnings.push(msg);
+        if (canFallbackToLocal && isThresholdSignerMissingKeyError(err)) {
+          if (!localKeyMaterial) throw new Error(`No local key material found for account: ${nearAccountId}`);
+          const msg =
+            '[WebAuthnManager] threshold-signer requested but the relayer is missing the signing share; falling back to local-signer';
+          // eslint-disable-next-line no-console
+          console.warn(msg);
+          warnings.push(msg);
 
-		          try {
-		            clearCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey);
-		          } catch {}
-		          signingContext.threshold.thresholdSessionJwt = undefined;
-		          requestPayload.threshold!.thresholdSessionJwt = undefined;
+          try {
+            clearCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey);
+          } catch { }
+          signingContext.threshold.thresholdSessionJwt = undefined;
+          requestPayload.threshold!.thresholdSessionJwt = undefined;
 
-	          ctx.nonceManager.initializeUser(toAccountId(nearAccountId), localKeyMaterial.publicKey);
-	          transactionContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient, { force: true });
+          ctx.nonceManager.initializeUser(toAccountId(nearAccountId), localKeyMaterial.publicKey);
+          transactionContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient, { force: true });
 
-	          return await signTransactionsWithActionsLocally({
-	            ctx,
-	            sessionId,
-	            onEvent,
-	            resolvedRpcCall,
-	            localKeyMaterial,
-	            txSigningRequests,
-	            intentDigest,
-	            transactionContext,
-	            credential: credentialForRelayJson,
-	            expectedTransactionCount: transactions.length,
-	            warnings,
-	          });
-	        }
+          return await signTransactionsWithActionsLocally({
+            ctx,
+            sessionId,
+            onEvent,
+            resolvedRpcCall,
+            localKeyMaterial,
+            txSigningRequests,
+            intentDigest,
+            transactionContext,
+            credential: credentialForRelayJson,
+            prfFirstB64u,
+            wrapKeySalt: localWrapKeySalt,
+            expectedTransactionCount: transactions.length,
+            warnings,
+          });
+        }
 
-			        if (attempt === 0 && isThresholdSessionAuthUnavailableError(err)) {
-			          clearCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey);
-			          await ctx.secureConfirmWorkerManager.clearPrfFirstForThresholdSession({ sessionId }).catch(() => {});
-			          signingContext.threshold.thresholdSessionJwt = undefined;
-			          requestPayload.threshold!.thresholdSessionJwt = undefined;
+        if (attempt === 0 && isThresholdSessionAuthUnavailableError(err)) {
+          clearCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey);
+          await secureConfirmWorkerManager.clearPrfFirstForThresholdSession({ sessionId }).catch(() => { });
+          signingContext.threshold.thresholdSessionJwt = undefined;
+          requestPayload.threshold!.thresholdSessionJwt = undefined;
 
-		          // Re-mint a fresh threshold session (lite) and retry.
-		          const rpId = String(ctx.touchIdPrompt.getRpId() || '').trim();
-		          thresholdSessionPlan = await buildThresholdSessionPolicy({
-		            nearAccountId,
-		            rpId,
-		            relayerKeyId: signingContext.threshold.thresholdKeyMaterial.relayerKeyId,
-		            participantIds: signingContext.threshold.thresholdKeyMaterial.participants.map((p) => p.id),
-		            ...(desiredTtlMs !== undefined ? { ttlMs: desiredTtlMs } : {}),
-		            remainingUses: Math.max(usesNeeded, desiredRemainingUses ?? usesNeeded),
-		          });
+          // Re-mint a fresh threshold session (lite) and retry.
+          const rpId = String(ctx.touchIdPrompt.getRpId() || '').trim();
+          thresholdSessionPlan = await buildThresholdSessionPolicy({
+            nearAccountId,
+            rpId,
+            relayerKeyId: signingContext.threshold.thresholdKeyMaterial.relayerKeyId,
+            participantIds: signingContext.threshold.thresholdKeyMaterial.participants.map((p) => p.id),
+            ...(desiredTtlMs !== undefined ? { ttlMs: desiredTtlMs } : {}),
+            remainingUses: Math.max(usesNeeded, desiredRemainingUses ?? usesNeeded),
+          });
 
-	          const refreshed = await ctx.secureConfirmWorkerManager.confirmAndPrepareSigningSession({
-	            ctx,
-	            sessionId,
-	            kind: 'transaction',
-	            signingAuthMode: 'webauthn',
-	            sessionPolicyDigest32: thresholdSessionPlan.sessionPolicyDigest32,
-	            txSigningRequests: transactions,
-	            rpcCall: resolvedRpcCall,
-	            confirmationConfigOverride,
-	            title,
-	            body,
-	          });
+          const refreshed = await secureConfirmWorkerManager.confirmAndPrepareSigningSession({
+            ctx,
+            sessionId,
+            kind: 'transaction',
+            signingAuthMode: 'webauthn',
+            sessionPolicyDigest32: thresholdSessionPlan.sessionPolicyDigest32,
+            txSigningRequests: transactions,
+            rpcCall: resolvedRpcCall,
+            confirmationConfigOverride,
+            title,
+            body,
+          });
 
-	          intentDigest = refreshed.intentDigest;
-	          transactionContext = refreshed.transactionContext;
-	          credentialWithPrf = refreshed.credential as WebAuthnAuthenticationCredential | undefined;
-	          credentialForRelayJson = credentialWithPrf ? JSON.stringify(removePrfOutputGuard(credentialWithPrf)) : undefined;
+          intentDigest = refreshed.intentDigest;
+          transactionContext = refreshed.transactionContext;
+          credentialWithPrf = refreshed.credential as WebAuthnAuthenticationCredential | undefined;
+          credentialForRelayJson = credentialWithPrf ? JSON.stringify(removePrfOutputGuard(credentialWithPrf)) : undefined;
 
-	          const prfFirst = getPrfResultsFromCredential(credentialWithPrf).first;
-	          if (!prfFirst) {
-	            throw new Error('Missing PRF.first output from credential (requires a PRF-enabled passkey)');
-	          }
+          const prfFirst = getPrfResultsFromCredential(credentialWithPrf).first;
+          if (!prfFirst) {
+            throw new Error('Missing PRF.first output from credential (requires a PRF-enabled passkey)');
+          }
 
-		          // WrapKeySeed was already delivered earlier for this signing session.
-		          if (!wrapKeySeedSent) {
-		            const manager = ctx.secureConfirmWorkerManager as any;
-		            if (manager && typeof manager.sendPrfFirstToSigner === 'function') {
-		              const sent = await manager.sendPrfFirstToSigner({
-		                sessionId,
-		                prfFirstB64u: prfFirst,
-		                wrapKeySalt: wrapKeySaltForSignerWorker,
-		              });
-		              if (!sent?.ok) {
-		                throw new Error(sent?.message || 'Failed to deliver PRF.first to signer worker');
-		              }
-		            } else {
-		              ctx.postWrapKeySeedToSigner({
-		                sessionId,
-		                message: { ok: true, wrap_key_seed: prfFirst, wrapKeySalt: wrapKeySaltForSignerWorker },
-		              });
-		            }
-		            wrapKeySeedSent = true;
-		          }
 
-	          const derived = await deriveThresholdEd25519ClientVerifyingShare({
-	            ctx,
-	            sessionId,
-	            nearAccountId,
-	          });
-	          if (!derived.success) {
-	            throw new Error(derived.error || 'Failed to derive client verifying share');
-	          }
 
-	          const minted = await mintThresholdEd25519AuthSessionLite({
-	            relayerUrl: signingContext.threshold.relayerUrl,
-	            sessionKind: 'jwt',
-	            relayerKeyId: signingContext.threshold.thresholdKeyMaterial.relayerKeyId,
-	            clientVerifyingShareB64u: derived.clientVerifyingShareB64u,
-	            sessionPolicy: thresholdSessionPlan.policy,
-	            webauthnAuthentication: credentialWithPrf!,
-	          });
-	          if (!minted.ok || !minted.jwt) {
-	            throw new Error(minted.message || 'Failed to mint threshold session');
-	          }
+          const derived = await deriveThresholdEd25519ClientVerifyingShare({
+            ctx,
+            sessionId,
+            nearAccountId,
+            prfFirstB64u: prfFirst,
+            wrapKeySalt: thresholdWrapKeySalt,
+          });
+          if (!derived.success) {
+            throw new Error(derived.error || 'Failed to derive client verifying share');
+          }
 
-	          const expiresAtMs = minted.expiresAtMs ?? (Date.now() + thresholdSessionPlan.policy.ttlMs);
-	          const remainingUses = minted.remainingUses ?? thresholdSessionPlan.policy.remainingUses;
+          const minted = await mintThresholdEd25519AuthSessionLite({
+            relayerUrl: signingContext.threshold.relayerUrl,
+            sessionKind: 'jwt',
+            relayerKeyId: signingContext.threshold.thresholdKeyMaterial.relayerKeyId,
+            clientVerifyingShareB64u: derived.clientVerifyingShareB64u,
+            sessionPolicy: thresholdSessionPlan.policy,
+            webauthnAuthentication: credentialWithPrf!,
+          });
+          if (!minted.ok || !minted.jwt) {
+            throw new Error(minted.message || 'Failed to mint threshold session');
+          }
 
-		          await ctx.secureConfirmWorkerManager.putPrfFirstForThresholdSession({
-		            sessionId,
-		            prfFirstB64u: prfFirst,
-		            expiresAtMs,
-		            remainingUses,
-		          }).catch(() => {});
+          const expiresAtMs = minted.expiresAtMs ?? (Date.now() + thresholdSessionPlan.policy.ttlMs);
+          const remainingUses = minted.remainingUses ?? thresholdSessionPlan.policy.remainingUses;
 
-	          putCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey, {
-	            sessionKind: 'jwt',
-	            policy: thresholdSessionPlan.policy,
-	            policyJson: thresholdSessionPlan.policyJson,
-	            sessionPolicyDigest32: thresholdSessionPlan.sessionPolicyDigest32,
-	            jwt: minted.jwt,
-	            expiresAtMs,
-	          });
+          await secureConfirmWorkerManager.putPrfFirstForThresholdSession({
+            sessionId,
+            prfFirstB64u: prfFirst,
+            expiresAtMs,
+            remainingUses,
+          }).catch(() => { });
 
-		          signingContext.threshold.thresholdSessionJwt = minted.jwt;
-		          requestPayload.threshold!.thresholdSessionJwt = minted.jwt;
-	          requestPayload.intentDigest = intentDigest;
-	          requestPayload.transactionContext = transactionContext;
-	          requestPayload.credential = credentialForRelayJson;
+          putCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey, {
+            sessionKind: 'jwt',
+            policy: thresholdSessionPlan.policy,
+            policyJson: thresholdSessionPlan.policyJson,
+            sessionPolicyDigest32: thresholdSessionPlan.sessionPolicyDigest32,
+            jwt: minted.jwt,
+            expiresAtMs,
+          });
 
-	          continue;
-	        }
+          signingContext.threshold.thresholdSessionJwt = minted.jwt;
+          requestPayload.threshold!.thresholdSessionJwt = minted.jwt;
+          requestPayload.intentDigest = intentDigest;
+          requestPayload.transactionContext = transactionContext;
+          requestPayload.credential = credentialForRelayJson;
 
-	        throw err;
-	      }
-	    }
-	  }
+          continue;
+        }
 
-	  return await signTransactionsWithActionsLocally({
-	    ctx,
-	    sessionId,
-	    onEvent,
-	    resolvedRpcCall,
-	    localKeyMaterial: (() => {
-        if (!localKeyMaterial) throw new Error(`No local key material found for account: ${nearAccountId}`);
-        return localKeyMaterial;
-      })(),
-	    txSigningRequests,
-	    intentDigest,
-	    transactionContext,
-	    credential: credentialForRelayJson,
-	    expectedTransactionCount: transactions.length,
-	    warnings,
-	  });
+        throw err;
+      }
+    }
+  }
 
-	}
+  return await signTransactionsWithActionsLocally({
+    ctx,
+    sessionId,
+    onEvent,
+    resolvedRpcCall,
+    localKeyMaterial: (() => {
+      if (!localKeyMaterial) throw new Error(`No local key material found for account: ${nearAccountId}`);
+      return localKeyMaterial;
+    })(),
+    txSigningRequests,
+    intentDigest,
+    transactionContext,
+    credential: credentialForRelayJson,
+    prfFirstB64u,
+    wrapKeySalt: localWrapKeySalt,
+    expectedTransactionCount: transactions.length,
+    warnings,
+  });
+
+}
 
 async function signTransactionsWithActionsLocally(args: {
   ctx: SignerWorkerManagerContext;
@@ -641,6 +617,8 @@ async function signTransactionsWithActionsLocally(args: {
   intentDigest: string;
   transactionContext: TransactionContext;
   credential: string | undefined;
+  prfFirstB64u: string | undefined;
+  wrapKeySalt: string;
   expectedTransactionCount: number;
   warnings: string[];
 }): Promise<Array<{
@@ -656,6 +634,8 @@ async function signTransactionsWithActionsLocally(args: {
         signerMode: 'local-signer',
         rpcCall: args.resolvedRpcCall,
         createdAt: Date.now(),
+        prfFirstB64u: args.prfFirstB64u,
+        wrapKeySalt: args.wrapKeySalt,
         decryption: {
           encryptedPrivateKeyData: args.localKeyMaterial.encryptedSk,
           encryptedPrivateKeyChacha20NonceB64u: args.localKeyMaterial.chacha20NonceB64u,
@@ -664,7 +644,7 @@ async function signTransactionsWithActionsLocally(args: {
         intentDigest: args.intentDigest,
         transactionContext: args.transactionContext,
         credential: args.credential,
-      },
+      } as any,
     },
     onEvent: args.onEvent,
   });

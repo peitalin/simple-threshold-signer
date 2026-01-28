@@ -5,6 +5,7 @@ import {
 import type { WebAuthnAuthenticationCredential } from '../../../types/webauthn';
 import { SignerWorkerManagerContext } from '..';
 import { withSessionId } from './session';
+import { base64UrlEncode } from '../../../../utils/encoders';
 
 /**
  * Recover keypair from authentication credential for account recovery
@@ -34,15 +35,18 @@ export async function recoverKeypairFromPasskey({
     console.info('SignerWorkerManager: Starting dual PRF-based keypair recovery from authentication credential');
     // Accept either live PublicKeyCredential or already-serialized auth credential
 
-    // Verify dual PRF outputs are available
-    if (
-      !credential.clientExtensionResults?.prf?.results?.first ||
-      !credential.clientExtensionResults?.prf?.results?.second
-    ) {
-      throw new Error('Dual PRF outputs required for account recovery - both ChaCha20 and Ed25519 PRF outputs must be available');
+    const prfFirstB64u = String(credential.clientExtensionResults?.prf?.results?.first || '').trim();
+    const prfSecondB64u = String(credential.clientExtensionResults?.prf?.results?.second || '').trim();
+    if (!prfFirstB64u || !prfSecondB64u) {
+      throw new Error('Dual PRF outputs required for account recovery - both PRF.first and PRF.second must be available');
     }
 
     if (!sessionId) throw new Error('Missing sessionId for recovery WrapKeySeed delivery');
+    const wrapKeySalt = (() => {
+      const bytes = new Uint8Array(32);
+      crypto.getRandomValues(bytes);
+      return base64UrlEncode(bytes);
+    })();
 
     // Use generic sendMessage with specific request type for better type safety
     const response = await ctx.sendMessage<WorkerRequestType.RecoverKeypairFromPasskey>({
@@ -52,6 +56,9 @@ export async function recoverKeypairFromPasskey({
         payload: withSessionId(sessionId, {
           credential,
           accountIdHint,
+          prfFirstB64u,
+          wrapKeySalt,
+          prfSecondB64u,
         })
       },
     });
