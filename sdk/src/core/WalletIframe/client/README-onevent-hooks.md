@@ -1,10 +1,12 @@
-# Wallet Iframe onEvent Bridging (post‑implementation)
+# Wallet Iframe onEvent Bridging
 
 This document explains how app‑provided `onEvent` callbacks are bridged across the wallet iframe boundary using a `PROGRESS` envelope and a local `onProgress` wrapper. It documents the implemented behavior.
 
-## What Developers Do
+## How It Works
 
-You keep passing `onEvent` to SDK methods. The callback is invoked locally in your app while flows (registration, login, signing, device linking, account sync) execute inside the wallet iframe.
+1) Parent → Child (RPC without functions)
+- Parent sends `PM_*` envelope; functions in `options` are stripped. Only serializable fields (e.g., `sticky`) are posted.
+
 
 ```ts
 // Parent app code
@@ -17,13 +19,6 @@ await walletRouter.registerPasskey({
   }
 })
 ```
-
-No functions cross `postMessage`; the SDK handles bridging for you.
-
-## How It Works
-
-1) Parent → Child (RPC without functions)
-- Parent sends `PM_*` envelope; functions in `options` are stripped. Only serializable fields (e.g., `sticky`) are posted.
 
 2) Child emits PROGRESS from its `onEvent`
 - The wallet host wraps `TatchiPasskey` calls and translates `onEvent(ev)` into:
@@ -51,7 +46,7 @@ Ordering is FIFO per `requestId`.
 ## Where The Bridging Lives (code)
 
 - Host posts PROGRESS from `onEvent`:
-  - `src/core/WalletIframe/host/wallet-iframe-host.ts`
+  - `src/core/WalletIframe/host/index.ts`
     - e.g., handlers for `PM_REGISTER`, `PM_LOGIN`, `PM_SIGN_TXS_WITH_ACTIONS`, `PM_SIGN_AND_SEND_TXS`, device linking, account sync.
 - Client receives PROGRESS and invokes app `onEvent` via wrapper:
   - `src/core/WalletIframe/client/router.ts`

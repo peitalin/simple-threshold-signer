@@ -32,7 +32,7 @@ Component Notes
   - Srcdoc loads `wallet-service.css`, `w3a-components.css`, and viewer CSS; no inline styles/scripts.
   - Inner iframe uses `sandbox="allow-scripts allow-same-origin"` so clipboard Permissions-Policy applies to the wallet origin.
 - Overlay/Mounter (host page)
-  - `overlay-styles.ts` and `mounter-styles.ts` use constructable sheets for geometry.
+- `overlay-styles.ts` and `host/lit-ui/mounter-styles.ts` use constructable sheets for geometry.
   - Fallback creates `<style nonce="…">` if `window.w3aNonce`/`window.litNonce` is provided (older engines only).
 
 Dev and CI

@@ -28,33 +28,34 @@ When you call methods like `registerPasskey()` or `signTransaction()`, the reque
 - **`index.ts`** - Exports all public APIs and types for the WalletIframe system.
 
 #### 2. **Client-Side Communication Layer** (Runs in Parent App)
+- **`client/index.ts`** - Client entrypoint; exports `WalletIframeRouter` and `initWalletIframeClient()`.
 - **`client/router.ts`** - The `WalletIframeRouter` class that manages all communication with the iframe. It handles:
   - Request/response correlation using unique request IDs
   - Progress event bridging from iframe back to parent callbacks
   - Overlay show/hide logic for user activation
   - Timeout and error handling
-- **`client/IframeTransport.ts`** - Low-level iframe management:
+- **`client/transport/IframeTransport.ts`** - Low-level iframe management:
   - Creates and mounts the iframe element
   - Handles the CONNECT → READY handshake using MessageChannel
   - Manages iframe permissions and security attributes
   - Waits for iframe load events to avoid race conditions
-- **`client/on-events-progress-bus.ts`** - Manages the overlay visibility based on operation phases:
+- **`client/progress/on-events-progress-bus.ts`** - Manages the overlay visibility based on operation phases:
   - Shows overlay during WebAuthn authentication phases
   - Hides overlay during non-interactive phases (signing, broadcasting)
   - Uses heuristics to minimize blocking time
 
 #### 3. **Host-Side Execution Layer** (Runs in Iframe)
-- **`host/wallet-iframe-host.ts`** - The main service host that:
+- **`host/index.ts`** - The main service host entry that:
   - Receives messages from the parent via MessagePort
   - Creates and manages the actual TatchiPasskey instance
   - Executes wallet operations (register, login, sign, etc.)
   - Sends progress events back to the parent
   - Handles UI component mounting requests
-- **`host/iframe-lit-elem-mounter.ts`** - Manages Lit-based UI components inside the iframe:
+- **`host/lit-ui/iframe-lit-elem-mounter.ts`** - Manages Lit-based UI components inside the iframe:
   - Mounts transaction buttons and other UI elements
   - Wires UI interactions to TatchiPasskey methods
   - Handles component lifecycle (mount/unmount/update)
-- **`host/iframe-lit-element-registry.ts`** - Declarative registry of available UI components:
+- **`host/lit-ui/iframe-lit-element-registry.ts`** - Declarative registry of available UI components:
   - Defines which Lit components can be mounted
   - Maps UI events to TatchiPasskey actions
   - Provides type-safe component definitions
@@ -136,7 +137,7 @@ The callback chain follows this flow:
   );
   ```
 
-### 3. **wallet-iframe-host.ts** (Service Host)
+### 3. **host/index.ts** (Service Host)
 - Receives messages via MessagePort in `onPortMessage()`
 - Creates and manages the actual TatchiPasskey instance
 - Executes the requested operations (like `tatchi!.registerPasskey()`)
@@ -147,10 +148,10 @@ The callback chain follows this flow:
 
 1. **TatchiPasskeyIframe** → calls **WalletIframeRouter** method
 2. **WalletIframeRouter** → posts message to iframe via MessagePort
-3. **wallet-iframe-host.ts** → receives message, executes TatchiPasskey operation
-4. **wallet-iframe-host.ts** → sends PROGRESS events during operation
+3. **host/index.ts** → receives message, executes TatchiPasskey operation
+4. **host/index.ts** → sends PROGRESS events during operation
 5. **WalletIframeRouter** → bridges PROGRESS events to caller's `onEvent` callback
-6. **wallet-iframe-host.ts** → sends final result
+6. **host/index.ts** → sends final result
 7. **WalletIframeRouter** → resolves promise with result
 8. **TatchiPasskeyIframe** → calls `afterCall` hook and returns result
 
@@ -161,7 +162,7 @@ The key insight is that progress events are bridged through the MessagePort:
 - Client receives and calls: `pend?.onProgress?.(msg.payload)`
 - This allows the original `onEvent` callback to receive real-time progress updates
 
-So yes, your understanding is correct: **TatchiPasskeyIframe → WalletIframeRouter → posts to wallet-iframe-host.ts**, with the additional detail that progress events flow back through the same channel to provide real-time updates to the caller.
+So yes, your understanding is correct: **TatchiPasskeyIframe → WalletIframeRouter → posts to host/index.ts**, with the additional detail that progress events flow back through the same channel to provide real-time updates to the caller.
 
 ## Activation Overlay (iframe sizing behavior)
 
@@ -206,14 +207,14 @@ class OverlayController {
 
 #### Styling notes
 
-- Uses class-based styling from `passkey-sdk/src/core/WalletIframe/client/overlay-styles.ts` (no inline styles).
+- Uses class-based styling from `passkey-sdk/src/core/WalletIframe/client/overlay/overlay-styles.ts` (no inline styles).
 - Anchored rects are clamped to non-negative coordinates with minimum size.
 - Default z-index is `2147483646` via `--w3a-wallet-overlay-z`.
 
 ### Overlay lifecycle
 
 - Initial mount (hidden):
-  - `passkey-sdk/src/core/WalletIframe/client/IframeTransport.ts` mounts the iframe with `w3a-wallet-overlay is-hidden`, `width/height: 0`, `aria-hidden`, and `tabindex=-1` so it is invisible yet present in the DOM. Base styles come from `passkey-sdk/src/core/WalletIframe/client/overlay-styles.ts`.
+  - `passkey-sdk/src/core/WalletIframe/client/transport/IframeTransport.ts` mounts the iframe with `w3a-wallet-overlay is-hidden`, `width/height: 0`, `aria-hidden`, and `tabindex=-1` so it is invisible yet present in the DOM. Base styles come from `passkey-sdk/src/core/WalletIframe/client/overlay/overlay-styles.ts`.
 
 - Expand to full‑screen during activation:
   - `showFrameForActivation()` in `passkey-sdk/src/core/WalletIframe/client/router.ts` ensures the iframe exists and delegates to `OverlayController.showFullscreen()`, which applies the fullscreen class (fixed inset, pointer-events enabled, z-index 2147483646).
@@ -227,7 +228,7 @@ class OverlayController {
   - `setOverlayBounds()` anchors the iframe to a DOMRect via `OverlayController.showAnchored()` for UI components that must appear at a specific viewport location.
 
 - When the overlay shows/hides automatically (heuristics):
-  - `passkey-sdk/src/core/WalletIframe/client/on-events-progress-bus.ts` implements `defaultPhaseHeuristics`, which inspects `payload.phase` values emitted by the host.
+  - `passkey-sdk/src/core/WalletIframe/client/progress/on-events-progress-bus.ts` implements `defaultPhaseHeuristics`, which inspects `payload.phase` values emitted by the host.
   - Behavior (tuned to minimize blocking time):
     - Show for phases that require immediate user activation: `user-confirmation`, `webauthn-authentication`, registration `webauthn-verification`, device-linking `authorization`, device-linking `registration`, account sync `webauthn-authentication`, and login `webauthn-assertion`.
       - Important: `user-confirmation` must remain in the show list so the modal rendered inside the wallet iframe is visible and can capture a click when `behavior: 'requireClick'`.
@@ -240,7 +241,7 @@ With the tuned heuristics, the overlay contracts immediately after TouchID compl
 ### Options to adjust behavior
 
 - Tweak heuristics to hide sooner:
-- The repo now hides on phases that indicate TouchID is done (e.g., `authentication-complete`) and when moving to non-interactive phases. Adjust further in `passkey-sdk/src/core/WalletIframe/on-events-progress-bus.ts:101` if needed.
+- The repo now hides on phases that indicate TouchID is done (e.g., `authentication-complete`) and when moving to non-interactive phases. Adjust further in `passkey-sdk/src/core/WalletIframe/client/progress/on-events-progress-bus.ts:101` if needed.
 
 - Emit a “completion” phase from the host:
   - Update host flows to post a PROGRESS with `phase: 'user-confirmation-complete'` as soon as WebAuthn finishes. The existing heuristic will then hide without further code changes.

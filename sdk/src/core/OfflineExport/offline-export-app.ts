@@ -5,7 +5,7 @@
  * WebAuthnManager.exportNearKeypairWithUI() SecureConfirm-driven flow to decrypt and
  * display the private key export viewer. No network requests are made.
  *
- * See `docs/lite-signer-refactor/sdk-contract.md` for the canonical export flow design.
+ * See `WebAuthnManager.exportNearKeypairWithUI()` for the canonical export flow design.
  */
 import { IndexedDBManager } from '../IndexedDBManager';
 import { MinimalNearClient } from '../NearClient';

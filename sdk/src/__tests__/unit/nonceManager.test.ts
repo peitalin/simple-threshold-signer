@@ -56,7 +56,7 @@ test.describe('NonceManager Pure Unit Tests', () => {
         const reservedNonces = (nonceManager as any).reservedNonces;
 
         return {
-          success: true,
+          success: true as const,
           singleNonce: nonce,
           batchNonces: nonces,
           reservedCount: reservedNonces.size,
@@ -68,7 +68,7 @@ test.describe('NonceManager Pure Unit Tests', () => {
 
       } catch (error: any) {
         return {
-          success: false,
+          success: false as const,
           error: error.message,
           stack: error.stack
         };
@@ -148,14 +148,14 @@ test.describe('NonceManager Pure Unit Tests', () => {
         };
 
         return {
-          success: true,
+          success: true as const,
           before,
           after,
           switched,
         };
       } catch (error: any) {
         return {
-          success: false,
+          success: false as const,
           error: error.message,
           stack: error.stack
         };
@@ -221,7 +221,7 @@ test.describe('NonceManager Pure Unit Tests', () => {
         const reservedNonces = (nonceManager as any).reservedNonces;
 
         return {
-          success: true,
+          success: true as const,
           batch1: batch1,
           batch2: batch2,
           single: single,
@@ -232,7 +232,7 @@ test.describe('NonceManager Pure Unit Tests', () => {
 
       } catch (error: any) {
         return {
-          success: false,
+          success: false as const,
           error: error.message,
           stack: error.stack
         };
@@ -295,14 +295,14 @@ test.describe('NonceManager Pure Unit Tests', () => {
         }
 
         return {
-          success: true,
+          success: true as const,
           errors: errors,
           errorCount: errors.length,
         };
 
       } catch (error: any) {
         return {
-          success: false,
+          success: false as const,
           error: error.message,
           stack: error.stack
         };
@@ -366,7 +366,7 @@ test.describe('NonceManager Pure Unit Tests', () => {
         const finalReservedCount = (nonceManager as any).reservedNonces.size;
 
         return {
-          success: true,
+          success: true as const,
           transactionResults: transactionResults,
           finalReservedCount: finalReservedCount,
           allNoncesUnique: new Set(transactionResults.map(t => t.nonce)).size === transactionResults.length,
@@ -374,7 +374,7 @@ test.describe('NonceManager Pure Unit Tests', () => {
 
       } catch (error: any) {
         return {
-          success: false,
+          success: false as const,
           error: error.message,
           stack: error.stack
         };

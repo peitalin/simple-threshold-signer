@@ -32,6 +32,8 @@ export type UIBridgeProps = {
 export type UIComponentDef = {
   tag: string; // custom element tag
   propDefaults?: Record<string, unknown>;
+  // Optional allowlist for props applied from WALLET_UI_MOUNT/UPDATE
+  allowedProps?: string[];
   eventBindings?: UIEventBinding[];
   propBindings?: UIPropBinding[];
   bridgeProps?: UIBridgeProps;

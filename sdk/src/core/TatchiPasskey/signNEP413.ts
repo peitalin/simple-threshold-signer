@@ -65,6 +65,10 @@ export async function signNEP413Message(args: {
   const confirmerText = options?.confirmerText;
   const confirmationConfigOverride = options?.confirmationConfig;
   const { webAuthnManager } = context;
+  const deviceNumber = options?.deviceNumber;
+  const hasValidDeviceNumber = typeof deviceNumber === 'number'
+    && Number.isSafeInteger(deviceNumber)
+    && deviceNumber >= 1;
   const baseSignerMode = webAuthnManager.getUserPreferences().getSignerMode();
   const signerMode = mergeSignerMode(baseSignerMode, options.signerMode);
 
@@ -78,7 +82,12 @@ export async function signNEP413Message(args: {
     });
 
     // Get user data for NEP-413 signing.
-    const userData = await webAuthnManager.getLastUser();
+    if (deviceNumber !== undefined && !hasValidDeviceNumber) {
+      throw new Error(`Invalid deviceNumber for NEP-413 signing: ${deviceNumber}`);
+    }
+    const userData = hasValidDeviceNumber
+      ? await webAuthnManager.getUserByDevice(nearAccountId, deviceNumber)
+      : await webAuthnManager.getLastUser();
     if (!userData || !userData.clientNearPublicKey) {
       throw new Error(`User data not found for ${nearAccountId}`);
     }
@@ -109,6 +118,7 @@ export async function signNEP413Message(args: {
       state: params.state || null,
       accountId: nearAccountId,
       signerMode,
+      deviceNumber: hasValidDeviceNumber ? deviceNumber : undefined,
       title: confirmerText?.title,
       body: confirmerText?.body,
       confirmationConfigOverride,

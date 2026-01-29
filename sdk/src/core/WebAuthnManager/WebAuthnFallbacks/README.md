@@ -14,7 +14,7 @@ This directory contains fallback mechanisms to handle Safari-specific limitation
 - **Symptom:** `The origin of the document is not the same as its ancestors`
 - **Cause:** Safari blocks WebAuthn in cross-origin iframes
 - **Solution:** Parent bridge executes WebAuthn at top-level, postMessages serialized result to iframe
-- **Files:** `WalletIframe/client/IframeTransport.ts`, `touchIdPrompt.ts`
+- **Files:** `WalletIframe/client/transport/IframeTransport.ts`, `touchIdPrompt.ts`
 
 **Issue 3: Document Not Focused Error**
 - **Symptom:** NotAllowedError about document focus
@@ -103,9 +103,9 @@ Permissions-Policy: publickey-credentials-get=(self "https://wallet.example.loca
 **Key Files:**
 - `passkey-sdk/src/core/WebAuthnManager/touchIdPrompt.ts:241` (create fallback)
 - `passkey-sdk/src/core/WebAuthnManager/touchIdPrompt.ts:316` (get fallback)
-- `passkey-sdk/src/core/WalletIframe/client/IframeTransport.ts:87` (parent create handler)
-- `passkey-sdk/src/core/WalletIframe/client/IframeTransport.ts:106` (parent get handler)
-- `passkey-sdk/src/core/WalletIframe/client/IframeTransport.ts:131` (iframe permissions)
+- `passkey-sdk/src/core/WalletIframe/client/transport/IframeTransport.ts:87` (parent create handler)
+- `passkey-sdk/src/core/WalletIframe/client/transport/IframeTransport.ts:106` (parent get handler)
+- `passkey-sdk/src/core/WalletIframe/client/transport/IframeTransport.ts:131` (iframe permissions)
 - `passkey-sdk/src/core/WebAuthnManager/credentialsHelpers.ts` (serialization)
 - `passkey-sdk/src/plugins/vite.ts` (dev server headers)
 

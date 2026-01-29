@@ -17,7 +17,7 @@
  * - Event Statistics: Tracks counts/timestamps for debugging
  */
 
-import type { ProgressPayload as MessageProgressPayload } from '../shared/messages';
+import type { ProgressPayload as MessageProgressPayload } from '../../shared/messages';
 import {
   ActionPhase,
   DeviceLinkingPhase,
@@ -26,7 +26,7 @@ import {
   LoginPhase,
   EmailRecoveryPhase,
   DelegateActionPhase,
-} from '../../types/sdkSentEvents';
+} from '../../../types/sdkSentEvents';
 
 // Phases that should temporarily SHOW the overlay (to capture activation)
 // IMPORTANT: STEP_2_USER_CONFIRMATION must remain in this list. Without it,

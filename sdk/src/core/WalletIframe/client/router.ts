@@ -5,18 +5,6 @@
  * single place that decides *how* the wallet iframe is displayed (fullscreen vs
  * anchored, sticky mode, force-fullscreen during registration, etc.).
  *
- * Responsibilities:
- * - Request/Response Correlation: Tracks pending requests with unique IDs.
- * - Progress Event Bridging: Receives PROGRESS from the wallet iframe and forwards
- *   them to app `onEvent` handlers.
- * - Overlay Ownership:
- *   - Delegates *when* to show/hide to OnEventsProgressBus (based on progress events).
- *   - Executes *how* to show/hide via OverlayController (DOM / CSS / ARIA).
- *   - Also reacts to wallet-host UI messages (e.g., WALLET_UI_CLOSED) and export flows.
- * - Timeout Handling: Manages request timeouts and cleanup.
- * - Message Serialization: Strips non-serializable functions from messages.
- * - Error Handling: Converts iframe errors to parent-appropriate errors.
- *
  * High-level flow:
  *
  *   Step legend
@@ -68,7 +56,7 @@ import {
   type PreferencesChangedPayload,
 } from '../shared/messages';
 import { SignedTransaction } from '../../NearClient';
-import { OnEventsProgressBus, defaultPhaseHeuristics } from './on-events-progress-bus';
+import { OnEventsProgressBus, defaultPhaseHeuristics } from './progress/on-events-progress-bus';
 import type {
   ActionSSEEvent,
   ActionHooksOptions,
@@ -107,10 +95,10 @@ import {
   TxExecutionStatus
 } from '../../types';
 import type { DelegateActionInput } from '../../types/delegate';
-import { IframeTransport } from './IframeTransport';
-import OverlayController, { type DOMRectLike } from './overlay-controller';
+import { IframeTransport } from './transport/IframeTransport';
+import OverlayController, { type DOMRectLike } from './overlay/overlay-controller';
 import { isObject, isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx, isBoolean, toBasePath } from '@/utils/validation';
-import type { WalletUIRegistry } from '../host/iframe-lit-element-registry';
+import type { WalletUIRegistry } from '../host/lit-ui/iframe-lit-element-registry';
 import { toError } from '../../../utils/errors';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
 import { mergeSignerMode, type ConfirmationConfig, type SignerMode } from '../../types/signer-worker';
@@ -524,6 +512,7 @@ export class WalletIframeRouter {
     transactions: TransactionInput[];
     options: {
       signerMode?: SignerMode;
+      deviceNumber?: number;
       onEvent?: (ev: ActionSSEEvent) => void;
       onError?: (error: Error) => void;
       afterCall?: AfterCall<SignTransactionResult[]>;
@@ -535,6 +524,7 @@ export class WalletIframeRouter {
     // Do not forward non-cloneable functions in options; host emits its own PROGRESS messages
     const safeOptions = {
       signerMode: this.resolveSignerMode(payload.options.signerMode),
+      ...(typeof payload.options.deviceNumber === 'number' ? { deviceNumber: payload.options.deviceNumber } : {}),
       ...(payload.options.confirmationConfig
         ? { confirmationConfig: payload.options.confirmationConfig }
         : {}),
@@ -559,6 +549,7 @@ export class WalletIframeRouter {
     delegate: DelegateActionInput;
     options: {
       signerMode?: SignerMode;
+      deviceNumber?: number;
       onEvent?: (ev: ActionSSEEvent) => void;
       onError?: (error: Error) => void;
       afterCall?: AfterCall<any>;
@@ -568,6 +559,7 @@ export class WalletIframeRouter {
   }): Promise<unknown> {
     const safeOptions = {
       signerMode: this.resolveSignerMode(payload.options.signerMode),
+      ...(typeof payload.options.deviceNumber === 'number' ? { deviceNumber: payload.options.deviceNumber } : {}),
       ...(payload.options.confirmationConfig
         ? { confirmationConfig: payload.options.confirmationConfig as unknown as Record<string, unknown> }
         : {}),
@@ -779,6 +771,7 @@ export class WalletIframeRouter {
     state?: string;
     options: {
       signerMode?: SignerMode;
+      deviceNumber?: number;
       onEvent?: (ev: ActionSSEEvent) => void;
       confirmerText?: { title?: string; body?: string };
       confirmationConfig?: Partial<ConfirmationConfig>;
@@ -786,6 +779,7 @@ export class WalletIframeRouter {
   }): Promise<SignNEP413MessageResult> {
     const safeOptions = {
       signerMode: this.resolveSignerMode(payload.options.signerMode),
+      ...(typeof payload.options.deviceNumber === 'number' ? { deviceNumber: payload.options.deviceNumber } : {}),
       ...(payload.options.confirmerText ? { confirmerText: payload.options.confirmerText } : {}),
       ...(payload.options.confirmationConfig
         ? { confirmationConfig: payload.options.confirmationConfig as unknown as Record<string, unknown> }
@@ -838,6 +832,7 @@ export class WalletIframeRouter {
       signerMode: this.resolveSignerMode(options.signerMode),
       waitUntil: options.waitUntil,
       confirmationConfig: options.confirmationConfig,
+      ...(typeof options.deviceNumber === 'number' ? { deviceNumber: options.deviceNumber } : {}),
       ...(options.confirmerText ? { confirmerText: options.confirmerText } : {}),
     };
 
@@ -1092,6 +1087,7 @@ export class WalletIframeRouter {
       waitUntil: options.waitUntil,
       executionWait: options.executionWait,
       confirmationConfig: options.confirmationConfig,
+      ...(typeof options.deviceNumber === 'number' ? { deviceNumber: options.deviceNumber } : {}),
       ...(options.confirmerText ? { confirmerText: options.confirmerText } : {}),
     };
 

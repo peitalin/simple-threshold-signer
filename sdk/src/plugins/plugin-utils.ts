@@ -46,11 +46,11 @@ export function buildWalletServiceHtml(sdkBasePath: string): string {
     <!-- Minimal shims some ESM bundles expect (externalized to enable strict CSP) -->
     <script src="${sdkBasePath}/wallet-shims.js"></script>
     <!-- Hint the browser to fetch the host script earlier -->
-    <link rel="modulepreload" href="${sdkBasePath}/wallet-iframe-host.js" crossorigin>
+    <link rel="modulepreload" href="${sdkBasePath}/wallet-iframe-host-runtime.js" crossorigin>
   </head>
   <body>
     <!-- sdkBasePath points to the SDK root (e.g. '/sdk'). Load the host directly. -->
-    <script type="module" src="${sdkBasePath}/wallet-iframe-host.js"></script>
+    <script type="module" src="${sdkBasePath}/wallet-iframe-host-runtime.js"></script>
   </body>
 </html>`
 }

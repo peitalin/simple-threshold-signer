@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest } from '../setup';
 
 const IMPORT_PATHS = {
-  overlay: '/sdk/esm/core/WalletIframe/client/overlay-controller.js',
+  overlay: '/sdk/esm/core/WalletIframe/client/overlay/overlay-controller.js',
 } as const;
 
 test.describe('OverlayController', () => {

@@ -483,6 +483,7 @@ export class SignerWorkerManager {
     signingSessionTtlMs?: number;
     signingSessionRemainingUses?: number;
     sessionId: string,
+    deviceNumber?: number;
   }): Promise<Array<{
     signedTransaction: SignedTransaction;
     nearAccountId: AccountId;
@@ -498,6 +499,7 @@ export class SignerWorkerManager {
     delegate: DelegateActionInput;
     rpcCall: RpcCallPayload;
     signerMode: SignerMode;
+    deviceNumber?: number;
     onEvent?: (update: onProgressEvents) => void;
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
     title?: string;
@@ -572,6 +574,7 @@ export class SignerWorkerManager {
     state: string | null;
     accountId: string;
     signerMode: SignerMode;
+    deviceNumber?: number;
     title?: string;
     body?: string;
     confirmationConfigOverride?: Partial<ConfirmationConfig>;

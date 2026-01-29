@@ -19,7 +19,7 @@ import { AccountId } from '../../../types/accountIds';
 import { SignerWorkerManagerContext } from '..';
 import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../../../defaultConfigs2';
 import { toAccountId } from '../../../types/accountIds';
-import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
+import { getLastLoggedInDeviceNumber, parseDeviceNumber } from '../getDeviceNumber';
 import { WebAuthnAuthenticationCredential } from '../../../types';
 import { removePrfOutputGuard } from '../../credentialsHelpers';
 import { isRelayerThresholdEd25519Configured, resolveSignerModeForThresholdSigning } from '../../../threshold/thresholdEd25519RelayerHealth';
@@ -82,6 +82,7 @@ export async function signTransactionsWithActions({
   body,
   signingSessionTtlMs,
   signingSessionRemainingUses,
+  deviceNumber,
 }: {
   ctx: SignerWorkerManagerContext,
   sessionId?: string;
@@ -95,6 +96,7 @@ export async function signTransactionsWithActions({
   body?: string;
   signingSessionTtlMs?: number;
   signingSessionRemainingUses?: number;
+  deviceNumber?: number;
 }): Promise<Array<{
   signedTransaction: SignedTransaction;
   nearAccountId: AccountId;
@@ -111,10 +113,15 @@ export async function signTransactionsWithActions({
     })
   })
 
-  const deviceNumber = await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
+  const parsedDeviceNumber = parseDeviceNumber(deviceNumber, { min: 1 });
+  if (deviceNumber !== undefined && parsedDeviceNumber === null) {
+    throw new Error(`Invalid deviceNumber for signing: ${deviceNumber}`);
+  }
+  const resolvedDeviceNumber = parsedDeviceNumber
+    ?? await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
 
   // Retrieve threshold key data first; local key material is only loaded when needed.
-  const thresholdKeyMaterial = await ctx.indexedDB.nearKeysDB.getThresholdKeyMaterial(nearAccountId, deviceNumber);
+  const thresholdKeyMaterial = await ctx.indexedDB.nearKeysDB.getThresholdKeyMaterial(nearAccountId, resolvedDeviceNumber);
 
   const warnings: string[] = [];
   const thresholdBehavior = getThresholdBehaviorFromSignerMode(signerMode);
@@ -127,7 +134,7 @@ export async function signTransactionsWithActions({
   });
 
   const localKeyMaterial = (resolvedSignerMode === 'local-signer' || thresholdBehavior === 'fallback')
-    ? await ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceNumber)
+    ? await ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(nearAccountId, resolvedDeviceNumber)
     : null;
   const localWrapKeySalt = String(localKeyMaterial?.wrapKeySalt || '').trim();
   // Threshold share derivation must use the same wrapKeySalt that was used at keygen time.

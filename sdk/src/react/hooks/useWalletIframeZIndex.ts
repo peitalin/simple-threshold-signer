@@ -7,7 +7,7 @@ import { useEffect } from 'react';
  *
  * Layering model (high level):
  * - Wallet iframe overlay (host surface):
- *   - CSS: `overlay-styles.ts`, `overlay.css`
+ *   - CSS: `overlay/overlay-styles.ts`, `overlay/overlay.css`
  *   - Uses `z-index: var(--w3a-wallet-overlay-z, 2147483646)`
  *   - Hosts tx confirmer and other wallet UI; should sit above normal app UI.
  *

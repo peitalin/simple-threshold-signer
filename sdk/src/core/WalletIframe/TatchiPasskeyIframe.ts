@@ -54,7 +54,7 @@ import type { SignNEP413MessageParams, SignNEP413MessageResult } from '../Tatchi
 import type { PasskeyManagerContext } from '../TatchiPasskey';
 import { toError } from '../../utils/errors';
 import { coerceThemeName } from '../../utils/theme';
-import type { WalletUIRegistry } from './host/iframe-lit-element-registry';
+import type { WalletUIRegistry } from './host/lit-ui/iframe-lit-element-registry';
 import type { DelegateActionInput } from '../types/delegate';
 import { buildConfigsFromEnv } from '../defaultConfigs2';
 import { configureIndexedDB, type DerivedAddressRecord } from '../IndexedDBManager';
@@ -303,6 +303,7 @@ export class TatchiPasskeyIframe {
         transactions: args.transactions,
         options: {
           signerMode: args.options?.signerMode,
+          deviceNumber: args.options?.deviceNumber,
           confirmerText: args.options?.confirmerText,
           confirmationConfig: args.options?.confirmationConfig,
           onEvent: args.options?.onEvent // Progress events: user-confirmation, webauthn-authentication, etc.
@@ -331,6 +332,7 @@ export class TatchiPasskeyIframe {
         state: args.params.state,
         options: {
           signerMode: args.options?.signerMode,
+          deviceNumber: args.options?.deviceNumber,
           onEvent: args.options?.onEvent,
           confirmerText: args.options?.confirmerText,
           confirmationConfig: args.options?.confirmationConfig,
@@ -359,6 +361,7 @@ export class TatchiPasskeyIframe {
         delegate: args.delegate,
         options: {
           signerMode: options?.signerMode,
+          deviceNumber: options?.deviceNumber,
           onEvent: options?.onEvent,
           confirmationConfig: options?.confirmationConfig,
           confirmerText: options?.confirmerText,

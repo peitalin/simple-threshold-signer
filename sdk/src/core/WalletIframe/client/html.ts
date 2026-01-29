@@ -7,7 +7,7 @@ import { sanitizeSdkBasePath, escapeHtmlAttribute } from '../sanitization';
 export function getWalletServiceHtml(sdkBasePath: string = '/sdk'): string {
   const sanitizedBasePath = sanitizeSdkBasePath(sdkBasePath);
   // Serve bundles directly under `${sdkBasePath}/*` for uniform dev/prod
-  const serviceHostPath = `${sanitizedBasePath}/wallet-iframe-host.js`;
+  const serviceHostPath = `${sanitizedBasePath}/wallet-iframe-host-runtime.js`;
   const escapedPath = escapeHtmlAttribute(serviceHostPath);
   return `<!doctype html>
 <html lang="en">

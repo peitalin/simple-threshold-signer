@@ -1000,6 +1000,7 @@ export class TatchiPasskey {
           transactions: txs,
           options: {
             signerMode: options.signerMode,
+            deviceNumber: options.deviceNumber,
             onEvent: options.onEvent,
             confirmationConfig: options.confirmationConfig,
             confirmerText: options.confirmerText,
@@ -1109,6 +1110,7 @@ export class TatchiPasskey {
           delegate,
           options: {
             signerMode: options.signerMode,
+            deviceNumber: options.deviceNumber,
             onEvent: options.onEvent,
             confirmationConfig: options.confirmationConfig,
             confirmerText: options.confirmerText,
@@ -1175,6 +1177,7 @@ export class TatchiPasskey {
     const signOptions: DelegateActionHooksOptions | undefined = options
       ? {
         signerMode: options.signerMode,
+        deviceNumber: options.deviceNumber,
         onEvent: options.onEvent,
         onError: options.onError,
         waitUntil: options.waitUntil,
@@ -1282,6 +1285,7 @@ export class TatchiPasskey {
           state: args.params.state,
           options: {
             signerMode: args.options.signerMode,
+            deviceNumber: args.options.deviceNumber,
             onEvent: args.options.onEvent,
             confirmerText: args.options.confirmerText,
             confirmationConfig: args.options.confirmationConfig,

@@ -14,6 +14,7 @@ export interface HostContext {
   walletConfigs: TatchiConfigsInput | null;
   nearClient: MinimalNearClient | null;
   tatchiPasskey: TatchiPasskey | TatchiPasskeyIframe | null;
+  prefsUnsubscribe?: (() => void) | null;
   onWindowMessage?: (e: MessageEvent) => void;
 }
 
@@ -24,11 +25,12 @@ export function createHostContext(): HostContext {
     walletConfigs: null,
     nearClient: null,
     tatchiPasskey: null,
+    prefsUnsubscribe: null,
     onWindowMessage: undefined,
   };
 }
 
-export function ensurePasskeyManager(ctx: HostContext): void {
+export function ensurePasskeyManager(ctx: HostContext): TatchiPasskey | TatchiPasskeyIframe {
   const { walletConfigs } = ctx;
   if (!walletConfigs || !walletConfigs.nearRpcUrl) {
     throw new Error('Wallet service not configured. Call PM_SET_CONFIG first.');
@@ -46,10 +48,13 @@ export function ensurePasskeyManager(ctx: HostContext): void {
     ctx.tatchiPasskey = new TatchiPasskey(cfg, ctx.nearClient);
     try {
       const pmAny = ctx.tatchiPasskey as unknown as { warmCriticalResources?: () => Promise<void> };
-      if (pmAny?.warmCriticalResources) void pmAny.warmCriticalResources();
+      if (pmAny?.warmCriticalResources) {
+        void pmAny.warmCriticalResources().catch(() => {});
+      }
     } catch {}
     updateThemeBridge(ctx);
   }
+  return ctx.tatchiPasskey!;
 }
 
 export function updateThemeBridge(ctx: HostContext): void {
@@ -69,10 +74,12 @@ export function applyWalletConfig(ctx: HostContext, payload: PMSetConfigPayload)
     nearRpcUrl: payload?.nearRpcUrl || prev.nearRpcUrl || '',
     nearNetwork: payload?.nearNetwork || prev.nearNetwork || 'testnet',
     contractId: payload?.contractId || prev.contractId || '',
+    relayerAccount: payload?.relayerAccount || prev.relayerAccount || payload?.contractId || prev.contractId || '',
     nearExplorerUrl: payload?.nearExplorerUrl || prev.nearExplorerUrl,
     signerMode: payload?.signerMode || prev.signerMode,
     relayer: payload?.relayer || prev.relayer,
     authenticatorOptions: payload?.authenticatorOptions || prev.authenticatorOptions,
+    emailRecoveryContracts: payload?.emailRecoveryContracts || prev.emailRecoveryContracts,
     iframeWallet: {
       ...(prev.iframeWallet || {}),
       rpIdOverride: payload?.rpIdOverride || prev.iframeWallet?.rpIdOverride,

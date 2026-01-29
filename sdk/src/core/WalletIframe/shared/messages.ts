@@ -1,7 +1,7 @@
 
 // Typed RPC messages for the wallet service iframe channel (TatchiPasskey-first)
 import { AuthenticatorOptions } from '@/server';
-import type { WalletUIRegistry } from '../host/iframe-lit-element-registry';
+import type { WalletUIRegistry } from '../host/lit-ui/iframe-lit-element-registry';
 import type { EmailRecoveryContracts } from '../../types/tatchi';
 import { SignedTransaction } from '../../NearClient';
 import {
@@ -152,6 +152,7 @@ export interface PMSignTxsPayload {
   transactions: TransactionInput[];
   options: {
     signerMode: SignerMode;
+    deviceNumber?: number;
     confirmationConfig?: Partial<ConfirmationConfig>;
     confirmerText?: { title?: string; body?: string };
     [key: string]: unknown;
@@ -163,6 +164,7 @@ export interface PMSignAndSendTxsPayload {
   transactions: TransactionInput[];
   options: {
     signerMode: SignerMode;
+    deviceNumber?: number;
     // Keep only serializable fields; functions are bridged via PROGRESS
     waitUntil?: 'NONE' | 'INCLUDED' | 'INCLUDED_FINAL' | 'EXECUTED' | 'FINAL' | 'EXECUTED_OPTIMISTIC';
     executionWait?: Record<string, unknown>;
@@ -184,6 +186,7 @@ export interface PMExecuteActionPayload {
   options: {
     signerMode: SignerMode;
     waitUntil?: unknown;
+    deviceNumber?: number;
     confirmationConfig?: Partial<ConfirmationConfig>;
     confirmerText?: { title?: string; body?: string };
     [key: string]: unknown;
@@ -195,6 +198,7 @@ export interface PMSignDelegateActionPayload {
   delegate: DelegateActionInput;
   options: {
     signerMode: SignerMode;
+    deviceNumber?: number;
     confirmationConfig?: Partial<ConfirmationConfig>;
     confirmerText?: { title?: string; body?: string };
     [key: string]: unknown;
@@ -206,6 +210,7 @@ export interface PMSignNep413Payload {
   params: { message: string; recipient: string; state?: string };
   options: {
     signerMode: SignerMode;
+    deviceNumber?: number;
     confirmationConfig?: Partial<ConfirmationConfig>;
     confirmerText?: { title?: string; body?: string };
     [key: string]: unknown;
@@ -352,6 +357,7 @@ export type ParentToChildEnvelope =
     cameraId?: string;
     accountId?: string;
     deviceNumber?: number;
+    localSignerEnabled?: boolean;
     options?: {
       confirmationConfig?: Partial<ConfirmationConfig>;
       confirmerText?: { title?: string; body?: string };

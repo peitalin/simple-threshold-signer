@@ -11,7 +11,7 @@ This document explains how progress events drive the invisible wallet‑iframe o
 The wallet iframe mounts as a hidden 0×0 element in the parent document. When a signing flow reaches phases that need user activation (e.g., TouchID / WebAuthn), we temporarily expand the wallet iframe to a full‑screen, invisible overlay so the WebAuthn call occurs in the wallet document (the correct browsing context). As soon as activation completes, we hide the iframe again to avoid blocking the app.
 
 - Overlay control lives in the wallet iframe client router and its `OnEventsProgressBus`:
-  - `sdk/src/core/WalletIframe/client/on-events-progress-bus.ts`
+  - `sdk/src/core/WalletIframe/client/progress/on-events-progress-bus.ts`
   - `sdk/src/core/WalletIframe/client/router.ts`
 - Progress events are emitted by TatchiPasskey flows and the WASM worker handshake:
   - `sdk/src/core/TatchiPasskey/actions.ts`
@@ -27,7 +27,7 @@ The `OnEventsProgressBus` class receives typed progress payloads and applies a p
   - `ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION`
   - Device linking and login/recovery phases that gather WebAuthn credentials
     (see the source for the up‑to‑date list)
-  - Source: `sdk/src/core/WalletIframe/client/on-events-progress-bus.ts`
+  - Source: `sdk/src/core/WalletIframe/client/progress/on-events-progress-bus.ts`
 
 - Hide phases (post‑activation, non‑interactive work):
   - `ActionPhase.STEP_4_AUTHENTICATION_COMPLETE`
@@ -36,7 +36,7 @@ The `OnEventsProgressBus` class receives typed progress payloads and applies a p
   - `ActionPhase.STEP_7_BROADCASTING`
   - `ActionPhase.STEP_8_ACTION_COMPLETE`
   - Device linking/registration completion/error phases
-  - Source: `sdk/src/core/WalletIframe/client/on-events-progress-bus.ts`
+  - Source: `sdk/src/core/WalletIframe/client/progress/on-events-progress-bus.ts`
 
 When the heuristic returns:
 
@@ -71,7 +71,7 @@ This makes the wallet iframe cover the viewport so clicks and the WebAuthn trans
 
 This minimizes any interaction blocking of the parent app and keeps the iframe invisible when not needed.
 
-See: `sdk/src/core/WalletIframe/client/overlay-controller.ts` for the single source of truth that applies these CSS mutations and manages sticky mode.
+See: `sdk/src/core/WalletIframe/client/overlay/overlay-controller.ts` for the single source of truth that applies these CSS mutations and manages sticky mode.
 
 
 ## Concurrency: multiple in‑flight requests
@@ -94,7 +94,7 @@ The wallet service iframe and the nested modal iframe must be allowed to use Web
 
 1) Wallet service iframe (created by `IframeTransport`)
 
-- File: `passkey-sdk/src/core/WalletIframe/client/IframeTransport.ts`
+- File: `passkey-sdk/src/core/WalletIframe/client/transport/IframeTransport.ts`
 - Cross‑origin wallet host:
   - `allow="publickey-credentials-get <wallet-origin>; publickey-credentials-create <wallet-origin>"`
 - Same‑origin srcdoc host:
@@ -173,7 +173,7 @@ Before merging changes to the progress bus or overlay logic, verify:
   - `tatchi.prefetchBlockheight()` → caches/refreshes block height/hash/nonce ahead of time.
   - Sources: `sdk/src/core/TatchiPasskey/index.ts` and `sdk/src/core/nonceManager.ts`.
 
-- Overlay is intentionally invisible but intercepts clicks while active. Keep the overlay up for the minimum time by limiting “show” to the phases that truly need activation (as implemented in `on-events-progress-bus.ts`).
+- Overlay is intentionally invisible but intercepts clicks while active. Keep the overlay up for the minimum time by limiting “show” to the phases that truly need activation (as implemented in `progress/on-events-progress-bus.ts`).
 
 
 ## Rough timeline: direct `executeAction`

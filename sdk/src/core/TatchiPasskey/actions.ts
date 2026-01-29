@@ -417,7 +417,7 @@ export async function signTransactionsWithActionsInternal({
   confirmationConfigOverride?: Partial<ConfirmationConfig> | undefined,
 }): Promise<SignTransactionResult[]> {
 
-  const { onEvent, onError, waitUntil, confirmerText } = options || {};
+  const { onEvent, onError, waitUntil, confirmerText, deviceNumber } = options || {};
 
   try {
     // Emit started event
@@ -459,6 +459,7 @@ export async function signTransactionsWithActionsInternal({
         nearRpcUrl: context.configs.nearRpcUrl,
         nearAccountId: nearAccountId, // caller account
       },
+      deviceNumber,
       signerMode,
       confirmationConfigOverride: confirmationConfigOverride,
       title: confirmerText?.title,

@@ -165,7 +165,7 @@ sdk/
 │   ├── core/                     # Core SDK bundles
 │   ├── react/                    # React component bundles
 │   ├── workers/                  # WASM worker modules
-│   └── wallet-iframe-host.js     # Wallet iframe entry point
+│   └── wallet-iframe-host-runtime.js     # Wallet iframe entry point
 │
 ├── build-paths.ts                # Build configuration (source of truth)
 ├── rolldown.config.ts            # Rolldown bundler config

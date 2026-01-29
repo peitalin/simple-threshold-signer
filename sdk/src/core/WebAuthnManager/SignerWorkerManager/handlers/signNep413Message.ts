@@ -29,7 +29,7 @@ import {
   isThresholdSignerMissingKeyError,
 } from '../../../threshold/thresholdSessionPolicy';
 import { normalizeThresholdEd25519ParticipantIds } from '../../../../threshold/participants';
-import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
+import { getLastLoggedInDeviceNumber, parseDeviceNumber } from '../getDeviceNumber';
 function generateSessionId(): string {
   return `sess-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -69,6 +69,7 @@ export async function signNep413Message({ ctx, payload }: {
     state: string | null;
     accountId: string;
     signerMode: SignerMode;
+    deviceNumber?: number;
     title?: string;
     body?: string;
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
@@ -92,8 +93,13 @@ export async function signNep413Message({ ctx, payload }: {
     const nearAccountId = payload.accountId;
     const thresholdBehavior = getThresholdBehaviorFromSignerMode(payload.signerMode);
 
-    const deviceNumber = await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
-    const thresholdKeyMaterial = await ctx.indexedDB.nearKeysDB.getThresholdKeyMaterial(nearAccountId, deviceNumber);
+    const parsedDeviceNumber = parseDeviceNumber(payload.deviceNumber, { min: 1 });
+    if (payload.deviceNumber !== undefined && parsedDeviceNumber === null) {
+      throw new Error(`Invalid deviceNumber for NEP-413 signing: ${payload.deviceNumber}`);
+    }
+    const resolvedDeviceNumber = parsedDeviceNumber
+      ?? await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
+    const thresholdKeyMaterial = await ctx.indexedDB.nearKeysDB.getThresholdKeyMaterial(nearAccountId, resolvedDeviceNumber);
 
     const resolvedSignerMode = await resolveSignerModeForThresholdSigning({
       nearAccountId,
@@ -103,7 +109,7 @@ export async function signNep413Message({ ctx, payload }: {
     });
 
     const localKeyMaterial = (resolvedSignerMode === 'local-signer' || thresholdBehavior === 'fallback')
-      ? await ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceNumber)
+      ? await ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(nearAccountId, resolvedDeviceNumber)
       : null;
     const localWrapKeySalt = String(localKeyMaterial?.wrapKeySalt || '').trim();
     const thresholdWrapKeySalt = String(thresholdKeyMaterial?.wrapKeySalt || '').trim() || DUMMY_WRAP_KEY_SALT_B64U;

@@ -134,7 +134,7 @@ const WALLET_SURFACE_CSS = [
  * Tatchi SDK plugin: serve SDK assets under a stable base (default: /sdk) with optional COEP/CORP (strict mode) and permissive CORS.
  * Where it runs: both the app server and the wallet-iframe server.
  * - App server: lets host pages and Lit components load SDK CSS/JS locally.
- * - Wallet server: used by /wallet-service to load wallet-iframe-host.js and related CSS/JS.
+ * - Wallet server: used by /wallet-service to load wallet-iframe-host-runtime.js and related CSS/JS.
  */
 export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
   const configuredBase = toBasePath(opts.sdkBasePath, '/sdk')

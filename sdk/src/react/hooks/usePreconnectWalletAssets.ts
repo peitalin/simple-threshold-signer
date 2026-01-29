@@ -86,12 +86,12 @@ export function usePreconnectWalletAssets(config: TatchiContextProviderProps['co
 
         // Preload the wallet host script module so the iframe boots faster
         // Ensure the base URL ends with a trailing slash; otherwise new URL('file', base)
-        // would replace the last path segment ("/sdk") and yield "/wallet-iframe-host.js".
+        // would replace the last path segment ("/sdk") and yield "/wallet-iframe-host-runtime.js".
         try {
           const sdkPath = (sdkBasePath || '/sdk') as string;
           const withSlash = sdkPath.endsWith('/') ? sdkPath : sdkPath + '/';
           const base = new URL(withSlash, walletOrigin);
-          const hostJs = new URL('wallet-iframe-host.js', base).toString();
+          const hostJs = new URL('wallet-iframe-host-runtime.js', base).toString();
           ensureLink('modulepreload', hostJs, { crossorigin: '' });
 
           // Optionally prefetch WASM binaries to accelerate first-use while avoiding preload warnings

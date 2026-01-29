@@ -12,7 +12,6 @@ This document proposes a refactor that makes the SDK **chain-agnostic** by split
 - Make adapters tree-shakeable: apps import only the chains they need.
 
 ## Non-goals
-- Implementing threshold ECDSA (this doc only defines the seam).
 - Unifying account models across chains (EOA vs contract wallet vs NEAR accounts) beyond what is required to sign correctly.
 
 ---
@@ -127,24 +126,45 @@ This adapter layer should not hard-code any of the above; it should allow differ
 
 ## Incremental implementation plan (after lite-mpc)
 
-1) **Extract NEAR signing into `NearAdapter`**
-- Move NEAR digest computation + tx serialization behind the adapter interface.
-- Keep existing threshold Ed25519 engine as the signer for NEAR.
+This section is a phased TODO list for making “chain” and “signer” swappable, with an MVP target of **NEAR + Tempo**.
 
-2) **Add `EvmAdapter` (local secp256k1 first)**
-- Support:
-  - EIP-1559 + legacy tx signing
-  - `personal_sign`
-  - EIP-712 hashing
-- Use a local secp256k1 engine for MVP (e.g., PRF-derived export/escape key, wallet-origin only).
+### Phase 0 — Lock the seam (core orchestrator)
+- [ ] Define a public discriminated `SigningRequest` union: `{ chain, kind, payload }`.
+- [ ] Define `SigningIntent`: `{ chain, algorithm, digestBytes, uiModel, finalizeHints }`.
+- [ ] Define `ChainAdapter`: `buildIntent(request) -> intent`, `finalize(intent, signature) -> result`.
+- [ ] Define `SignerEngine`: `canSign(intent, keyRef)`, `sign(intent, keyRef) -> signatureBytes`.
+- [ ] Keep the entire pipeline wallet-origin: app-origin only sees `SignedResult` (public artifacts).
 
-3) **Plumb SecureConfirm UI off of `intent.ui`**
-- The confirm UI renders per-chain review fields from adapter output.
-- The worker only proceeds to sign if the user explicitly approves.
+### Phase 1 — NEAR adapterization (no behavior change)
+- [ ] Extract NEAR digest computation + tx serialization behind `NearAdapter`.
+- [ ] Reuse the existing threshold Ed25519 signer engine for NEAR (`ThresholdEd25519Engine`).
+- [ ] Ensure `NearAdapter.uiModel` is sufficient for SecureConfirm to render a complete review (recipient/value/fees/actions).
 
-4) **Add “future hooks” for threshold ECDSA**
-- Keep all EVM-specific threshold logic in a separate engine package once the protocol exists.
-- Decide EVM “export” stance (EOA migration vs contract wallet) before exposing threshold ECDSA broadly.
+### Phase 2 — SecureConfirm renders `intent.uiModel` (per-chain UI)
+- [ ] Make SecureConfirm render based on `intent.uiModel` instead of NEAR-specific fields.
+- [ ] Ensure “adapter runs before confirm”: user reviews the exact digest inputs (no hidden signing fields).
+- [ ] Add unit tests: “UI model matches digest inputs” (no silent field injection).
+
+### Phase 3 — Tempo support (TempoTransaction + passkeys)
+Tempo is EVM-shaped, but it has a Tempo-native typed transaction format (`TempoTransaction`, typed tx byte `0x76`) and supports multiple signature encodings (secp256k1, P256, WebAuthn).
+
+- [ ] Add `TempoAdapter` (start with `TempoTransaction` only; do not treat this as generic Ethereum):
+  - `buildIntent`: validate/normalize payload, produce the exact **sender signature hash** per Tempo spec (`keccak256(0x76 || rlp([...]))`, including fee-payer placeholder rules).
+  - `finalize`: attach signature in Tempo’s encoding and return raw tx bytes; broadcast via JSON-RPC (`eth_sendRawTransaction`).
+- [ ] Add `WebAuthnP256Engine` (wallet-origin only):
+  - Produce Tempo-valid WebAuthn signature bytes (Tempo uses a `0x02`-prefixed WebAuthn envelope; verification parses `clientDataJSON` + P256 verify).
+- [ ] Decide Tempo MVP scope:
+  - signature mode(s): WebAuthn (`0x02`) only vs also raw P256 (`0x01` prefix)
+  - features: batching/calls, `nonce_key`, `valid_before/valid_after`, fee payer sponsorship, key authorization (defer complex fields until basic send works)
+
+### Phase 4 — Testing and vectors
+- [ ] Add golden vectors per adapter: “same payload → same digest” and “digest changes when any UI-significant field changes”.
+- [ ] Add end-to-end tests: sign + broadcast on NEAR and Tempo testnets (wallet-iframe + SecureConfirm approval gating).
+- [ ] Add negative cases: malformed Tempo RLP, wrong typed tx byte, invalid WebAuthn envelope, replayed/invalid WebAuthn challenge (if Tempo flow uses WebAuthn challenge binding).
+
+### Phase 5 — Follow-ons (not required for NEAR + Tempo)
+- [ ] EVM adapter (Ethereum-style txs, EIP-1559/legacy, `personal_sign`, EIP-712) as a separate adapter, not conflated with Tempo.
+- [ ] Threshold ECDSA engine only when the protocol exists; keep it isolated behind `SignerEngine` and keep EVM “export” stance explicit (EOA migration vs contract wallet).
 
 ---
 
@@ -158,4 +178,3 @@ This adapter layer should not hard-code any of the above; it should allow differ
 - End-to-end:
   - wallet iframe SecureConfirm approval gates signing
   - app origin receives only public artifacts
-

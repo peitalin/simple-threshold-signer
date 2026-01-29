@@ -56,6 +56,7 @@ export async function signDelegateAction(args: {
         nearAccountId: String(nearAccountId),
       },
       signerMode,
+      deviceNumber: options?.deviceNumber,
       confirmationConfigOverride: options?.confirmationConfig,
       title,
       body,

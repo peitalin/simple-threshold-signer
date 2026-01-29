@@ -193,7 +193,7 @@ app.get('/wallet-service', (req, res) => {
   res.setHeader('Content-Security-Policy', buildWalletCsp({ mode: 'strict' }))
   res.type('html').send(`<!doctype html>
 <html><head></head><body>
-  <script type="module" src="/sdk/wallet-iframe-host.js"></script>
+  <script type="module" src="/sdk/wallet-iframe-host-runtime.js"></script>
 </body></html>`)
 })
 

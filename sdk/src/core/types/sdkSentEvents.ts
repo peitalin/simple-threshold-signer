@@ -679,6 +679,10 @@ export interface ActionHooksOptions {
    */
   signerMode?: SignerMode;
   /**
+   * Optional: passkey deviceNumber override for this signing request.
+   */
+  deviceNumber?: number;
+  /**
    * Preferred grouping for per-call confirmer copy.
    */
   confirmerText?: { title?: string; body?: string };
@@ -702,6 +706,10 @@ export interface SignAndSendTransactionHooksOptions {
    * { mode: 'threshold-signer'; behavior?: ThresholdBehavior };
    */
   signerMode?: SignerMode;
+  /**
+   * Optional: passkey deviceNumber override for this signing request.
+   */
+  deviceNumber?: number;
   /**
    * Execution control for multi-transaction broadcasts:
    * - { mode: 'sequential', waitUntil?: TxExecutionStatus }
@@ -733,6 +741,10 @@ export interface SignTransactionHooksOptions {
    */
   signerMode?: SignerMode;
   /**
+   * Optional: passkey deviceNumber override for this signing request.
+   */
+  deviceNumber?: number;
+  /**
    * Preferred grouping for per-call confirmer copy.
    */
   confirmerText?: { title?: string; body?: string };
@@ -760,6 +772,10 @@ export interface DelegateActionHooksOptions {
    * { mode: 'threshold-signer'; behavior?: ThresholdBehavior };
    */
   signerMode?: SignerMode;
+  /**
+   * Optional: passkey deviceNumber override for this signing request.
+   */
+  deviceNumber?: number;
   /**
    * Preferred grouping for per-call confirmer copy.
    */
@@ -797,6 +813,10 @@ export interface SignNEP413HooksOptions {
    * { mode: 'threshold-signer'; behavior?: ThresholdBehavior };
    */
   signerMode?: SignerMode;
+  /**
+   * Optional: passkey deviceNumber override for this signing request.
+   */
+  deviceNumber?: number;
   /**
    * Preferred grouping for per-call confirmer copy.
    */

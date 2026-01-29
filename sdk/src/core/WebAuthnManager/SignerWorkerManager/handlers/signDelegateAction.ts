@@ -38,7 +38,7 @@ import {
 } from '../../../threshold/thresholdSessionPolicy';
 import { normalizeThresholdEd25519ParticipantIds } from '../../../../threshold/participants';
 import { SignerWorkerManagerContext } from '..';
-import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
+import { getLastLoggedInDeviceNumber, parseDeviceNumber } from '../getDeviceNumber';
 function generateSessionId(): string {
   return `sess-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -74,6 +74,7 @@ export async function signDelegateAction({
   signingSessionTtlMs,
   signingSessionRemainingUses,
   sessionId: providedSessionId,
+  deviceNumber,
 }: {
   ctx: SignerWorkerManagerContext;
   delegate: DelegateActionInput;
@@ -86,6 +87,7 @@ export async function signDelegateAction({
   signingSessionTtlMs?: number;
   signingSessionRemainingUses?: number;
   sessionId?: string;
+  deviceNumber?: number;
 }): Promise<{
   signedDelegate: WasmSignedDelegate;
   hash: string;
@@ -113,8 +115,13 @@ export async function signDelegateAction({
     }
   });
 
-  const deviceNumber = await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
-  const thresholdKeyMaterial = await ctx.indexedDB.nearKeysDB.getThresholdKeyMaterial(nearAccountId, deviceNumber);
+  const parsedDeviceNumber = parseDeviceNumber(deviceNumber, { min: 1 });
+  if (deviceNumber !== undefined && parsedDeviceNumber === null) {
+    throw new Error(`Invalid deviceNumber for delegate signing: ${deviceNumber}`);
+  }
+  const resolvedDeviceNumber = parsedDeviceNumber
+    ?? await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
+  const thresholdKeyMaterial = await ctx.indexedDB.nearKeysDB.getThresholdKeyMaterial(nearAccountId, resolvedDeviceNumber);
 
   const warnings: string[] = [];
   const thresholdBehavior = getThresholdBehaviorFromSignerMode(signerMode);
@@ -132,7 +139,7 @@ export async function signDelegateAction({
   });
 
   const localKeyMaterial = (resolvedSignerMode === 'local-signer' || thresholdBehavior === 'fallback')
-    ? await ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceNumber)
+    ? await ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(nearAccountId, resolvedDeviceNumber)
     : null;
   const localWrapKeySalt = String(localKeyMaterial?.wrapKeySalt || '').trim();
   const thresholdWrapKeySalt = String(thresholdKeyMaterial?.wrapKeySalt || '').trim() || DUMMY_WRAP_KEY_SALT_B64U;

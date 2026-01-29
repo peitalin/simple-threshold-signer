@@ -47,22 +47,15 @@ export function readWalletConfigFromEnv(): WalletEnvConfig {
   const walletOrigin = pickFirst(envs, [
     'VITE_WALLET_ORIGIN',
     'NEXT_PUBLIC_WALLET_ORIGIN',
-    'REACT_APP_WALLET_ORIGIN',
     'WALLET_ORIGIN',
   ]);
 
   const walletServicePath = pickFirst(envs, [
     'VITE_WALLET_SERVICE_PATH',
-    'NEXT_PUBLIC_WALLET_SERVICE_PATH',
-    'REACT_APP_WALLET_SERVICE_PATH',
-    'WALLET_SERVICE_PATH',
   ]) || '/wallet-service';
 
   const sdkBasePath = pickFirst(envs, [
     'VITE_SDK_BASE_PATH',
-    'NEXT_PUBLIC_SDK_BASE_PATH',
-    'REACT_APP_SDK_BASE_PATH',
-    'SDK_BASE_PATH',
   ]) || '/sdk';
 
   return { walletOrigin, walletServicePath, sdkBasePath };

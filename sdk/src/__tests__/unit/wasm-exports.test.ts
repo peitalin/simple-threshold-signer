@@ -14,7 +14,7 @@ test.describe('WASM Module Exports', () => {
     // Dynamic import to avoid bundling issues in test environment
     const wasmModule = await import('../../wasm_signer_worker/pkg/wasm_signer_worker.js');
 
-    // Required for embedded bundles (wallet-iframe-host.js, etc.)
+    // Required for embedded bundles (wallet-iframe-host-runtime.js, etc.)
     expect(typeof wasmModule.init_wasm_signer_worker).toBe('function');
 
     // Required for regular builds

@@ -59,7 +59,9 @@ export class OverlayController {
    * Set sticky mode - prevents overlay from being hidden during critical operations
    * When sticky=true, hide() calls are ignored to maintain overlay visibility
    */
-  setSticky(v: boolean): void { this.sticky = !!v; }
+  setSticky(v: boolean): void {
+    this.sticky = !!v;
+  }
 
   /**
    * Show overlay in fullscreen mode - covers the viewport
@@ -106,7 +108,9 @@ export class OverlayController {
    */
   setAnchoredRect(rect: DOMRectLike): void {
     this.rect = { ...rect };
-    if (this.visible && this.mode === 'anchored') this.showAnchored(this.rect);
+    if (this.visible && this.mode === 'anchored') {
+      this.showAnchored(this.rect);
+    }
   }
 
   /**
@@ -125,7 +129,9 @@ export class OverlayController {
   /**
    * Clear anchored rectangle - removes stored coordinates
    */
-  clearAnchoredRect(): void { this.rect = null; }
+  clearAnchoredRect(): void {
+    this.rect = null;
+  }
 
   /**
    * Hide overlay - makes iframe invisible with no footprint
@@ -134,7 +140,9 @@ export class OverlayController {
    */
   hide(): void {
     // Step 1: Check sticky mode - don't hide if operation is still in progress
-    if (this.sticky) return;
+    if (this.sticky) {
+      return;
+    }
 
     const iframe = this.ensureIframe();
     this.visible = false;
@@ -149,7 +157,12 @@ export class OverlayController {
   }
 
   getState(): { visible: boolean; mode: Mode; sticky: boolean; rect?: DOMRectLike } {
-    return { visible: this.visible, mode: this.mode, sticky: this.sticky, rect: this.rect || undefined };
+    return {
+      visible: this.visible,
+      mode: this.mode,
+      sticky: this.sticky,
+      rect: this.rect || undefined
+    };
   }
 }
 

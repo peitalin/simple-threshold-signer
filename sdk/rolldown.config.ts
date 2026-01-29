@@ -296,7 +296,7 @@ const emitWalletServiceStaticAssets = async (sdkRoot = process.cwd()): Promise<v
     path.join(sdkRoot, 'src/core/WebAuthnManager/LitComponents/css/export-iframe.css'),
     path.join(sdkDir, 'export-iframe.css')
   );
-  copyIfMissing(path.join(sdkRoot, 'src/core/WalletIframe/client/overlay.css'), path.join(sdkDir, 'overlay.css'));
+  copyIfMissing(path.join(sdkRoot, 'src/core/WalletIframe/client/overlay/overlay.css'), path.join(sdkDir, 'overlay.css'));
   copyIfMissing(
     path.join(sdkRoot, 'src/core/OfflineExport/offline-export.css'),
     path.join(sdkDir, 'offline-export.css')
@@ -670,7 +670,7 @@ const configs = [
       // Tx Confirmer component
       'w3a-tx-confirmer': 'src/core/WebAuthnManager/LitComponents/IframeTxConfirmer/tx-confirmer-wrapper.ts',
       // Wallet service host (headless)
-      'wallet-iframe-host': 'src/core/WalletIframe/host/wallet-iframe-host.ts',
+      'wallet-iframe-host-runtime': 'src/core/WalletIframe/host/index.ts',
       // Export viewer host + bootstrap
       'iframe-export-bootstrap': 'src/core/WebAuthnManager/LitComponents/ExportPrivateKey/iframe-export-bootstrap-script.ts',
     },

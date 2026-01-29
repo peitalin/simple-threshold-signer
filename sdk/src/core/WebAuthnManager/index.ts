@@ -528,6 +528,7 @@ export class WebAuthnManager {
   async signTransactionsWithActions({
     transactions,
     rpcCall,
+    deviceNumber,
     signerMode,
     confirmationConfigOverride,
     title,
@@ -537,6 +538,7 @@ export class WebAuthnManager {
   }: {
     transactions: TransactionInputWasm[],
     rpcCall: RpcCallPayload,
+    deviceNumber?: number;
     signerMode: SignerMode;
     // Accept partial override; merging happens in handlers layer
     confirmationConfigOverride?: Partial<ConfirmationConfig>,
@@ -551,6 +553,7 @@ export class WebAuthnManager {
     return this.signerWorkerManager.signTransactionsWithActions({
       transactions,
       rpcCall,
+      deviceNumber,
       signerMode,
       confirmationConfigOverride,
       title,
@@ -664,6 +667,7 @@ export class WebAuthnManager {
   async signDelegateAction({
     delegate,
     rpcCall,
+    deviceNumber,
     signerMode,
     confirmationConfigOverride,
     title,
@@ -672,6 +676,7 @@ export class WebAuthnManager {
   }: {
     delegate: DelegateActionInput;
     rpcCall: RpcCallPayload;
+    deviceNumber?: number;
     signerMode: SignerMode;
     // Accept partial override; merging happens in handlers layer
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
@@ -698,6 +703,7 @@ export class WebAuthnManager {
       return await this.signerWorkerManager.signDelegateAction({
         delegate,
         rpcCall: normalizedRpcCall,
+        deviceNumber,
         signerMode,
         confirmationConfigOverride,
         title,
@@ -721,6 +727,7 @@ export class WebAuthnManager {
     state: string | null;
     accountId: AccountId;
     signerMode: SignerMode;
+    deviceNumber?: number;
     title?: string;
     body?: string;
     confirmationConfigOverride?: Partial<ConfirmationConfig>;

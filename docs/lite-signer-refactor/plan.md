@@ -58,7 +58,7 @@ This is intended to be the **threshold signer for a neobanking app**, operated a
    - **Derivation path + rotation**:
      - `derivationPath: u32` default `0`.
      - Rotating the *threshold share* changes `clientVerifyingShareB64u` and therefore requires a fresh threshold keygen/onboarding (new `relayerKeyId` / group key binding).
-     - Rotating the *NEAR backup key* is “add a new access key” on NEAR (can coexist with old keys); use a new `derivationPath` and submit another `AddKey`.
+     - Rotating the *NEAR backup key* is “add a new access key” on NEAR (can coexist with old keys); rotation requires a derivation-version bump (e.g. change the HKDF salt/info labels) and submitting another `AddKey`.
    - **Recommended HKDF derivation (v1)**:
      - Inputs:
        - `prf_first_32`: 32 bytes from WebAuthn PRF extension
@@ -70,6 +70,9 @@ This is intended to be the **threshold signer for a neobanking app**, operated a
        - `clientVerifyingShare = (G * clientShareScalar).compress()`
 3. **Export / escape hatch key (NEAR, non-custodial)**:
    - Use a client-derived backup key from `PRF.second` and ensure it is present on-chain during registration (preferred: create the account with `backup_pub_key` so no extra WebAuthn prompt is needed). The relay never derives or holds the backup private key.
+   - **Current derivation (implemented)**:
+     - `seed32 = HKDF-SHA256(ikm=prf_second_32, salt="near-key-derivation:<nearAccountId>", info="ed25519-signing-key-dual-prf-v1", len=32)`
+     - `backup_pub_key = ed25519_public_key(seed32)`
 4. **Wallet boundary enforcement**:
    - Ensure PRF outputs never cross origins (wallet-iframe ↔ app); only return public results (signatures, public keys, status).
    - Keep user-visible approval (SecureConfirm) on the wallet origin to prevent silent signing initiated by app-origin code.
@@ -131,7 +134,7 @@ Keep the relay as the verifier and policy authority.
 - [x] Auth model: session token vs per-sign (only); intent binding is required.
 - [x] Client-share derivation: deterministic from `PRF.first` (wallet origin only; no at-rest storage); use HKDF derivation described above.
 - [x] NEAR escape hatch: derive backup key from `PRF.second` and submit `AddKey(backup_pub_key)` (non-custodial).
-- [x] Write an “SDK contract” doc (types + API + example usage) for the lite signer + relay endpoints (`docs/lite-signer-refactor/sdk-contract.md`).
+- [x] Document the lite signer SDK/relay contract (types + API + example usage) in this plan.
 
 ### Phase 1 — Package boundaries (no VRF, no Shamir)
 - [x] Add a new workspace package for the lite SDK (or refactor `sdk` with a separate `lite` export) with a strict dependency boundary that excludes VRF WASM and Shamir 3-pass.
@@ -171,7 +174,7 @@ Keep the relay as the verifier and policy authority.
 - [x] Client: mint fresh threshold sessions (do not reuse a stable `sessionId`), and request `remainingUses >= usesNeeded` so signing does not accidentally create 1-use sessions or exhaust a cached token immediately.
 
 ### Phase 4 — Threshold signing path (wallet origin)
-- [ ] Implement VRF-free threshold keygen/onboarding end-to-end (persist *public* threshold material only).
+- [x] Implement VRF-free threshold keygen/onboarding end-to-end (persist *public* threshold material only).
   - Keygen WebAuthn challenge schema (v1): `sha256(alphabetizeStringify({ version:"threshold_keygen_v1", nearAccountId, rpId, keygenSessionId }))` (base64url string).
 - [x] Add a wallet-origin keygen helper (`keygenThresholdEd25519Lite`) that derives `clientVerifyingShareB64u` from `PRF.first` and calls `POST /threshold-ed25519/keygen`.
 - [x] Wire fixed, versioned WebAuthn PRF salts (`PRF_FIRST_SALT_V1` / `PRF_SECOND_SALT_V1`) into wallet-origin WebAuthn calls.
@@ -182,7 +185,7 @@ Keep the relay as the verifier and policy authority.
 - [x] Implement PRF.first warm-session reuse across signing calls (wallet origin):
   - SecureConfirm worker caches PRF.first (`ttlMs` + `remainingUses`) and dispenses it to the signer worker.
   - `signTransactionsWithActions` / `signDelegateAction` / `signNep413Message` use the worker cache (no JS in-memory cache).
-- [ ] Implement signing flows end-to-end (wallet origin) and validate against a live relay:
+- [x] Implement signing flows end-to-end (wallet origin) and validate against a live relay:
   - `signTransactionsWithActions`: session mint + warm session reuse + authorize + FROST signing.
   - `signDelegateAction`: same.
   - `signNep413Message`: same.
@@ -204,6 +207,12 @@ Keep the relay as the verifier and policy authority.
 - [x] Validate end-to-end threshold signing flows against a live relay:
   - `signTransactionsWithActions`, `signDelegateAction`, `signNep413Message`
 - [x] Ship a minimal example + size budget: a wallet-iframe demo that keygens, mints a session, and signs a tx end-to-end; add bundle-size reporting.
+
+### Next steps (current)
+- [ ] Add integration tests (Playwright): login success/fail, replayed challenge rejection, expired token/session, and a full threshold signing roundtrip.
+- [ ] Write breaking-change notes: “no migration/legacy support; re-register required”; call out relay-as-system-of-record and security/availability tradeoffs.
+- [ ] Add a “Lite signer integration” guide for app teams (required config: `walletOrigin`, relay URL, rpId, cookie/session mode; recommended CSP/COOP/COEP notes).
+- [ ] Test suite audit + deletion plan: inventory `sdk/src/__tests__`, delete redundant cases, and keep only high-signal “lite” coverage in default CI.
 
 ### Phase 5 — Backup/export flow (NEAR only)
 - [x] Implement a high-friction wallet-origin flow to derive the backup key from `PRF.second`. Note: this should be done during registration flows (should already be implemented)
@@ -248,19 +257,6 @@ Keep the relay as the verifier and policy authority.
   - Low-signal wrappers removed: `sdk/src/__tests__/unit/next-headers.unit.test.ts`, `sdk/src/__tests__/unit/vite-headers.unit.test.ts`.
 - [ ] Re-evaluate any `test.skip` branches: either delete, re-enable with new stack behavior, or move to “full” suite if they require non-lite features.
 - [ ] Update `sdk/src/__tests__/README.md` with the final suite map after deletions.
-
-### Phase 10 — Threshold link device refactor
-- [ ] Define a new `DeviceLinkingQRData` v2 payload: `{ sessionId, thresholdPublicKey, relayerKeyId, localSignerPublicKey? }` and keep a v1 fallback.
-- [ ] Device2: generate the threshold key first (no accountId required) by minting a link-device WebAuthn registration credential and deriving `clientVerifyingShareB64u` scoped by a session-based `shareScope` (a valid AccountId string, e.g. `${sessionId}.link-device.testnet`).
-- [ ] Relay: add a “link-device init” step (new endpoint or extend `POST /link-device/prepare`) to verify the registration for `shareScope`, run `/threshold-ed25519/keygen`, and persist pending session data (threshold key + authenticator + credential binding) keyed by `sessionId`.
-  - Extend `tatchi_device_linking_sessions` (or a new table) to store pending authenticator + binding fields and TTL cleanup.
-- [ ] Device1: scan QR → submit `AddKey(thresholdPublicKey)` (and optional `AddKey(localSignerPublicKey)`), then call `POST /link-device/session/claim` with `{ sessionId, accountId, addKeyTxHash? }` (relay verifies `AddKey` exists before finalizing).
-- [ ] Relay: on claim, allocate the next `deviceNumber` for `accountId`, move pending authenticator/binding from `shareScope` → `accountId`, and return `{ accountId, deviceNumber }`.
-- [ ] Device2: poll `GET /link-device/session/:sessionId` until claimed; then store threshold key material under `{ accountId, deviceNumber }` and remove on-chain polling/key-swap logic from the flow.
-- [ ] Add `shareScope` support to threshold share derivation/session minting: store it in key material + credential binding, and use it (not `nearAccountId`) when deriving/verifying shares for threshold sessions/signing.
-- [ ] Local-signer for Device2 (optional, default `true`): derive `localSignerPublicKey` from the same registration credential, include it in the QR payload when enabled, and persist private key material locally for offline export.
-- [ ] Update React surfaces (`useDeviceLinking`, `ShowQRCode`, `AccountMenuButton`) to expose the “add local-signer” toggle and show relay-polling progress/errors for device linking.
-- [ ] Tests: unit tests for QR v2 parsing + shareScope derivation; relay integration tests for init→claim; Playwright E2E for device linking (with and without local-signer).
 
 ## Testing and validation
 - Client:

@@ -11,14 +11,13 @@
  * - Environment utilities: For configuration
  * - Sanitization utilities: For security
  *
- * Note: wallet-iframe-host is intentionally NOT exported here as it's meant
+ * Note: wallet-iframe-host-runtime is intentionally NOT exported here as it's meant
  * to be bundled separately into the wallet origin page, not the parent SDK.
  */
 
 export * from './shared/messages';
-export * from './client/router';
-export * from './client/env';
+export * from './client';
 export * from './sanitization';
-// Note: wallet-iframe-host is intended to be bundled into the wallet origin page.
+// Note: wallet-iframe-host-runtime is intended to be bundled into the wallet origin page.
 // It should not be imported by the parent SDK bundle.
 export { TatchiPasskeyIframe } from './TatchiPasskeyIframe';

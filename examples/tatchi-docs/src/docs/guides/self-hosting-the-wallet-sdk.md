@@ -44,7 +44,7 @@ const app = express()
 const sdkDist = path.join(process.cwd(), 'node_modules', '@tatchi-xyz', 'sdk', 'dist')
 
 // The wallet runtime assets live in two folders:
-// - dist/esm/sdk      → JS/CSS bundles loaded by wallet-iframe-host.js
+// - dist/esm/sdk      → JS/CSS bundles loaded by wallet-iframe-host-runtime.js
 // - dist/workers      → module workers + WASM binaries (served under /sdk/workers)
 const sdkEsmAssets = path.join(sdkDist, 'esm', 'sdk')
 const sdkWorkerAssets = path.join(sdkDist, 'workers')
@@ -82,7 +82,7 @@ app.get('/wallet-service', (req, res) => {
 <html>
   <head><meta charset="utf-8"/></head>
   <body>
-    <script type="module" src="/sdk/wallet-iframe-host.js"></script>
+    <script type="module" src="/sdk/wallet-iframe-host-runtime.js"></script>
   </body>
 </html>`)
 })
@@ -166,7 +166,7 @@ mkcert example.test wallet.example.test
 **Verification checklist**:
 1. Open browser DevTools → Network tab
 2. Your application should load `/wallet-service` in an iframe
-3. The wallet iframe should load `/sdk/wallet-iframe-host.js`
+3. The wallet iframe should load `/sdk/wallet-iframe-host-runtime.js`
 4. Check for errors in Console tab
 
 **Common issues**:
@@ -197,7 +197,7 @@ mkcert example.test wallet.example.test
 2. Ensure your static routes mount:
    - `/sdk` → `dist/esm/sdk`
    - `/sdk/workers` → `dist/workers`
-3. Test direct access: `curl https://wallet.example.com/sdk/wallet-iframe-host.js`
+3. Test direct access: `curl https://wallet.example.com/sdk/wallet-iframe-host-runtime.js`
 
 ### WASM Module Failed to Instantiate
 
