@@ -72,6 +72,7 @@ export enum SecureConfirmationType {
   DECRYPT_PRIVATE_KEY_WITH_PRF = 'decryptPrivateKeyWithPrf',
   SIGN_NEP413_MESSAGE = 'signNep413Message',
   SHOW_SECURE_PRIVATE_KEY_UI = 'showSecurePrivateKeyUi',
+  SIGN_INTENT_DIGEST = 'signIntentDigest',
 }
 
 export type SigningAuthMode = 'webauthn' | 'warmSession';
@@ -97,6 +98,7 @@ export type SecureConfirmPayloadByType = {
   [SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF]: DecryptPrivateKeyWithPrfPayload;
   [SecureConfirmationType.SIGN_NEP413_MESSAGE]: SignNep413Payload;
   [SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI]: ShowSecurePrivateKeyUiPayload;
+  [SecureConfirmationType.SIGN_INTENT_DIGEST]: SignIntentDigestPayload;
 };
 
 export type SecureConfirmSummaryByType = {
@@ -106,6 +108,7 @@ export type SecureConfirmSummaryByType = {
   [SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF]: ExportSummary;
   [SecureConfirmationType.SIGN_NEP413_MESSAGE]: TransactionSummary;
   [SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI]: ExportSummary;
+  [SecureConfirmationType.SIGN_INTENT_DIGEST]: TransactionSummary;
 };
 
 export type SecureConfirmPayload = SecureConfirmPayloadByType[keyof SecureConfirmPayloadByType];
@@ -185,6 +188,15 @@ export interface SignNep413Payload {
   signingAuthMode?: SigningAuthMode;
 }
 
+export interface SignIntentDigestPayload {
+  nearAccountId: string;
+  /**
+   * Base64url-encoded 32-byte digest used as WebAuthn challenge when `signingAuthMode='webauthn'`.
+   */
+  challengeB64u: string;
+  signingAuthMode?: SigningAuthMode;
+}
+
 // Type guards
 export function isSecureConfirmRequestV2(x: unknown): x is SecureConfirmRequest {
   return isObject(x)
@@ -213,7 +225,11 @@ export type SigningSecureConfirmRequest =
   | SecureConfirmRequestByType<SecureConfirmationType.SIGN_TRANSACTION>
   | SecureConfirmRequestByType<SecureConfirmationType.SIGN_NEP413_MESSAGE>;
 
+export type IntentDigestSecureConfirmRequest =
+  SecureConfirmRequestByType<SecureConfirmationType.SIGN_INTENT_DIGEST>;
+
 export type KnownSecureConfirmRequest =
   | LocalOnlySecureConfirmRequest
   | RegistrationSecureConfirmRequest
-  | SigningSecureConfirmRequest;
+  | SigningSecureConfirmRequest
+  | IntentDigestSecureConfirmRequest;

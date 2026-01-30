@@ -6,7 +6,7 @@ import { setupBasicPasskeyTest, handleInfrastructureErrors } from '../setup';
 import { autoConfirmWalletIframeUntil } from '../setup/flows';
 import { DEFAULT_TEST_CONFIG } from '../setup/config';
 import { installCreateAccountAndRegisterUserMock, installFastNearRpcMock } from './thresholdEd25519.testUtils';
-import { initSync as initWasmSignerSync, threshold_ed25519_compute_near_tx_signing_digests } from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
+import { initSync as initWasmSignerSync, threshold_ed25519_compute_near_tx_signing_digests } from '../../wasm_near_signer/pkg/wasm_signer_worker.js';
 
 // Regression: concurrent signing requests must stay pinned to their requested device/account
 // so PRF/session material and signer context never cross-talk between in-flight operations.
@@ -168,7 +168,7 @@ test.describe('Lite signer – concurrent sessions (wallet iframe)', () => {
       return;
     }
 
-    const wasmBytes = readFileSync(new URL('../../wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm', import.meta.url));
+    const wasmBytes = readFileSync(new URL('../../wasm_near_signer/pkg/wasm_signer_worker_bg.wasm', import.meta.url));
     initWasmSignerSync({ module: wasmBytes });
 
     const toPkBytes = (pk: string): Uint8Array => {

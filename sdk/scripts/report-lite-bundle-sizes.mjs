@@ -86,12 +86,6 @@ const TARGETS = [
     relPath: 'dist/workers/wasm_signer_worker_bg.wasm',
     budget: { raw: 900_000, gzip: 360_000, brotli: 340_000 },
   },
-  {
-    id: 'offline-export-sw',
-    label: 'offline-export sw',
-    relPath: 'dist/workers/offline-export-sw.js',
-    budget: { raw: 20_000, gzip: 6_000, brotli: 6_000 },
-  },
 ];
 
 const rows = [];
@@ -178,4 +172,3 @@ if (CHECK) {
 
   console.log('[report-lite-bundle-sizes] OK: budgets satisfied');
 }
-

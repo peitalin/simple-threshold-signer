@@ -4,6 +4,7 @@ import {
   SignTransactionPayload,
   RegisterAccountPayload,
   SignNep413Payload,
+  SignIntentDigestPayload,
 } from '../types';
 
 export function getNearAccountId(request: SecureConfirmRequest): string {
@@ -12,6 +13,8 @@ export function getNearAccountId(request: SecureConfirmRequest): string {
       return getSignTransactionPayload(request).rpcCall.nearAccountId;
     case SecureConfirmationType.SIGN_NEP413_MESSAGE:
       return (request.payload as SignNep413Payload).nearAccountId;
+    case SecureConfirmationType.SIGN_INTENT_DIGEST:
+      return (request.payload as SignIntentDigestPayload).nearAccountId;
     case SecureConfirmationType.REGISTER_ACCOUNT:
     case SecureConfirmationType.LINK_DEVICE:
       return getRegisterAccountPayload(request).nearAccountId;
@@ -55,4 +58,3 @@ export function getRegisterAccountPayload(request: SecureConfirmRequest): Regist
   }
   return request.payload as RegisterAccountPayload;
 }
-

@@ -19,6 +19,8 @@ import {
   type SignedTransaction,
   type AccessKeyList,
 } from '../NearClient';
+import type { TempoSigningRequest } from '../multichain/tempo/types';
+import type { TempoSignedResult } from '../multichain/tempo/tempoAdapter';
 import type {
   ActionResult,
   DelegateRelayResult,
@@ -74,7 +76,6 @@ import type { WalletIframeRouter } from '../WalletIframe/client/router';
 import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
 import { toError } from '../../utils/errors';
 import { coerceThemeName } from '../../utils/theme';
-import { isOffline, openOfflineExport } from '../OfflineExport';
 import type { DelegateActionInput } from '../types/delegate';
 import { buildConfigsFromEnv } from '../defaultConfigs2';
 import { LinkDeviceFlow } from './linkDevice';
@@ -1317,6 +1318,31 @@ export class TatchiPasskey {
     return res;
   }
 
+  async signTempo(args: {
+    nearAccountId: string;
+    request: TempoSigningRequest;
+    options?: {
+      confirmationConfig?: Partial<ConfirmationConfig>;
+    };
+  }): Promise<TempoSignedResult> {
+    if (this.shouldUseWalletIframe()) {
+      const router = await this.requireWalletIframeRouter(args.nearAccountId);
+      return await router.signTempo({
+        nearAccountId: args.nearAccountId,
+        request: args.request,
+        options: {
+          confirmationConfig: args.options?.confirmationConfig,
+        },
+      });
+    }
+
+    return await this.webAuthnManager.signTempo({
+      nearAccountId: args.nearAccountId,
+      request: args.request,
+      confirmationConfigOverride: args.options?.confirmationConfig,
+    });
+  }
+
   ///////////////////////////////////////
   // === KEY MANAGEMENT ===
   ///////////////////////////////////////
@@ -1335,31 +1361,19 @@ export class TatchiPasskey {
       ...options,
       theme: options?.theme ?? this.theme,
     };
-    if (isOffline()) {
-      // If offline, open the offline-export route
-      await openOfflineExport({
-        accountId: nearAccountId,
-        routerOpen: this.iframeRouter?.openOfflineExport?.bind(this.iframeRouter),
-        walletOrigin: this.configs?.iframeWallet?.walletOrigin,
-        target: '_blank',
-      });
-    } else {
-      // Prefer wallet iframe when ready
-      if (this.iframeRouter?.isReady?.()) {
-        await this.iframeRouter.exportNearKeypairWithUI(nearAccountId, resolvedOptions);
+
+    // Prefer wallet iframe when configured and available.
+    try {
+      if (this.shouldUseWalletIframe()) {
+        const router = await this.requireWalletIframeRouter(nearAccountId);
+        await router.exportNearKeypairWithUI(nearAccountId, resolvedOptions);
         return;
       }
-      // Online but router not ready: prefer offline-export route via router (or new tab)
-      // Only do this when we have a wallet origin configured or router API is available
-      const routerOpen = this.iframeRouter?.openOfflineExport?.bind(this.iframeRouter);
-      const walletOrigin = this.configs?.iframeWallet?.walletOrigin;
-      if (routerOpen || walletOrigin) {
-        await openOfflineExport({ accountId: nearAccountId, routerOpen, walletOrigin, target: '_blank' });
-        return;
-      }
-      // Final fallback: local worker-driven UI
-      await this.webAuthnManager.exportNearKeypairWithUI(toAccountId(nearAccountId), resolvedOptions);
+    } catch {
+      // Fall back to local worker-driven UI (app origin) if wallet host is unavailable.
     }
+
+    await this.webAuthnManager.exportNearKeypairWithUI(toAccountId(nearAccountId), resolvedOptions);
   }
 
   ///////////////////////////////////////

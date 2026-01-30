@@ -1,6 +1,5 @@
 import { getEmbeddedBase, setEmbeddedBase } from '../../sdkPaths';
 import { ensureKnownW3aElement } from '../../WebAuthnManager/LitComponents/ensure-defined';
-import { scheduleOfflineExportSwPriming } from '../../OfflineExport/priming';
 import { isDevHost } from '../shared/is-dev-host';
 
 interface GlobalThis {
@@ -62,9 +61,6 @@ export function bootstrapTransparentHost(): void {
 
   // Dev-only: warn when w3a-* custom elements remain un-upgraded
   setupDevUnupgradedObserver();
-
-  // Defer offline-export Service Worker priming until after the wallet host is up.
-  scheduleOfflineExportSwPriming();
 }
 
 /**

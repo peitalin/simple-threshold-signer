@@ -2,8 +2,8 @@
 // === IMPORT AUTO-GENERATED WASM TYPES ===
 // These are the source of truth generated from Rust structs via wasm-bindgen
 // Import as instance types from the WASM module classes
-import * as wasmModule from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
-import { WorkerRequestType, WorkerResponseType } from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
+import * as wasmModule from '../../wasm_near_signer/pkg/wasm_signer_worker.js';
+import { WorkerRequestType, WorkerResponseType } from '../../wasm_near_signer/pkg/wasm_signer_worker.js';
 export { WorkerRequestType, WorkerResponseType }; // Export the WASM enums directly
 
 import { StripFree } from "./index.js";
@@ -473,7 +473,7 @@ export enum ProgressMessageType {
 
 // Step identifiers for progress tracking
 // This enum exactly matches the Rust WASM ProgressStep enum from:
-// packages/passkey/src/wasm_signer_worker/src/types/progress.rs
+// packages/passkey/src/wasm_near_signer/src/types/progress.rs
 // The string values come from the progress_step_name() function in that file
 export enum ProgressStep {
   PREPARATION = 'preparation',                           // Rust: Preparation

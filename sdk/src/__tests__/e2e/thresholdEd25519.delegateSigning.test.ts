@@ -19,7 +19,7 @@ import {
   proxyPostJsonAndMutate,
   setupThresholdE2ePage,
 } from './thresholdEd25519.testUtils';
-import { threshold_ed25519_compute_delegate_signing_digest } from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
+import { threshold_ed25519_compute_delegate_signing_digest } from '../../wasm_near_signer/pkg/wasm_signer_worker.js';
 
 test.describe('threshold-ed25519 delegate signing (NEP-461)', () => {
   test.setTimeout(180_000);

@@ -12,7 +12,7 @@ import { test, expect } from '@playwright/test';
 test.describe('WASM Module Exports', () => {
   test('wasm_signer_worker exports required functions', async () => {
     // Dynamic import to avoid bundling issues in test environment
-    const wasmModule = await import('../../wasm_signer_worker/pkg/wasm_signer_worker.js');
+    const wasmModule = await import('../../wasm_near_signer/pkg/wasm_signer_worker.js');
 
     // Required for embedded bundles (wallet-iframe-host-runtime.js, etc.)
     expect(typeof wasmModule.init_wasm_signer_worker).toBe('function');
@@ -27,7 +27,7 @@ test.describe('WASM Module Exports', () => {
   });
 
   test('wasm_signer_worker has both init aliases', async () => {
-    const wasmModule = await import('../../wasm_signer_worker/pkg/wasm_signer_worker.js');
+    const wasmModule = await import('../../wasm_near_signer/pkg/wasm_signer_worker.js');
 
     // Verify both aliases exist and are functions
     expect(wasmModule).toHaveProperty('init_worker');

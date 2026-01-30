@@ -96,7 +96,7 @@ test('register → login', async ({ passkey }) => {
 
 - Root scripts:
   - `pnpm test` → `pnpm -C sdk test` (full suite)
-  - `pnpm test:lite` → `pnpm -C sdk test:lite` (lite suite; excludes local-signer/offline-export)
+  - `pnpm test:lite` → `pnpm -C sdk test:lite` (lite suite; excludes local-signer)
   - `pnpm test:inline` → line reporter
   - `pnpm test:unit`, `pnpm test:wallet-iframe`, `pnpm test:lit-components`
   - `pnpm show-report` to open Playwright HTML report
@@ -129,7 +129,6 @@ pnpm -C sdk build
   - `e2e/worker_events.test.ts` signer/SecureConfirm worker wiring and events
   - `e2e/nonceManager.test.ts` reserved nonce lifecycle in real session
   - `e2e/cancel_overlay_contracts.test.ts` cancel + overlay contract (cancel hides UI)
-  - `e2e/offline-export.*.test.ts` offline export route coverage (full suite only)
 
 - Unit
   - `unit/confirmTxFlow.successPaths.test.ts` register/sign/local‑only success

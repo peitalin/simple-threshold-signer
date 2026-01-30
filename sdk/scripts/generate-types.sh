@@ -24,7 +24,10 @@ handle_error() {
     tail -10 "$LOG_FILE" 2>/dev/null || echo "No log file available"
     echo ""
     echo "Troubleshooting tips:"
-    echo "  1. Check if Rust compilation succeeds: cd src/wasm_signer_worker && cargo check"
+    echo "  1. Check if Rust compilation succeeds:"
+    echo "     - cd src/wasm_near_signer && cargo check"
+    echo "     - cd src/wasm_eth_signer && cargo check"
+    echo "     - cd src/wasm_tempo_signer && cargo check"
     echo "  2. Verify wasm-pack is installed: wasm-pack --version"
     echo "  3. Check for WASM compilation errors in the output above"
     echo "  4. Ensure all Rust dependencies are properly declared"
@@ -46,8 +49,8 @@ run() {
 # Set up error handling
 trap 'handle_error $LINENO' ERR
 
-# 1. Build WASM signer worker and generate TypeScript definitions
-echo "Building WASM signer worker..."
+# 1. Build WASM crates and generate TypeScript definitions
+echo "Building WASM near signer worker..."
 cd "$SOURCE_WASM_SIGNER"
 
 echo "Running cargo check first..."
@@ -58,12 +61,44 @@ run wasm-pack build --target web --out-dir pkg --out-name wasm_signer_worker
 
 cd ../..
 
+echo "Building eth signer WASM..."
+cd "$SOURCE_WASM_ETH_SIGNER"
+echo "Running cargo check first..."
+run cargo check
+echo "Running wasm-pack build..."
+run wasm-pack build --target web --out-dir pkg --out-name eth_signer
+cd ../..
+
+echo "Building tempo signer WASM..."
+cd "$SOURCE_WASM_TEMPO_SIGNER"
+echo "Running cargo check first..."
+run cargo check
+echo "Running wasm-pack build..."
+run wasm-pack build --target web --out-dir pkg --out-name tempo_signer
+cd ../..
+
 # 2. Check if wasm-bindgen generated types exist
 SIGNER_TYPES="$SOURCE_WASM_SIGNER/pkg/wasm_signer_worker.d.ts"
+ETH_TYPES="$SOURCE_WASM_ETH_SIGNER/pkg/eth_signer.d.ts"
+TEMPO_TYPES="$SOURCE_WASM_TEMPO_SIGNER/pkg/tempo_signer.d.ts"
 
 if [ ! -f "$SIGNER_TYPES" ]; then
     echo "❌ Signer worker TypeScript definitions not found at $SIGNER_TYPES"
     echo "This usually means wasm-pack build failed for the signer worker."
+    echo "Check the output above for compilation errors."
+    exit 1
+fi
+
+if [ ! -f "$ETH_TYPES" ]; then
+    echo "❌ Eth signer TypeScript definitions not found at $ETH_TYPES"
+    echo "This usually means wasm-pack build failed for the eth signer."
+    echo "Check the output above for compilation errors."
+    exit 1
+fi
+
+if [ ! -f "$TEMPO_TYPES" ]; then
+    echo "❌ Tempo signer TypeScript definitions not found at $TEMPO_TYPES"
+    echo "This usually means wasm-pack build failed for the tempo signer."
     echo "Check the output above for compilation errors."
     exit 1
 fi
@@ -84,6 +119,8 @@ echo "✅ Type generation and validation complete!"
 echo ""
 echo "Generated files:"
 echo "  - $SIGNER_TYPES (Signer worker types from wasm-bindgen)"
+echo "  - $ETH_TYPES (Eth signer types from wasm-bindgen)"
+echo "  - $TEMPO_TYPES (Tempo signer types from wasm-bindgen)"
 echo "  - Validated against existing TypeScript codebase"
 echo ""
 

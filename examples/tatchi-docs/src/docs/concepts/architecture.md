@@ -222,4 +222,4 @@ sequenceDiagram
 - [VRF WebAuthn](vrf-webauthn) discusses how the VRF-WebAuthn system works
 - Read about the [Security Model](security-model)
 - Explore [Passkey Scope Strategy](passkey-scope) for deployment options
-- Review [Shamir 3-Pass Protocol](../guides/shamir-3-pass-protocol) for the primary 2-of-2 unlock path
+- Review [Login Flow](#login-flow) for the primary 2-of-2 unlock path

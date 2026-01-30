@@ -7,7 +7,7 @@ import { AuthService } from '../../server/core/AuthService';
 import { createThresholdSigningService } from '../../server/core/ThresholdService';
 import { createRelayRouter } from '../../server/router/express-adaptor';
 import { createCloudflareRouter } from '../../server/router/cloudflare-adaptor';
-import { threshold_ed25519_compute_near_tx_signing_digests } from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
+import { threshold_ed25519_compute_near_tx_signing_digests } from '../../wasm_near_signer/pkg/wasm_signer_worker.js';
 import { callCf, fetchJson, makeCfCtx, makeSessionAdapter, startExpressRouter } from './helpers';
 import type {
   ThresholdEd25519AuthConsumeResult,

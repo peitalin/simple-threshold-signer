@@ -35,7 +35,7 @@ import {
   threshold_ed25519_compute_delegate_signing_digest,
   threshold_ed25519_compute_near_tx_signing_digests,
   threshold_ed25519_compute_nep413_signing_digest,
-} from '../../../wasm_signer_worker/pkg/wasm_signer_worker.js';
+} from '../../../wasm_near_signer/pkg/wasm_signer_worker.js';
 import {
   ensureRelayerKeyIsActiveAccessKey,
   extractAuthorizeSigningPublicKey,

@@ -28,7 +28,7 @@ import { isFunction } from '@/utils/validation';
 import {
   WasmTransaction,
   WasmSignature,
-} from "../wasm_signer_worker/pkg/wasm_signer_worker.js";
+} from "../wasm_near_signer/pkg/wasm_signer_worker.js";
 
 // re-export near-js types
 export type { AccessKeyList } from "@near-js/types";

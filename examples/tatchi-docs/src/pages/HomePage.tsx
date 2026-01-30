@@ -1,7 +1,6 @@
 import React from 'react'
 import { HomeHero } from '../components/HomeHero';
 import { BentoGrid } from '../components/BentoGrid';
-import { GetStartedCodeBlock } from '../components/GetStartedCodeBlock';
 import { Footer } from '../components/Footer';
 import NearLogoBg from '../components/NearLogoBg';
 import { useRevealOnIdle } from '../hooks/useRevealOnIdle';
@@ -50,13 +49,6 @@ export function HomePage() {
       <div className="card three">
         <div className="constrained-column">
           <BentoGrid />
-        </div>
-      </div>
-
-      {/* four */}
-      <div className="card four">
-        <div className="constrained-column">
-          <GetStartedCodeBlock />
         </div>
       </div>
 

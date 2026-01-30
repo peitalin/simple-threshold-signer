@@ -35,11 +35,31 @@ cd "$SOURCE_WASM_SIGNER"
 if wasm-pack build --target web --out-dir pkg; then print_success "WASM signer worker built"; else print_error "WASM signer build failed"; exit 1; fi
 cd ../..
 
+print_step "Building WASM eth signer (dev)..."
+cd "$SOURCE_WASM_ETH_SIGNER"
+if wasm-pack build --target web --out-dir pkg; then print_success "WASM eth signer built"; else print_error "WASM eth signer build failed"; exit 1; fi
+cd ../..
+
+print_step "Building WASM tempo signer (dev)..."
+cd "$SOURCE_WASM_TEMPO_SIGNER"
+if wasm-pack build --target web --out-dir pkg; then print_success "WASM tempo signer built"; else print_error "WASM tempo signer build failed"; exit 1; fi
+cd ../..
+
 print_step "Optimizing wasm-pack metadata for tree-shaking..."
 if node ./scripts/fix-wasm-pack-sideeffects.mjs "$SOURCE_WASM_SIGNER/pkg"; then
   print_success "WASM package metadata optimized"
 else
   print_warning "Failed to optimize WASM package metadata; bundler may deoptimize tree-shaking"
+fi
+if node ./scripts/fix-wasm-pack-sideeffects.mjs "$SOURCE_WASM_ETH_SIGNER/pkg" 2>/dev/null; then
+  print_success "Eth WASM package metadata optimized"
+else
+  print_warning "Failed to optimize Eth WASM package metadata"
+fi
+if node ./scripts/fix-wasm-pack-sideeffects.mjs "$SOURCE_WASM_TEMPO_SIGNER/pkg" 2>/dev/null; then
+  print_success "Tempo WASM package metadata optimized"
+else
+  print_warning "Failed to optimize Tempo WASM package metadata"
 fi
 
 print_step "Building TypeScript..."
@@ -55,7 +75,8 @@ print_step "Bundling workers with Bun (dev, no minify)..."
 if [ -z "$BUN_BIN" ]; then print_error "Bun not found. Install Bun or ensure it is on PATH."; exit 1; fi
 if "$BUN_BIN" build "$SOURCE_CORE/web3authn-signer.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser \
   && "$BUN_BIN" build "$SOURCE_CORE/web3authn-secure-confirm.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser \
-  && "$BUN_BIN" build "$SOURCE_CORE/OfflineExport/offline-export-sw.ts" --outdir "$BUILD_WORKERS" --format esm --target browser; then
+  && "$BUN_BIN" build "$SOURCE_CORE/eth-signer.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser \
+  && "$BUN_BIN" build "$SOURCE_CORE/tempo-signer.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser; then
   print_success "Bun worker bundling completed"
 else
   print_error "Bun worker bundling failed"; exit 1
@@ -64,5 +85,8 @@ fi
 print_step "Copying worker WASM binaries next to worker JS..."
 mkdir -p "$BUILD_WORKERS"
 if cp "$SOURCE_WASM_SIGNER/pkg/wasm_signer_worker_bg.wasm" "$BUILD_WORKERS/" 2>/dev/null; then print_success "Signer WASM copied"; else print_warning "Signer WASM not found"; fi
+if cp "$SOURCE_WASM_SIGNER/pkg/wasm_signer_worker_bg.wasm" "$BUILD_WORKERS/near_signer.wasm" 2>/dev/null; then print_success "near_signer.wasm copied"; else print_warning "near_signer.wasm not found"; fi
+if cp "$SOURCE_WASM_ETH_SIGNER/pkg/eth_signer_bg.wasm" "$BUILD_WORKERS/eth_signer.wasm" 2>/dev/null; then print_success "eth_signer.wasm copied"; else print_warning "eth_signer.wasm not found"; fi
+if cp "$SOURCE_WASM_TEMPO_SIGNER/pkg/tempo_signer_bg.wasm" "$BUILD_WORKERS/tempo_signer.wasm" 2>/dev/null; then print_success "tempo_signer.wasm copied"; else print_warning "tempo_signer.wasm not found"; fi
 
 print_success "Development build completed successfully!"

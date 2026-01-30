@@ -87,6 +87,8 @@ import type {
   SignTransactionResult,
   EmailRecoveryContracts,
 } from '../../types/tatchi';
+import type { TempoSigningRequest } from '../../multichain/tempo/types';
+import type { TempoSignedResult } from '../../multichain/tempo/tempoAdapter';
 import type { LinkDeviceResult, StartDevice2LinkingFlowArgs, StartDevice2LinkingFlowResults, DeviceLinkingQRData } from '../../types/linkDevice';
 import type { SyncAccountResult } from '../../TatchiPasskey/syncAccount';
 import {
@@ -104,7 +106,6 @@ import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
 import { mergeSignerMode, type ConfirmationConfig, type SignerMode } from '../../types/signer-worker';
 import type { AccessKeyList } from '../../NearClient';
 import type { SignNEP413MessageResult } from '../../TatchiPasskey/signNEP413';
-import { openOfflineExportWindow } from '../../OfflineExport/index.js';
 import type { DerivedAddressRecord } from '../../IndexedDBManager';
 import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../../defaultConfigs2';
 
@@ -338,20 +339,6 @@ export class WalletIframeRouter {
     };
     globalThis.addEventListener?.('message', onUiClosed);
     return () => { globalThis.removeEventListener?.('message', onUiClosed) };
-  }
-
-  private attachExportUiFallbackListener = (walletOrigin: string, accountId: string): (() => void) => {
-    const onFallback = async (ev: MessageEvent) => {
-      if (ev.origin !== walletOrigin) return;
-      const data = ev.data as any;
-      if (!data || data.type !== 'OFFLINE_EXPORT_FALLBACK') return;
-      globalThis.removeEventListener?.('message', onFallback);
-      this.overlayState.controller.setSticky(false);
-      this.hideFrameForActivation();
-      await this.openOfflineExport({ accountId });
-    };
-    globalThis.addEventListener?.('message', onFallback);
-    return () => { globalThis.removeEventListener?.('message', onFallback) };
   }
 
   /**
@@ -801,6 +788,24 @@ export class WalletIframeRouter {
     return res.result
   }
 
+  async signTempo(payload: {
+    nearAccountId: string;
+    request: TempoSigningRequest;
+    options?: {
+      confirmationConfig?: Partial<ConfirmationConfig>;
+    };
+  }): Promise<TempoSignedResult> {
+    const res = await this.post<TempoSignedResult>({
+      type: 'PM_SIGN_TEMPO',
+      payload: {
+        nearAccountId: payload.nearAccountId,
+        request: payload.request,
+        options: payload.options?.confirmationConfig ? { confirmationConfig: payload.options.confirmationConfig } : undefined,
+      },
+    });
+    return res.result;
+  }
+
   async signTransactionWithKeyPair(payload: {
     signedTransaction: SignedTransaction;
     options?: {
@@ -1163,38 +1168,28 @@ export class WalletIframeRouter {
     nearAccountId: string,
     options?: { variant?: 'drawer' | 'modal'; theme?: 'dark' | 'light' }
   ): Promise<void> {
+    // Make the wallet iframe visible while the export viewer is open.
+    // Unlike request/response flows, the wallet host renders UI and manages
+    // its own lifecycle; it will notify us when to hide via window message.
+    this.showFrameForActivation();
+    const walletOrigin = this.walletOriginOrigin;
+    const detachClosed = this.attachExportUiClosedListener(walletOrigin);
     try {
-      // Make the wallet iframe visible while the export viewer is open.
-      // Unlike request/response flows, the wallet host renders UI and manages
-      // its own lifecycle; it will notify us when to hide via window message.
-      this.showFrameForActivation();
-      const walletOrigin = this.walletOriginOrigin;
-      const detachClosed = this.attachExportUiClosedListener(walletOrigin);
-      const detachFallback = this.attachExportUiFallbackListener(walletOrigin, nearAccountId);
       await this.post<void>({
         type: 'PM_EXPORT_NEAR_KEYPAIR_UI',
         payload: { nearAccountId, variant: options?.variant, theme: options?.theme },
         options: { sticky: true }
       });
-      // Cleanup once posted (handlers will remove themselves on events)
+      // Cleanup once posted (handler will remove itself on event)
       void detachClosed;
-      void detachFallback;
       return;
     } catch (e) {
-      // Fallback to offline-export route (new tab) if wallet host is unreachable or errors out
-      await this.openOfflineExport({ accountId: nearAccountId });
+      // Best-effort cleanup on errors to avoid a stuck sticky overlay.
+      try { detachClosed(); } catch {}
+      this.overlayState.controller.setSticky(false);
+      this.hideFrameForActivation();
+      throw e;
     }
-  }
-
-  /**
-   * Open the offline-export route as a full-screen overlay iframe and instruct it via postMessage
-   * to begin the export flow for the given account. Cleans up when the viewer closes or on error.
-   */
-  async openOfflineExport({ accountId, timeoutMs = 20000 }: { accountId: string; timeoutMs?: number }): Promise<void> {
-    const walletOrigin = this.opts.walletOrigin || window.location.origin;
-    // Default: open a new tab/window for clarity
-    openOfflineExportWindow({ walletOrigin, target: '_blank', accountId });
-    return Promise.resolve();
   }
 
   // ===== Control APIs =====
@@ -1410,6 +1405,7 @@ export class WalletIframeRouter {
       case 'PM_EXECUTE_ACTION':
       case 'PM_SEND_TRANSACTION':
       case 'PM_SIGN_TXS_WITH_ACTIONS':
+      case 'PM_SIGN_TEMPO':
       case 'PM_LINK_DEVICE_WITH_SCANNED_QR_DATA':
       case 'PM_START_DEVICE2_LINKING_FLOW':
         return { mode: 'fullscreen' };

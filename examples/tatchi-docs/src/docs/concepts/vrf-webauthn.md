@@ -122,7 +122,7 @@ The VRF worker or relayer submits both the VRF proof and WebAuthn signature for 
     ) -> VerifiedAuthenticationResponse
 ```
 
-See the [Web3Authn contract section](../api/web3authn-contract.md) for implementation details.
+See the on-chain Web3Authn contract on NEAR Blocks for implementation details: https://testnet.nearblocks.io/address/w3a-v1.testnet?tab=contract
 
 The VRF worker can gate session minting on the Web3Authn contract verification of both the VRF proof and WebAuthn signature before releasing session keys:
 
@@ -179,5 +179,5 @@ After verification succeeds, the wallet derives the unwrapping key entirely insi
 
 ## Next steps
 
-- Explore the [Shamir 3-pass protocol](../guides/shamir-3-pass-protocol) for smoother VRF unlocking UX
+- Explore the [login flow](./architecture#login-flow) for smoother VRF unlocking UX
 - Review [passkey scope strategies](passkey-scope)

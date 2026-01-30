@@ -16,7 +16,7 @@ import {
   threshold_ed25519_round1_commit,
   threshold_ed25519_round2_sign,
   threshold_ed25519_round2_sign_cosigner,
-} from '../../../wasm_signer_worker/pkg/wasm_signer_worker.js';
+} from '../../../wasm_near_signer/pkg/wasm_signer_worker.js';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { ensureRelayerKeyIsActiveAccessKey } from './validation';
 import type {

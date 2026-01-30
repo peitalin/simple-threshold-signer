@@ -13,14 +13,18 @@ BUILD_TYPES="dist/types"
 # Source directories
 SOURCE_ROOT="src"
 SOURCE_CORE="src/core"
-SOURCE_WASM_SIGNER="src/wasm_signer_worker"
+SOURCE_WASM_SIGNER="src/wasm_near_signer"
+SOURCE_WASM_ETH_SIGNER="src/wasm_eth_signer"
+SOURCE_WASM_TEMPO_SIGNER="src/wasm_tempo_signer"
 
 # Critical directories for build freshness checking
 CRITICAL_DIRS=(
     "src/core"
     "src/react"
     "src/server"
-    "src/wasm_signer_worker"
+    "src/wasm_near_signer"
+    "src/wasm_eth_signer"
+    "src/wasm_tempo_signer"
 )
 
 # Example Vite app deployment paths (used only for local dev/test copying)
@@ -37,8 +41,12 @@ RUNTIME_SIGNER_WORKER="/sdk/workers/web3authn-signer.worker.js"
 # Worker file names
 WORKER_SECURE_CONFIRM="web3authn-secure-confirm.worker.js"
 WORKER_SIGNER="web3authn-signer.worker.js"
+WORKER_ETH_SIGNER="eth-signer.worker.js"
+WORKER_TEMPO_SIGNER="tempo-signer.worker.js"
 WORKER_WASM_SIGNER_JS="wasm_signer_worker.js"
 WORKER_WASM_SIGNER_WASM="wasm_signer_worker_bg.wasm"
+WORKER_WASM_ETH_SIGNER_WASM="eth_signer.wasm"
+WORKER_WASM_TEMPO_SIGNER_WASM="tempo_signer.wasm"
 
 # Critical files to check for build freshness
 CRITICAL_FILES=(

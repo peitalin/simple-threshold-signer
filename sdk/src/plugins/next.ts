@@ -7,9 +7,7 @@
 // - In PRODUCTION you should keep a strict CSP (no 'unsafe-eval', no inline styles, and include "style-src-attr 'none'").
 
 import { buildPermissionsPolicy, buildWalletCsp, type CspMode } from './headers'
-import { fetchRorOriginsFromNear, resolveSdkDistRoot, toBasePath } from './plugin-utils'
-import { emitOfflineExportAssets as emitOfflineAssetsCore } from './offline'
-import * as path from 'node:path'
+import { fetchRorOriginsFromNear } from './plugin-utils'
 
 export type NextHeader = { key: string; value: string }
 export type NextHeaderEntry = { source: string; headers: NextHeader[] }
@@ -173,16 +171,4 @@ export async function handleWellKnownRorEdge(_request: Request, opts: RorOpts = 
       },
     })
   }
-}
-
-// === Build-time helper: emit offline-export assets (Next.js parity) ===
-// Exported for parity with the Vite plugin helper. Can be invoked from a
-// custom Next build script or post-build step to copy SW/workers and emit
-// offline-export HTML, manifest, and precache manifest into your public dir.
-
-export function nextEmitOfflineExportAssets(opts: { outDir: string; sdkBasePath?: string; sdkDistRoot?: string }): void {
-  const outDir = path.resolve(opts.outDir)
-  const sdkBasePath = toBasePath(opts.sdkBasePath, '/sdk')
-  const sdkDistRoot = resolveSdkDistRoot(opts.sdkDistRoot)
-  emitOfflineAssetsCore({ outDir, sdkBasePath, sdkDistRoot })
 }

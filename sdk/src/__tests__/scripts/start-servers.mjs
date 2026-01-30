@@ -8,6 +8,7 @@
  */
 import { spawn } from 'node:child_process';
 import { promises as fs } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,6 +22,15 @@ const DEFAULT_CACHE_PATH = path.join(RELAY_DIR, '.provision-cache.json');
 // Store relay cache and generated artifacts under the SDK's Playwright report
 const REPORT_DIR = path.join(ROOT, 'sdk', 'playwright-report');
 const CACHE_PATH = process.env.RELAY_PROVISION_CACHE_PATH || path.join(REPORT_DIR, 'relay-provision-cache.json');
+
+function resolveFrontendDirRel() {
+  const candidates = ['examples/vite', 'examples/tatchi-docs'];
+  const existing = candidates.find((rel) => existsSync(path.join(ROOT, rel, 'package.json')));
+  if (!existing) {
+    throw new Error(`[start-servers] missing frontend example; tried: ${candidates.join(', ')}`);
+  }
+  return existing;
+}
 
 function run(cmd, args, opts = {}) {
   const p = spawn(cmd, args, { stdio: 'inherit', cwd: ROOT, ...opts });
@@ -107,8 +117,9 @@ async function main() {
   });
 
   // 5) Start vite dev (foreground)
+  const frontendDir = resolveFrontendDirRel();
   const viteScript = (process.env.NO_CADDY === '1' || process.env.VITE_NO_CADDY === '1' || process.env.CI === '1') ? 'dev:ci' : 'dev';
-  console.log(`[start-servers] Starting Vite with script '${viteScript}' (NO_CADDY=${process.env.NO_CADDY || ''}, CI=${process.env.CI || ''})`);
+  console.log(`[start-servers] Starting Vite (frontend=${frontendDir}, NO_CADDY=${process.env.NO_CADDY || ''}, CI=${process.env.CI || ''})`);
   // Use path relative to ROOT (repo root)
   const vite = (() => {
     if (NO_CADDY && frontendOverride) {
@@ -118,11 +129,17 @@ async function main() {
         const port = Number(rawPort);
         if (Number.isFinite(port) && port > 0) {
           console.log(`[start-servers] Starting Vite on port ${port} (W3A_TEST_FRONTEND_URL=${frontendOverride})`);
-          return spawn('pnpm', ['-C', 'examples/vite', 'exec', 'vite', '--host', 'localhost', '--port', String(port), '--strictPort'], { stdio: 'inherit', cwd: ROOT });
+          return spawn('pnpm', ['-C', frontendDir, 'exec', 'vite', '--host', 'localhost', '--port', String(port), '--strictPort'], { stdio: 'inherit', cwd: ROOT });
         }
       } catch { }
     }
-    return spawn('pnpm', ['-C', 'examples/vite', viteScript], { stdio: 'inherit', cwd: ROOT });
+    if (NO_CADDY) {
+      return spawn('pnpm', ['-C', frontendDir, 'exec', 'vite', '--host', 'localhost', '--port', '5174', '--strictPort'], {
+        stdio: 'inherit',
+        cwd: ROOT,
+      });
+    }
+    return spawn('pnpm', ['-C', frontendDir, viteScript], { stdio: 'inherit', cwd: ROOT });
   })();
 
   // Cleanup on exit

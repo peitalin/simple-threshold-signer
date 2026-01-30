@@ -297,10 +297,6 @@ const emitWalletServiceStaticAssets = async (sdkRoot = process.cwd()): Promise<v
     path.join(sdkDir, 'export-iframe.css')
   );
   copyIfMissing(path.join(sdkRoot, 'src/core/WalletIframe/client/overlay/overlay.css'), path.join(sdkDir, 'overlay.css'));
-  copyIfMissing(
-    path.join(sdkRoot, 'src/core/OfflineExport/offline-export.css'),
-    path.join(sdkDir, 'offline-export.css')
-  );
 
   console.log('✅ Emitted /sdk wallet-shims.js and wallet-service.css');
 };
@@ -624,9 +620,9 @@ const configs = [
   },
   // WASM Signer Worker build for server usage - includes WASM binary
   {
-    input: 'src/wasm_signer_worker/pkg/wasm_signer_worker.js',
+    input: 'src/wasm_near_signer/pkg/wasm_signer_worker.js',
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/wasm_signer_worker/pkg`,
+      dir: `${BUILD_PATHS.BUILD.ESM}/wasm_near_signer/pkg`,
       format: 'esm',
       assetFileNames: '[name][extname]'
     },
@@ -636,9 +632,9 @@ const configs = [
         generateBundle() {
           try {
             copyWasmAsset(
-              path.join(process.cwd(), 'src/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm'),
-              path.join(process.cwd(), `${BUILD_PATHS.BUILD.ESM}/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm`),
-              '✅ WASM file copied to dist/esm/wasm_signer_worker/pkg/'
+              path.join(process.cwd(), 'src/wasm_near_signer/pkg/wasm_signer_worker_bg.wasm'),
+              path.join(process.cwd(), `${BUILD_PATHS.BUILD.ESM}/wasm_near_signer/pkg/wasm_signer_worker_bg.wasm`),
+              '✅ WASM file copied to dist/esm/wasm_near_signer/pkg/'
             );
           } catch (error) {
             console.error('❌ Failed to copy signer WASM asset:', error);
@@ -723,21 +719,6 @@ const configs = [
     plugins: prodPlugins,
   }
   ,
-  // Offline Export App (minimal PWA route bootstrap)
-  {
-    input: 'src/core/OfflineExport/offline-export-app.ts',
-    output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/sdk`,
-      format: 'esm',
-      entryFileNames: 'offline-export-app.js',
-      sourcemap: true,
-    },
-    external: embeddedExternal,
-    resolve: {
-      alias: aliasConfig,
-    },
-    plugins: prodPlugins,
-  },
   // Vite plugin ESM build (source moved to src/plugins)
   {
     input: 'src/plugins/vite.ts',

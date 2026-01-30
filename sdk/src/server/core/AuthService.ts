@@ -17,7 +17,7 @@ import initSignerWasm, {
   type InitInput,
   type WasmTransaction,
   type WasmSignature,
-} from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
+} from '../../wasm_near_signer/pkg/wasm_signer_worker.js';
 
 import type {
   AuthServiceConfig,
@@ -122,7 +122,7 @@ function coerceDeviceNumber(input: unknown, fallback: number): number {
 // =============================
 
 // Primary location (preserveModules output)
-const SIGNER_WASM_MAIN_PATH = '../../wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm';
+const SIGNER_WASM_MAIN_PATH = '../../wasm_near_signer/pkg/wasm_signer_worker_bg.wasm';
 // Fallback location (dist/workers copy step)
 const SIGNER_WASM_FALLBACK_PATH = '../../../workers/wasm_signer_worker_bg.wasm';
 

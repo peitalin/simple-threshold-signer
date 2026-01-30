@@ -156,7 +156,7 @@ sdk/
 │   ├── react/                    # React bindings
 │   │   ├── PasskeyProvider.tsx   # Context provider
 │   │   └── hooks.ts              # usePasskeyManager, etc.
-│   ├── wasm_signer_worker/       # Rust WASM (transaction signing)
+│   ├── wasm_near_signer/         # Rust WASM (NEAR threshold signing)
 │   ├── wasm_vrf_worker/          # Rust WASM (VRF challenges)
 │   └── plugins/
 │       └── vite.ts               # Vite dev/build helpers

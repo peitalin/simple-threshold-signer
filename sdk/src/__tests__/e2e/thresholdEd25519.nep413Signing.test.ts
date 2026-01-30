@@ -19,7 +19,7 @@ import {
   proxyPostJsonAndMutate,
   setupThresholdE2ePage,
 } from './thresholdEd25519.testUtils';
-import { threshold_ed25519_compute_nep413_signing_digest } from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
+import { threshold_ed25519_compute_nep413_signing_digest } from '../../wasm_near_signer/pkg/wasm_signer_worker.js';
 
 test.describe('threshold-ed25519 NEP-413 signing', () => {
   test.setTimeout(180_000);

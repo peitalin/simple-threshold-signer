@@ -17,7 +17,7 @@ import { createRelayRouter } from '../../server/router/express-adaptor';
 import { makeSessionAdapter, startExpressRouter } from '../relayer/helpers';
 import {
   threshold_ed25519_compute_near_tx_signing_digests,
-} from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
+} from '../../wasm_near_signer/pkg/wasm_signer_worker.js';
 
 function makeAuthServiceForThreshold(keysOnChain: Set<string>): {
   service: AuthService;

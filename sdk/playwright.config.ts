@@ -128,10 +128,19 @@ const DEV_SERVER_PORT = (() => {
   }
 })();
 
-// Resolve absolute path to the examples/vite folder from this config location
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const EXAMPLES_VITE_DIR = path.resolve(path.join(__dirname, '../examples/vite'));
+function resolveExamplesFrontendDir(): string {
+  // Prefer the historical examples/vite path when present, but fall back to the
+  // current workspace frontend (examples/tatchi-docs) when it's the only one.
+  const candidates = ['../examples/vite', '../examples/tatchi-docs'].map((p) => path.resolve(path.join(__dirname, p)));
+  const existing = candidates.find((dir) => fs.existsSync(dir) && fs.existsSync(path.join(dir, 'package.json')));
+  if (!existing) {
+    throw new Error(`[playwright] missing frontend example; tried: ${candidates.join(', ')}`);
+  }
+  return existing;
+}
+const EXAMPLES_FRONTEND_DIR = resolveExamplesFrontendDir();
 
 export default defineConfig({
   testDir: './src/__tests__',
@@ -178,8 +187,8 @@ export default defineConfig({
     command: USE_RELAY_SERVER
       ? 'node ./src/__tests__/scripts/start-servers.mjs'
       : (NO_CADDY
-        ? `pnpm -C ${EXAMPLES_VITE_DIR} exec vite --host localhost --port ${DEV_SERVER_PORT} --strictPort`
-        : `pnpm -C ${EXAMPLES_VITE_DIR} dev`),
+        ? `pnpm -C "${EXAMPLES_FRONTEND_DIR}" exec vite --host localhost --port ${DEV_SERVER_PORT} --strictPort`
+        : `pnpm -C "${EXAMPLES_FRONTEND_DIR}" dev`),
     url: DEV_SERVER_URL,
     reuseExistingServer: true,
     timeout: 60000, // Allow time for relay health check + build

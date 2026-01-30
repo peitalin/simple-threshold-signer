@@ -92,11 +92,9 @@ export async function installWalletSdkCorsShim(
   const logStyle = options.logStyle ?? 'silent';
   const mirror = options.mirror !== false; // default true to support NO_CADDY
 
-  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   // Prefer BrowserContext glob patterns to ensure reliable matching across transports
   const walletHost = (() => { try { return new URL(walletOrigin).host } catch { return 'wallet.example.localhost' } })();
   const sdkPattern: string = `**://${walletHost}/sdk/**`;
-  const offlineExportPattern: string = `**://${walletHost}/offline-export/**`;
   const walletServicePattern: string = `**://${walletHost}/wallet-service*`;
 
   const buildAssetHeaders = (orig: Record<string, string>, url: string): Record<string, string> => {
@@ -176,61 +174,6 @@ export async function installWalletSdkCorsShim(
     printStepLine(1, `wallet SDK CORS/CORP headers installed for ${walletOrigin}/sdk/*`);
   }
 
-  await ctx.unroute(offlineExportPattern as any).catch(() => undefined);
-  await ctx.route(offlineExportPattern as any, async (route) => {
-    const req = route.request();
-    const url = req.url();
-    const method = (req.method() || 'GET').toUpperCase();
-    const requestOrigin = (req.headers()['origin'] || req.headers()['Origin'] || walletOrigin) as string;
-
-    if (method === 'OPTIONS') {
-      if (logStyle === 'intercept') {
-        printLog('intercept', `offline-export preflight OPTIONS ${url}`, { scope: 'cors' });
-      }
-      return route.fulfill({
-        status: 204,
-        headers: {
-          'Access-Control-Allow-Origin': requestOrigin,
-          'Access-Control-Allow-Methods': 'GET,OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-          'Access-Control-Allow-Credentials': 'true',
-        },
-        body: '',
-      });
-    }
-
-    try {
-      if (logStyle === 'intercept') {
-        printLog('intercept', `offline-export ${method} ${url} [mirror=${mirror ? 'on' : 'off'}]`, { scope: 'cors' });
-      }
-      const upstreamUrl = mirror ? url.replace(walletOrigin, appOrigin) : url;
-      const fetched = await route.fetch({ url: upstreamUrl });
-      const body = await fetched.body();
-      const originalHeaders = fetched.headers();
-      const lower: Record<string, string> = {};
-      for (const [k, v] of Object.entries(originalHeaders)) if (typeof v === 'string') lower[k] = v;
-      const headers = buildAssetHeaders(lower, url);
-      // Offline-export is navigated directly under the wallet origin; CORS should allow the wallet origin.
-      headers['access-control-allow-origin'] = requestOrigin;
-      await route.fulfill({ status: fetched.status(), headers, body });
-      if (logStyle === 'intercept') {
-        printLog('intercept', `offline-export fulfilled ${url} ← ${upstreamUrl} (status ${fetched.status()})`, { scope: 'cors', indent: 1 });
-      }
-    } catch (error) {
-      const msg = String((error as Error)?.message || '')
-      const isTeardownNoise = /Target page|context|browser has been closed|Response has been disposed/i.test(msg)
-      if (!isTeardownNoise && (options.logStyle === 'intercept')) {
-        printLog('intercept', `offline-export shim fell back (${msg})`, { scope: 'cors', indent: 1 });
-      }
-      return route.fallback();
-    }
-  });
-  if (logStyle === 'intercept') {
-    printLog('intercept', `offline-export shim installed for ${walletOrigin}/offline-export/*`, { scope: 'cors', step: 'ready' });
-  } else if (logStyle === 'setup') {
-    printStepLine(1, `offline-export shim installed for ${walletOrigin}/offline-export/*`, 2);
-  }
-
   await ctx.unroute(walletServicePattern as any).catch(() => undefined);
   await ctx.route(walletServicePattern as any, async (route) => {
     try {
@@ -274,7 +217,6 @@ export async function installWalletSdkCorsShim(
       await page.evaluate((args) => {
         const { walletOrigin, appOrigin, mirror } = args;
         console.log(`[cors] shim ready sdk: ${walletOrigin}/sdk/* (mirror=${mirror ? 'on' : 'off'}) → upstream: ${mirror ? appOrigin : walletOrigin}`);
-        console.log(`[cors] shim ready offline-export: ${walletOrigin}/offline-export/*`);
         console.log(`[cors] shim ready wallet-service: ${walletOrigin}/wallet-service/*`);
       }, { walletOrigin, appOrigin, mirror });
     }

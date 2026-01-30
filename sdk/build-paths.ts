@@ -15,10 +15,10 @@ export const BUILD_PATHS = {
   SOURCE: {
     ROOT: 'src',
     CORE: 'src/core',
-    WASM_SIGNER: 'src/wasm_signer_worker',
+    WASM_SIGNER: 'src/wasm_near_signer',
     CRITICAL_DIRS: [
       'src/core',
-      'src/wasm_signer_worker',
+      'src/wasm_near_signer',
     ]
   },
 
@@ -41,7 +41,6 @@ export const BUILD_PATHS = {
   WORKERS: {
     SECURE_CONFIRM: 'web3authn-secure-confirm.worker.js',
     SIGNER: 'web3authn-signer.worker.js',
-    OFFLINE_SW: 'offline-export-sw.js',
     WASM_SIGNER_JS: 'wasm_signer_worker.js',
     WASM_SIGNER_WASM: 'wasm_signer_worker_bg.wasm'
   },

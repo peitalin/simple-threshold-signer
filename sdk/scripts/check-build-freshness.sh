@@ -21,10 +21,19 @@ if [ ! -d "$BUILD_ROOT" ]; then
 fi
 
 # Check if key built files exist
-if [ ! -f "$BUILD_WORKERS/$WORKER_SIGNER" ] || [ ! -f "$BUILD_WORKERS/$WORKER_SECURE_CONFIRM" ]; then
-    echo -e "${RED}❌ Required worker files not found in $BUILD_WORKERS${NC}"
-    exit 1
-fi
+for required in \
+    "$BUILD_WORKERS/$WORKER_SIGNER" \
+    "$BUILD_WORKERS/$WORKER_SECURE_CONFIRM" \
+    "$BUILD_WORKERS/$WORKER_ETH_SIGNER" \
+    "$BUILD_WORKERS/$WORKER_TEMPO_SIGNER" \
+    "$BUILD_WORKERS/$WORKER_WASM_ETH_SIGNER_WASM" \
+    "$BUILD_WORKERS/$WORKER_WASM_TEMPO_SIGNER_WASM" \
+    "$BUILD_WORKERS/near_signer.wasm"; do
+    if [ ! -f "$required" ]; then
+        echo -e "${RED}❌ Required build output not found: $required${NC}"
+        exit 1
+    fi
+done
 
 get_mtime() {
     stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo "0"
@@ -37,6 +46,11 @@ DIST_TIME=$(get_mtime "$BUILD_ROOT")
 for built in \
     "$BUILD_WORKERS/$WORKER_SIGNER" \
     "$BUILD_WORKERS/$WORKER_SECURE_CONFIRM" \
+    "$BUILD_WORKERS/$WORKER_ETH_SIGNER" \
+    "$BUILD_WORKERS/$WORKER_TEMPO_SIGNER" \
+    "$BUILD_WORKERS/$WORKER_WASM_ETH_SIGNER_WASM" \
+    "$BUILD_WORKERS/$WORKER_WASM_TEMPO_SIGNER_WASM" \
+    "$BUILD_WORKERS/near_signer.wasm" \
     "$BUILD_ESM/index.js" \
     "$BUILD_CJS/index.cjs" \
     "$BUILD_TYPES/src/index.d.ts"; do

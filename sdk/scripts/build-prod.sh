@@ -36,6 +36,16 @@ cd "$SOURCE_WASM_SIGNER"
 if wasm-pack build --target web --out-dir pkg --release; then print_success "WASM signer worker built"; else print_error "WASM signer build failed"; exit 1; fi
 cd ../..
 
+print_step "Building WASM eth signer (release)..."
+cd "$SOURCE_WASM_ETH_SIGNER"
+if wasm-pack build --target web --out-dir pkg --release; then print_success "WASM eth signer built"; else print_error "WASM eth signer build failed"; exit 1; fi
+cd ../..
+
+print_step "Building WASM tempo signer (release)..."
+cd "$SOURCE_WASM_TEMPO_SIGNER"
+if wasm-pack build --target web --out-dir pkg --release; then print_success "WASM tempo signer built"; else print_error "WASM tempo signer build failed"; exit 1; fi
+cd ../..
+
 print_step "Building TypeScript..."
 if npx tsc -p tsconfig.build.json; then print_success "TypeScript compilation completed"; else print_error "TypeScript compilation failed"; exit 1; fi
 
@@ -49,7 +59,8 @@ print_step "Bundling workers with Bun (minified)..."
 if [ -z "$BUN_BIN" ]; then print_error "Bun not found. Install Bun or ensure it is on PATH."; exit 1; fi
 if "$BUN_BIN" build "$SOURCE_CORE/web3authn-signer.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser --minify \
   && "$BUN_BIN" build "$SOURCE_CORE/web3authn-secure-confirm.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser --minify \
-  && "$BUN_BIN" build "$SOURCE_CORE/OfflineExport/offline-export-sw.ts" --outdir "$BUILD_WORKERS" --format esm --target browser --minify; then
+  && "$BUN_BIN" build "$SOURCE_CORE/eth-signer.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser --minify \
+  && "$BUN_BIN" build "$SOURCE_CORE/tempo-signer.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser --minify; then
   print_success "Bun worker bundling completed"
 else
   print_error "Bun worker bundling failed"; exit 1
@@ -58,5 +69,8 @@ fi
 print_step "Copying worker WASM binaries next to worker JS..."
 mkdir -p "$BUILD_WORKERS"
 if cp "$SOURCE_WASM_SIGNER/pkg/wasm_signer_worker_bg.wasm" "$BUILD_WORKERS/" 2>/dev/null; then print_success "Signer WASM copied"; else print_warning "Signer WASM not found"; fi
+if cp "$SOURCE_WASM_SIGNER/pkg/wasm_signer_worker_bg.wasm" "$BUILD_WORKERS/near_signer.wasm" 2>/dev/null; then print_success "near_signer.wasm copied"; else print_warning "near_signer.wasm not found"; fi
+if cp "$SOURCE_WASM_ETH_SIGNER/pkg/eth_signer_bg.wasm" "$BUILD_WORKERS/eth_signer.wasm" 2>/dev/null; then print_success "eth_signer.wasm copied"; else print_warning "eth_signer.wasm not found"; fi
+if cp "$SOURCE_WASM_TEMPO_SIGNER/pkg/tempo_signer_bg.wasm" "$BUILD_WORKERS/tempo_signer.wasm" 2>/dev/null; then print_success "tempo_signer.wasm copied"; else print_warning "tempo_signer.wasm not found"; fi
 
 print_success "Production build completed successfully!"

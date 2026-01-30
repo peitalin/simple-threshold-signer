@@ -93,3 +93,6 @@ export type {
   ConfirmationUIMode,
   ConfirmationBehavior,
 } from './core/types/signer-worker';
+
+// Experimental: multichain adapter/engine scaffold (post-lite).
+export * from './core/multichain';

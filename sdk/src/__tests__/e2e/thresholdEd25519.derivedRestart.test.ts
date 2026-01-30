@@ -21,7 +21,7 @@ import {
   proxyPostJsonAndMutate,
   setupThresholdE2ePage,
 } from './thresholdEd25519.testUtils';
-import { threshold_ed25519_compute_near_tx_signing_digests } from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
+import { threshold_ed25519_compute_near_tx_signing_digests } from '../../wasm_near_signer/pkg/wasm_signer_worker.js';
 
 test.describe('threshold-ed25519 derived share mode restart', () => {
   test.setTimeout(180_000);

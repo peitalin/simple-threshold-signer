@@ -234,5 +234,3 @@ await tatchi.registerPasskey('user.testnet', {
 
 **Manual/Express**:
 - Import `buildPermissionsPolicy`, `buildWalletCsp` from `@tatchi-xyz/sdk/plugins/headers`
-
-See [Self-Hosting](../guides/self-hosting-the-wallet-sdk) for self-hosted wallet configuration.

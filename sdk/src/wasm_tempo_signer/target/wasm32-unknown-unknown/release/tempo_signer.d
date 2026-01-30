@@ -1,0 +1,1 @@
+/Users/pta/Dev/rust/simple-threshold-signer/sdk/src/wasm_tempo_signer/target/wasm32-unknown-unknown/release/tempo_signer.wasm: /Users/pta/Dev/rust/simple-threshold-signer/sdk/src/wasm_tempo_signer/src/lib.rs

@@ -12,6 +12,7 @@ import { type DeviceLinkingQRData } from '../../types/linkDevice';
 import type { DelegateActionInput } from '../../types/delegate';
 import type { ConfirmationConfig } from '../../types/signer-worker';
 import type { SignerMode } from '../../types/signer-worker';
+import type { TempoSigningRequest } from '../../multichain/tempo/types';
 
 export type WalletProtocolVersion = '1.0.0';
 
@@ -38,6 +39,7 @@ export type ParentToChildType =
   | 'PM_EXECUTE_ACTION'
   | 'PM_SIGN_DELEGATE_ACTION'
   | 'PM_SIGN_NEP413'
+  | 'PM_SIGN_TEMPO'
   | 'PM_EXPORT_NEAR_KEYPAIR_UI'
   | 'PM_GET_RECENT_LOGINS'
   | 'PM_PREFETCH_BLOCKHEIGHT'
@@ -217,6 +219,14 @@ export interface PMSignNep413Payload {
   };
 }
 
+export interface PMSignTempoPayload {
+  nearAccountId: string;
+  request: TempoSigningRequest;
+  options?: {
+    confirmationConfig?: Partial<ConfirmationConfig>;
+  };
+}
+
 export interface PMExportNearKeypairPayload { nearAccountId: string }
 export interface PMExportNearKeypairUiPayload { nearAccountId: string; variant?: 'modal' | 'drawer'; theme?: 'dark' | 'light' }
 
@@ -332,6 +342,7 @@ export type ParentToChildEnvelope =
   | RpcEnvelope<'PM_EXECUTE_ACTION', PMExecuteActionPayload>
   | RpcEnvelope<'PM_SIGN_DELEGATE_ACTION', PMSignDelegateActionPayload>
   | RpcEnvelope<'PM_SIGN_NEP413', PMSignNep413Payload>
+  | RpcEnvelope<'PM_SIGN_TEMPO', PMSignTempoPayload>
   | RpcEnvelope<'PM_EXPORT_NEAR_KEYPAIR_UI', PMExportNearKeypairUiPayload>
   | RpcEnvelope<'PM_GET_RECENT_LOGINS'>
   | RpcEnvelope<'PM_PREFETCH_BLOCKHEIGHT'>

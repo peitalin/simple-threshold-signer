@@ -47,6 +47,10 @@ import { computeThresholdEd25519KeygenIntentDigest } from '../digests/intentDige
 import { deriveNearKeypairFromPrfSecondB64u } from '../nearCrypto';
 import { runSecureConfirm } from './SecureConfirmWorkerManager/secureConfirmBridge';
 import { SecureConfirmationType, type SecureConfirmRequest } from './SecureConfirmWorkerManager/confirmTxFlow/types';
+import type { TempoSigningRequest } from '../multichain/tempo/types';
+import type { TempoSignedResult } from '../multichain/tempo/tempoAdapter';
+import { WebAuthnP256Engine } from '../multichain/engines/webauthn-p256';
+import { signTempoWithSecureConfirm } from '../multichain/walletOrigin/tempo';
 
 const DUMMY_WRAP_KEY_SALT_B64U = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
@@ -767,6 +771,29 @@ export class WebAuthnManager {
         error: error.message || 'Unknown error'
       };
     }
+  }
+
+  async signTempo(args: {
+    nearAccountId: string;
+    request: TempoSigningRequest;
+    confirmationConfigOverride?: Partial<ConfirmationConfig>;
+  }): Promise<TempoSignedResult> {
+    if (args.request.chain !== 'tempo') {
+      throw new Error('[WebAuthnManager] invalid Tempo request: chain must be tempo');
+    }
+    if (args.request.kind !== 'tempoTransaction' || args.request.senderSignatureAlgorithm !== 'webauthn-p256') {
+      throw new Error('[WebAuthnManager] Tempo signing currently supports only tempoTransaction + webauthn-p256');
+    }
+
+    return await signTempoWithSecureConfirm({
+      ctx: this.secureConfirmWorkerManager.getContext(),
+      nearAccountId: args.nearAccountId,
+      request: args.request,
+      engines: {
+        'webauthn-p256': new WebAuthnP256Engine(),
+      },
+      confirmationConfigOverride: args.confirmationConfigOverride,
+    });
   }
 
   // === COSE OPERATIONS ===

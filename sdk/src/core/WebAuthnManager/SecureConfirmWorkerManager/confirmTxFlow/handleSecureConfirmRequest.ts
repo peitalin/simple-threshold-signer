@@ -22,6 +22,7 @@ import type {
   LocalOnlySecureConfirmRequest,
   RegistrationSecureConfirmRequest,
   SigningSecureConfirmRequest,
+  IntentDigestSecureConfirmRequest,
 } from './types';
 import { coerceThemeName } from '../../../../utils/theme';
 import type { ThemeName } from '../../../types/tatchi';
@@ -150,5 +151,9 @@ const HANDLERS: Partial<Record<SecureConfirmationType, Handler>> = {
   [SecureConfirmationType.SIGN_NEP413_MESSAGE]: async ({ ctx, request, worker, confirmationConfig, transactionSummary, theme }) => {
     const { handleTransactionSigningFlow } = await importFlow('transactions', () => import('./flows/transactions'));
     await handleTransactionSigningFlow(ctx, request as SigningSecureConfirmRequest, worker, { confirmationConfig, transactionSummary, theme });
+  },
+  [SecureConfirmationType.SIGN_INTENT_DIGEST]: async ({ ctx, request, worker, confirmationConfig, transactionSummary, theme }) => {
+    const { handleIntentDigestSigningFlow } = await importFlow('intentDigest', () => import('./flows/intentDigest'));
+    await handleIntentDigestSigningFlow(ctx, request as IntentDigestSecureConfirmRequest, worker, { confirmationConfig, transactionSummary, theme });
   },
 };

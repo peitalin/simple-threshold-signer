@@ -21,7 +21,6 @@ import {
   resolveCoepMode,
   resolveSdkDistRoot,
 } from './plugin-utils'
-import { addOfflineExportDevRoutes, buildOfflineExportHtml, emitOfflineExportAssets } from './offline'
 import { setContentType } from './plugin-utils'
 
 export type VitePlugin = {
@@ -141,7 +140,6 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
   const sdkDistRoot = resolveSdkDistRoot(opts.sdkDistRoot)
   const enableDebugRoutes = opts.enableDebugRoutes === true
   const coepMode = resolveCoepMode(opts.coepMode)
-  const offlineHtml = buildOfflineExportHtml(configuredBase)
 
   // In dev we want both '/sdk' and a custom base to work.
   const bases = Array.from(new Set([configuredBase, toBasePath('/sdk')]))
@@ -153,14 +151,6 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
     apply: 'serve',
     enforce: 'pre',
     configureServer(server) {
-      // Mount Offline Export dev routes once here (includes app module + chunks)
-      addOfflineExportDevRoutes(server, {
-        sdkDistRoot,
-        sdkBasePath: configuredBase,
-        offlineHtml,
-        includeAppModule: true,
-        coepMode,
-      })
       // Serve a tiny shim as a virtual asset to enable strict CSP (no inline scripts)
       server.middlewares.use((req: any, res: any, next: any) => {
         const url = (req.url || '').split('?')[0]
@@ -241,8 +231,6 @@ export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin
   const coepMode = resolveCoepMode(opts.coepMode)
 
   const html = buildWalletServiceHtml(sdkBasePath)
-  const offlineHtml = buildOfflineExportHtml(sdkBasePath)
-  const sdkDistRoot = resolveSdkDistRoot()
 
   return {
     name: 'tatchi:wallet-service',
@@ -268,14 +256,6 @@ export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin
         next()
       })
 
-      // Mount Offline Export routes here as well (no app module duplication)
-      addOfflineExportDevRoutes(server, {
-        sdkDistRoot,
-        sdkBasePath,
-        offlineHtml,
-        includeAppModule: false,
-        coepMode,
-      })
     },
   }
 }
@@ -527,23 +507,6 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string, cors?: { acces
             '  Cross-Origin-Opener-Policy: unsafe-none',
             '  Cross-Origin-Resource-Policy: cross-origin',
             `  Permissions-Policy: ${permissionsPolicy}`,
-            // Offline export cache policy (no-cache for HTML/SW; immutable for other assets)
-            '/offline-export',
-            '  Cache-Control: no-cache',
-            '/offline-export/',
-            '  Cache-Control: no-cache',
-            '/offline-export/index.html',
-            '  Cache-Control: no-cache',
-            '/offline-export/sw.js',
-            '  Cache-Control: no-cache',
-            '/offline-export/precache.manifest.json',
-            '  Cache-Control: no-cache',
-            '/offline-export/manifest.webmanifest',
-            '  Cache-Control: no-cache',
-            '/offline-export/offline-export-app.js',
-            '  Cache-Control: no-cache',
-            '/offline-export/*',
-            '  Cache-Control: public, max-age=31536000, immutable',
           ]
           // Optional: emit CORS headers when explicitly configured via plugin option.
           // Prefer a single source of truth (platform or plugin), not both.
@@ -590,14 +553,6 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string, cors?: { acces
           fs.mkdirSync(evDir, { recursive: true })
           fs.writeFileSync(evHtml, buildExportViewerHtml(sdkBasePath), 'utf-8')
           console.log('[tatchi] emitted /export-viewer/index.html (minimal export viewer)')
-        }
-
-        // Emit offline-export assets (SW, workers, app, HTML, manifest, precache) via helper
-        try {
-          const sdkDistRoot = resolveSdkDistRoot()
-          emitOfflineExportAssets({ outDir, sdkBasePath, sdkDistRoot })
-        } catch (e) {
-          console.warn('[tatchi] failed to emit offline-export assets:', e)
         }
       } catch (e) {
         console.warn('[tatchi] failed to emit _headers:', e)

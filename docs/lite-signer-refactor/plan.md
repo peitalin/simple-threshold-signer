@@ -10,6 +10,9 @@ This is intended to be the **threshold signer for a neobanking app**, operated a
 - **No VRF**: remove `wasm_vrf_worker`/`vrf-wasm` and any VRF-WebAuthn/confirmTxFlow coupling from the “lite” path.
 - **No Shamir 3-pass**: remove/avoid Shamir “server-lock” flows and key-rotation tooling used to reconstruct/unlock legacy VRF key material.
 - **Standard WebAuthn auth**: server-minted challenge → `navigator.credentials.get(...)` assertion → server verification → session/token issuance.
+- **WASM-first signing + crypto**: all low-level cryptography (hashing/signature ops) and transaction serialization/signing must run inside **WASM web workers**, not JS. JS is orchestration + UI only.
+  - Target signer modules (lazily loaded): `near_signer.wasm`, `eth_signer.wasm`, `tempo_signer.wasm` (Tempo “wam” typo in notes should be treated as `.wasm`).
+  - Constraint: WebAuthn itself is browser/OS-managed; we can’t “move” passkey signing into WASM, but we can keep all tx hashing/encoding and any non-WebAuthn signature logic in WASM workers.
 - **Compliance / privacy**: store authenticators + counters privately in relay storage (encrypted at rest + access-controlled); do not rely on on-chain authenticator registries for verification.
 - **Relay cutover**: keep the same threshold route family (`/threshold-ed25519/*`) but switch auth to standard WebAuthn; do not maintain VRF variants long-term.
 - **Keep wallet origin boundary**: retain the cross-origin wallet iframe (or extension) so app-origin code cannot read PRF outputs or derived secrets.
@@ -228,13 +231,17 @@ Keep the relay as the verifier and policy authority.
 
 ### Phase 7 — Post-lite: multichain adapter/plugin refactor
 - [ ] Refactor signing into `ChainAdapter` + `SignerEngine` plugins (see `doc/multichain_adaptor.md`).
-- [ ] Add EVM adapter + local secp256k1 signer (threshold ECDSA is a separate protocol project; decide “EOA migration vs contract wallet” for recovery/export before shipping threshold ECDSA).
+- [ ] Make multichain adapters WASM-backed:
+  - [ ] `eth_signer.wasm` worker: RLP, keccak, EIP-2718/1559 encoding, secp256k1 (where applicable).
+  - [ ] `tempo_signer.wasm` worker: TempoTransaction (`0x76`) hashing/encoding, sponsorship hashing, and any non-WebAuthn signature logic.
+  - [ ] `near_signer.wasm` worker: NEAR tx serialization/signing helpers (existing signer WASM should be renamed/aliased accordingly).
+  - [ ] Ensure these workers are **lazy**: only loaded when the chain is configured/used by the wallet iframe.
+  - [ ] Keep JS adapters thin: validate inputs + build UI model; delegate hash/encoding/signature ops to WASM workers.
+  - [ ] Add EVM/Tempo golden vectors as WASM worker tests (JS tests validate “same payload → same digest” but do not reimplement crypto).
 
 ### Phase 8 — Test suite cleanup (post-refactor)
 - [x] Delete debug/template E2E tests (safe now): `sdk/src/__tests__/e2e/_template.test.ts`, `sdk/src/__tests__/e2e/debug_import_map.test.ts`, `sdk/src/__tests__/e2e/debug_setup_error.test.ts`.
-- [x] Keep local-signer + offline-export coverage (still supported), but split it out of the “lite” validation suite:
-  - Add a `playwright.lite.config.ts` (or equivalent) that excludes local-signer/offline-export tests from default lite CI runs.
-  - Keep local-signer/offline-export tests in the full SDK suite: `sdk/src/__tests__/e2e/offline-export.*`, `sdk/src/__tests__/unit/offline-open.unit.test.ts`, `sdk/src/__tests__/unit/router.offline-open.unit.test.ts`, `sdk/src/__tests__/unit/offline_export_fallback.unit.test.ts`, `sdk/src/__tests__/unit/export_ui.routing.unit.test.ts`.
+- [x] Keep local-signer coverage, but split it out of the “lite” validation suite (lite focuses on threshold-only / wallet-origin flows).
 - [x] Wire CI to run `pnpm test:lite` by default on PRs.
 - [x] Remove legacy test-only RPC bypasses for on-chain WebAuthn verification (`verify_authentication_response`) and re-run affected suites.
 - [x] Update `sdk/src/__tests__/README.md` suite references after pruning (remove debug mentions, document any new “lite-only” suite split).
@@ -243,7 +250,7 @@ Keep the relay as the verifier and policy authority.
 - [x] Make `pnpm test:lite` resilient when a local example relay-server is already using port 3000 (default test relay port → 3001).
 
 ### Phase 9 — Test suite audit + deletion plan
-- [ ] Inventory `sdk/src/__tests__` by product surface (threshold-only “lite”, local-signer/offline-export, email recovery, device linking, wallet-iframe plumbing).
+- [ ] Inventory `sdk/src/__tests__` by product surface (threshold-only “lite”, local-signer, email recovery, device linking, wallet-iframe plumbing).
   - Current layout (84 total):
     - `e2e/` (19): threshold signing + worker wiring + relay integration
     - `relayer/` (9): router + auth/session correctness

@@ -1,0 +1,1 @@
+/Users/pta/Dev/rust/simple-threshold-signer/sdk/src/wasm_eth_signer/target/wasm32-unknown-unknown/release/eth_signer.wasm: /Users/pta/Dev/rust/simple-threshold-signer/sdk/src/wasm_eth_signer/src/lib.rs
