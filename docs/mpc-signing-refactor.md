@@ -41,8 +41,8 @@ High level:
 Key references:
 - Spec: `docs/lite-signer-refactor/plan.md` (VRF-free lite/threshold signer)
 - Stateless relayer plan/notes: `docs/threshold-relay-server.md`
-- Signer worker threshold module: `sdk/src/wasm_near_signer/src/threshold/*`
-- Relayer threshold service: `sdk/src/server/core/ThresholdService/*`
+- Signer worker threshold module: `wasm/near_signer/src/threshold/*`
+- Relayer threshold service: `server/src/server/core/ThresholdService/*`
 
 ## Target architecture (refactor)
 

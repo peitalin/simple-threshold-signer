@@ -45,6 +45,13 @@ This is intended to be the **threshold signer for a neobanking app**, operated a
   - `useTheme()` optionally exposes `setTheme` when the host app controls theme via `TatchiPasskeyProvider theme={{ theme, setTheme }}`.
 - `examples/tatchi-docs` updated to post-VRF APIs and typechecks cleanly (`npx tsc -p examples/tatchi-docs/tsconfig.json --noEmit`).
 
+## Repo folder map (lite signer)
+- Source lives under `client/src` (SDK builds are bundled from there via `sdk/`).
+- Lite entrypoint: `client/src/lite/index.ts` → exported as `@tatchi-xyz/sdk/lite`.
+- Threshold helpers: `client/src/core/threshold/*` (PRF salts, session policy, keygen/session helpers).
+- SecureConfirm worker types: `client/src/core/types/secure-confirm-worker.ts`.
+- Wallet-origin UI/bridge: `client/src/core/WalletIframe/*`.
+
 ## Decisions (locked)
 1. **Auth model**:
    - **Default: login session token**: WebAuthn once → relay returns short-lived token (JWT/cookie) → token gates threshold signing until expiry/uses.
@@ -80,7 +87,7 @@ This is intended to be the **threshold signer for a neobanking app**, operated a
    - Ensure PRF outputs never cross origins (wallet-iframe ↔ app); only return public results (signatures, public keys, status).
    - Keep user-visible approval (SecureConfirm) on the wallet origin to prevent silent signing initiated by app-origin code.
 5. **Intent digest schema**:
-   - Use the existing canonical digest schema from `sdk/src/core/digests/intentDigest.ts` (same JSON shapes + `alphabetizeStringify` + sha256 → base64url).
+   - Use the existing canonical digest schema from `client/src/core/digests/intentDigest.ts` (same JSON shapes + `alphabetizeStringify` + sha256 → base64url).
 6. **No migration/legacy support**:
    - Delete VRF/Shamir paths and do not maintain compatibility request shapes or UI flows.
    - A user must re-onboard on the new protocol; the old repo is treated as archived.
@@ -103,8 +110,8 @@ Keep the relay as the verifier and policy authority.
   - `POST /auth/webauthn/register/options` → `PublicKeyCredentialCreationOptions`
   - `POST /auth/webauthn/register/verify` → store credential public key + counter
 - Login/session:
-  - `POST /auth/webauthn/login/options` → `PublicKeyCredentialRequestOptions`
-  - `POST /auth/webauthn/login/verify` → verify assertion → return token `{sub/userId, rpId, exp, remainingUses, scope}`
+  - `POST /auth/passkey/options` → `PublicKeyCredentialRequestOptions`
+  - `POST /auth/passkey/verify` → verify assertion → return token `{sub/userId, rpId, exp, remainingUses, scope}`
 - Threshold signing:
   - Keygen/onboarding:
     - `POST /threshold-ed25519/keygen` (session-authenticated; binds to `computeThresholdEd25519KeygenIntentDigest` schema)
@@ -153,7 +160,7 @@ Keep the relay as the verifier and policy authority.
 - [x] Cache `PRF.first` in-memory inside the SecureConfirm worker for the session TTL/remaining-uses window (mirror the legacy warm-session caching behavior) and dispense it to signer workers.
 - [x] Rename “VRF” types/paths to “SecureConfirm” (follow-up cleanup; no compatibility shim).
   - [x] Remove `vrfChallenge` from SecureConfirm decision payloads; rely on WebAuthn `clientDataJSON.challenge` where needed.
-  - [x] Replace `sdk/src/core/types/vrf-worker.ts` with `sdk/src/core/types/secure-confirm-worker.ts` and migrate the SecureConfirm worker manager to use it.
+  - [x] Replace `client/src/core/types/vrf-worker.ts` with `client/src/core/types/secure-confirm-worker.ts` and migrate the SecureConfirm worker manager to use it.
   - [x] Rename wallet-iframe status APIs from `onVrfStatusChanged`/`clearVrfSession` to `onLoginStatusChanged`/`logout`.
   - [x] Remove remaining `VRFChallenge` usage in client types and delete legacy VRF worker handlers.
 
@@ -164,7 +171,7 @@ Keep the relay as the verifier and policy authority.
 - [x] Hard cutover: remove VRF variants from `/threshold-ed25519/session` request types and server branching.
 - [x] Relayer: persist authenticators + signature counters in relay storage and verify lite WebAuthn assertions against relay-stored authenticators (no on-chain authenticator lookups in the threshold path).
 - [x] Relayer: persist authenticators at registration time (relay as system of record) so the product can hard-delete the on-chain authenticator registry entirely.
-- [x] Add `*/login/options` + `*/login/verify` (server-minted challenges, replay protection, counters) using `@simplewebauthn/server` (SimpleWebAuthn), then remove legacy `/verify-authentication-response` flows.
+- [x] Add `POST /auth/passkey/options` + `POST /auth/passkey/verify` (server-minted challenges, replay protection, counters) using `@simplewebauthn/server` (SimpleWebAuthn), then remove legacy `/verify-authentication-response` flows.
 
 ### Phase 3.5 — Threshold session reliability fixes (from `docs/threshold-bugs.md`)
 - [x] Relayer: include threshold-session scope directly in JWT claims (`thresholdExpiresAtMs`, `participantIds`, `relayerKeyId`, `rpId`) so `/threshold-ed25519/authorize` does not depend on KV reads for scope/expiry validation.
@@ -205,7 +212,7 @@ Keep the relay as the verifier and policy authority.
     - [x] `linkDevice`: QR/session handshake + relay-stored authenticator + threshold AddKey activation.
     - [x] `emailRecovery`: passkey+threshold keygen → mailto `recover-<requestId> <accountId> <newPublicKey>` → poll AddKey → finalize local state.
   - [x] Relay server: replace the contract verifier for `/verify-authentication-response` with SimpleWebAuthn + relay authenticator storage (no `verify_authentication_response` view call).
-  - [x] Relay server: replace legacy `/verify-authentication-response` with standard WebAuthn login endpoints (`*/login/options`, `*/login/verify`) + replay protection.
+- [x] Relay server: replace legacy `/verify-authentication-response` with standard WebAuthn login endpoints (`POST /auth/passkey/options`, `POST /auth/passkey/verify`) + replay protection.
 - [x] `loginWithPasskey`: reuse login PRF.first to warm threshold share/session (wallet origin only).
 - [x] Validate end-to-end threshold signing flows against a live relay:
   - `signTransactionsWithActions`, `signDelegateAction`, `signNep413Message`
@@ -215,7 +222,7 @@ Keep the relay as the verifier and policy authority.
 - [ ] Add integration tests (Playwright): login success/fail, replayed challenge rejection, expired token/session, and a full threshold signing roundtrip.
 - [ ] Write breaking-change notes: “no migration/legacy support; re-register required”; call out relay-as-system-of-record and security/availability tradeoffs.
 - [ ] Add a “Lite signer integration” guide for app teams (required config: `walletOrigin`, relay URL, rpId, cookie/session mode; recommended CSP/COOP/COEP notes).
-- [ ] Test suite audit + deletion plan: inventory `sdk/src/__tests__`, delete redundant cases, and keep only high-signal “lite” coverage in default CI.
+- [ ] Test suite audit + deletion plan: inventory `tests`, delete redundant cases, and keep only high-signal “lite” coverage in default CI.
 
 ### Phase 5 — Backup/export flow (NEAR only)
 - [x] Implement a high-friction wallet-origin flow to derive the backup key from `PRF.second`. Note: this should be done during registration flows (should already be implemented)
@@ -230,7 +237,8 @@ Keep the relay as the verifier and policy authority.
 - [ ] Write breaking-change notes: “no migration/legacy support; re-register required”; call out security/availability tradeoffs.
 
 ### Phase 7 — Post-lite: multichain adapter/plugin refactor
-- [ ] Refactor signing into `ChainAdapter` + `SignerEngine` plugins (see `doc/multichain_adaptor.md`).
+- [ ] Refactor signing into `ChainAdapter` + `SignerEngine` plugins (see `docs/multichain_adaptor.md`).
+- [ ] Add EVM threshold signing (secp256k1 ECDSA) using NEAR `threshold-signatures` (Cait-Sith-derived OT-based ECDSA + presignature pool); see `docs/threshold-multichain.md`.
 - [ ] Make multichain adapters WASM-backed:
   - [ ] `eth_signer.wasm` worker: RLP, keccak, EIP-2718/1559 encoding, secp256k1 (where applicable).
   - [ ] `tempo_signer.wasm` worker: TempoTransaction (`0x76`) hashing/encoding, sponsorship hashing, and any non-WebAuthn signature logic.
@@ -240,17 +248,17 @@ Keep the relay as the verifier and policy authority.
   - [ ] Add EVM/Tempo golden vectors as WASM worker tests (JS tests validate “same payload → same digest” but do not reimplement crypto).
 
 ### Phase 8 — Test suite cleanup (post-refactor)
-- [x] Delete debug/template E2E tests (safe now): `sdk/src/__tests__/e2e/_template.test.ts`, `sdk/src/__tests__/e2e/debug_import_map.test.ts`, `sdk/src/__tests__/e2e/debug_setup_error.test.ts`.
+- [x] Delete debug/template E2E tests (safe now): `tests/e2e/_template.test.ts`, `tests/e2e/debug_import_map.test.ts`, `tests/e2e/debug_setup_error.test.ts`.
 - [x] Keep local-signer coverage, but split it out of the “lite” validation suite (lite focuses on threshold-only / wallet-origin flows).
 - [x] Wire CI to run `pnpm test:lite` by default on PRs.
 - [x] Remove legacy test-only RPC bypasses for on-chain WebAuthn verification (`verify_authentication_response`) and re-run affected suites.
-- [x] Update `sdk/src/__tests__/README.md` suite references after pruning (remove debug mentions, document any new “lite-only” suite split).
+- [x] Update `tests/README.md` suite references after pruning (remove debug mentions, document any new “lite-only” suite split).
 - [x] Fix PasskeyAuthMenu “Scan and Link Device” QR regression (derive `accountId` from context/last-used user when missing).
 - [x] Fix atomic registration account domain mismatch by introducing `relayerAccount` config and using it for accountId postfix generation.
 - [x] Make `pnpm test:lite` resilient when a local example relay-server is already using port 3000 (default test relay port → 3001).
 
 ### Phase 9 — Test suite audit + deletion plan
-- [ ] Inventory `sdk/src/__tests__` by product surface (threshold-only “lite”, local-signer, email recovery, device linking, wallet-iframe plumbing).
+- [ ] Inventory `tests` by product surface (threshold-only “lite”, local-signer, email recovery, device linking, wallet-iframe plumbing).
   - Current layout (84 total):
     - `e2e/` (19): threshold signing + worker wiring + relay integration
     - `relayer/` (9): router + auth/session correctness
@@ -261,9 +269,9 @@ Keep the relay as the verifier and policy authority.
   - Quick scan: no `wasm_vrf_worker`/Shamir/on-chain `verify_authentication_response` tests remain; most “VRF” mentions assert VRF absence.
 - [ ] Consolidate duplicate coverage (especially header/CSP and worker/iframe routing tests) and keep only the highest-signal cases.
   - Candidate dedupe area: multiple “headers” suites (`headers.*`, `wallet-service-headers.*`, `vite-wallet-corp.*`).
-  - Low-signal wrappers removed: `sdk/src/__tests__/unit/next-headers.unit.test.ts`, `sdk/src/__tests__/unit/vite-headers.unit.test.ts`.
+  - Low-signal wrappers removed: `tests/unit/next-headers.unit.test.ts`, `tests/unit/vite-headers.unit.test.ts`.
 - [ ] Re-evaluate any `test.skip` branches: either delete, re-enable with new stack behavior, or move to “full” suite if they require non-lite features.
-- [ ] Update `sdk/src/__tests__/README.md` with the final suite map after deletions.
+- [ ] Update `tests/README.md` with the final suite map after deletions.
 
 ## Testing and validation
 - Client:
