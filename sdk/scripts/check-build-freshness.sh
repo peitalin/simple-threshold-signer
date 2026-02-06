@@ -53,7 +53,7 @@ for built in \
     "$BUILD_WORKERS/near_signer.wasm" \
     "$BUILD_ESM/index.js" \
     "$BUILD_CJS/index.cjs" \
-    "$BUILD_TYPES/src/index.d.ts"; do
+    "$BUILD_TYPES/client/src/index.d.ts"; do
     if [ -f "$built" ]; then
         FILE_TIME=$(get_mtime "$built")
         if [ "$FILE_TIME" -gt "$DIST_TIME" ]; then

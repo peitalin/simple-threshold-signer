@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Generate w3a-components.css from the single source of truth:
- * - sdk/src/theme/palette.json (all base scales + gradients)
+ * - client/src/theme/palette.json (all base scales + gradients)
  * - Mappings used by DARK_THEME/LIGHT_THEME in base-styles.ts for surfaces/text/borders
  *
  * This eliminates hardcoded palette numbers in CSS and prevents drift.
@@ -10,19 +10,19 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-// Resolve SDK root robustly whether invoked from repo root or sdk/
-function resolveSdkRoot() {
+// Resolve repo root robustly whether invoked from repo root or sdk/
+function resolveRepoRoot() {
   const cwd = process.cwd();
-  const tryDirect = path.join(cwd, 'src', 'theme', 'palette.json');
-  if (fs.existsSync(tryDirect)) return cwd; // invoked from sdk/
-  const trySdk = path.join(cwd, 'sdk', 'src', 'theme', 'palette.json');
-  if (fs.existsSync(trySdk)) return path.join(cwd, 'sdk'); // invoked from repo root
+  const tryDirect = path.join(cwd, 'client', 'src', 'theme', 'palette.json');
+  if (fs.existsSync(tryDirect)) return cwd; // invoked from repo root
+  const tryFromSdk = path.join(cwd, '..', 'client', 'src', 'theme', 'palette.json');
+  if (fs.existsSync(tryFromSdk)) return path.join(cwd, '..'); // invoked from sdk/
   return cwd; // fallback (error will be thrown below on read)
 }
 
-const repoRoot = resolveSdkRoot();
-const palettePath = path.join(repoRoot, 'src', 'theme', 'palette.json');
-const cssOutPath = path.join(repoRoot, 'src', 'core', 'WebAuthnManager', 'LitComponents', 'css', 'w3a-components.css');
+const repoRoot = resolveRepoRoot();
+const palettePath = path.join(repoRoot, 'client', 'src', 'theme', 'palette.json');
+const cssOutPath = path.join(repoRoot, 'client', 'src', 'core', 'WebAuthnManager', 'LitComponents', 'css', 'w3a-components.css');
 
 function fail(msg) {
   console.error(`\n[generate-w3a-components-css] ${msg}`);
@@ -89,15 +89,15 @@ const emitGradients = () => {
   return names.map((n) => `  --w3a-gradient-${n}: ${gradients[n]};`).join('\n');
 };
 
-// Use centralized theme maps from src/theme/base-styles.js
-const baseStylesPath = path.join(repoRoot, 'src', 'theme', 'base-styles.js');
+// Use centralized theme maps from client/src/theme/base-styles.js
+const baseStylesPath = path.join(repoRoot, 'client', 'src', 'theme', 'base-styles.js');
 const base = await import(pathToFileURL(baseStylesPath).href);
 const { createThemeTokens } = base;
 const { DARK_THEME: DARK_VARS, LIGHT_THEME: LIGHT_VARS, CREAM_THEME: CREAM_VARS } = createThemeTokens(palette);
 
 const header = `/*
   AUTO-GENERATED FILE – DO NOT EDIT.
-  Source: sdk/src/theme/palette.json + mappings from src/theme/base-styles.js (createThemeTokens)
+  Source: client/src/theme/palette.json + mappings from client/src/theme/base-styles.js (createThemeTokens)
   Run: node sdk/scripts/generate-w3a-components-css.mjs
 */`;
 

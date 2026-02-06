@@ -11,20 +11,22 @@ BUILD_CJS="dist/cjs"
 BUILD_TYPES="dist/types"
 
 # Source directories
-SOURCE_ROOT="src"
-SOURCE_CORE="src/core"
-SOURCE_WASM_SIGNER="src/wasm_near_signer"
-SOURCE_WASM_ETH_SIGNER="src/wasm_eth_signer"
-SOURCE_WASM_TEMPO_SIGNER="src/wasm_tempo_signer"
+SOURCE_ROOT="../client/src"
+SOURCE_CORE="../client/src/core"
+SOURCE_WASM_SIGNER="../wasm/near_signer"
+SOURCE_WASM_ETH_SIGNER="../wasm/eth_signer"
+SOURCE_WASM_TEMPO_SIGNER="../wasm/tempo_signer"
 
 # Critical directories for build freshness checking
 CRITICAL_DIRS=(
-    "src/core"
-    "src/react"
-    "src/server"
-    "src/wasm_near_signer"
-    "src/wasm_eth_signer"
-    "src/wasm_tempo_signer"
+    "../client/src/core"
+    "../client/src/react"
+    "../client/src/utils"
+    "../server/src"
+    "../shared/src"
+    "../wasm/near_signer"
+    "../wasm/eth_signer"
+    "../wasm/tempo_signer"
 )
 
 # Example Vite app deployment paths (used only for local dev/test copying)
@@ -50,16 +52,16 @@ WORKER_WASM_TEMPO_SIGNER_WASM="tempo_signer.wasm"
 
 # Critical files to check for build freshness
 CRITICAL_FILES=(
-    "src/core/WebAuthnManager/SecureConfirmWorkerManager/index.ts"
-    "src/core/WebAuthnManager/SignerWorkerManager/index.ts"
-    "src/core/WebAuthnManager/SignerWorkerManager/handlers"
-    "src/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow"
-    "src/core/WebAuthnManager/index.ts"
-    "src/core/TatchiPasskey/index.ts"
-    "src/core/TatchiPasskey/actions.ts"
-    "src/core/TatchiPasskey/login.ts"
-    "src/core/TatchiPasskey/registration.ts"
-    "src/index.ts"
+    "../client/src/core/WebAuthnManager/SecureConfirmWorkerManager/index.ts"
+    "../client/src/core/WebAuthnManager/SignerWorkerManager/index.ts"
+    "../client/src/core/WebAuthnManager/SignerWorkerManager/handlers"
+    "../client/src/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow"
+    "../client/src/core/WebAuthnManager/index.ts"
+    "../client/src/core/TatchiPasskey/index.ts"
+    "../client/src/core/TatchiPasskey/actions.ts"
+    "../client/src/core/TatchiPasskey/login.ts"
+    "../client/src/core/TatchiPasskey/registration.ts"
+    "../client/src/index.ts"
     "rolldown.config.ts"
     "tsconfig.json"
 )

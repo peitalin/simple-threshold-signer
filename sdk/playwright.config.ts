@@ -143,7 +143,7 @@ function resolveExamplesFrontendDir(): string {
 const EXAMPLES_FRONTEND_DIR = resolveExamplesFrontendDir();
 
 export default defineConfig({
-  testDir: './src/__tests__',
+  testDir: '../tests',
   testMatch: [
     '**/e2e/**/*.test.ts',
     '**/unit/**/*.test.ts',
@@ -185,7 +185,7 @@ export default defineConfig({
   webServer: {
     // If USE_RELAY_SERVER is set, start both servers with a relay health check
     command: USE_RELAY_SERVER
-      ? 'node ./src/__tests__/scripts/start-servers.mjs'
+      ? 'node ../tests/scripts/start-servers.mjs'
       : (NO_CADDY
         ? `pnpm -C "${EXAMPLES_FRONTEND_DIR}" exec vite --host localhost --port ${DEV_SERVER_PORT} --strictPort`
         : `pnpm -C "${EXAMPLES_FRONTEND_DIR}" dev`),

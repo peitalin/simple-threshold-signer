@@ -13,12 +13,20 @@ export const BUILD_PATHS = {
 
   // Source directories
   SOURCE: {
-    ROOT: 'src',
-    CORE: 'src/core',
-    WASM_SIGNER: 'src/wasm_near_signer',
+    ROOT: '../client/src',
+    CORE: '../client/src/core',
+    WASM_SIGNER: '../wasm/near_signer',
+    WASM_ETH_SIGNER: '../wasm/eth_signer',
+    WASM_TEMPO_SIGNER: '../wasm/tempo_signer',
     CRITICAL_DIRS: [
-      'src/core',
-      'src/wasm_near_signer',
+      '../client/src/core',
+      '../client/src/react',
+      '../client/src/utils',
+      '../server/src',
+      '../shared/src',
+      '../wasm/near_signer',
+      '../wasm/eth_signer',
+      '../wasm/tempo_signer',
     ]
   },
 

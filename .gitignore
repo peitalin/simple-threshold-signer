@@ -15,6 +15,7 @@ examples/tatchi-docs/dist
 examples/tatchi-docs/docs/dist
 examples/tatchi-docs/src/.vitepress/cache
 
+examples/.vitepress-cache/
 
 examples/relay-server/dist
 examples/relay-server/dist/*

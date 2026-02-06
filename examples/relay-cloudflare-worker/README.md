@@ -113,8 +113,8 @@ const session = new SessionService({
 
 Session issuance is a 2-step WebAuthn flow:
 
-- `POST /login/options` with `{ user_id, rp_id, ttl_ms? }` → returns `{ challengeId, challengeB64u }`
-- `POST /login/verify` with `{ sessionKind, challengeId, webauthn_authentication }` → verifies and issues a session
+- `POST /auth/passkey/options` with `{ user_id, rp_id, ttl_ms? }` → returns `{ challengeId, challengeB64u }`
+- `POST /auth/passkey/verify` with `{ sessionKind, challengeId, webauthn_authentication }` → verifies and issues a session
 
 Behavior:
 - `sessionKind: "jwt"` → JSON response includes `{ ok, verified, jwt }`.
@@ -126,13 +126,13 @@ Cookie mode and CORS
 - Set `EXPECTED_ORIGIN` (and/or `EXPECTED_WALLET_ORIGIN`) to explicit origins; avoid `*` when using cookies.
 - Your frontend fetch must include credentials in cookie mode:
   ```ts
-  const options = await fetch(`${relay}/login/options`, {
+  const options = await fetch(`${relay}/auth/passkey/options`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ user_id, rp_id })
   }).then((r) => r.json());
 
-  await fetch(`${relay}/login/verify`, {
+  await fetch(`${relay}/auth/passkey/verify`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },

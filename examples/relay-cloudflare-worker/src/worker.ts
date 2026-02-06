@@ -34,6 +34,9 @@ type Env = {
   EXPECTED_WALLET_ORIGIN?: string;
   ENABLE_ROTATION?: string;
   RECOVER_EMAIL_RECIPIENT?: string;
+  GOOGLE_OIDC_CLIENT_ID?: string;
+  GOOGLE_OIDC_CLIENT_IDS?: string;
+  GOOGLE_OIDC_HOSTED_DOMAINS?: string;
 
   // Threshold signing (optional)
   THRESHOLD_ED25519_MASTER_SECRET_B64U?: string;
@@ -59,6 +62,11 @@ function createAuthService(env: Env): AuthService {
     zkEmailProver: {
       ZK_EMAIL_PROVER_BASE_URL: env.ZK_EMAIL_PROVER_BASE_URL,
       ZK_EMAIL_PROVER_TIMEOUT_MS: env.ZK_EMAIL_PROVER_TIMEOUT_MS,
+    },
+    googleOidc: {
+      GOOGLE_OIDC_CLIENT_ID: env.GOOGLE_OIDC_CLIENT_ID,
+      GOOGLE_OIDC_CLIENT_IDS: env.GOOGLE_OIDC_CLIENT_IDS,
+      GOOGLE_OIDC_HOSTED_DOMAINS: env.GOOGLE_OIDC_HOSTED_DOMAINS,
     },
     thresholdEd25519KeyStore: {
       kind: 'cloudflare-do',

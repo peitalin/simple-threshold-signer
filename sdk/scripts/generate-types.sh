@@ -6,6 +6,8 @@ set -euo pipefail
 
 # Source build paths
 source ./build-paths.sh
+source ./scripts/wasm-toolchain.sh
+SDK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 echo "Generating TypeScript types from Rust using wasm-bindgen..."
 
@@ -25,12 +27,16 @@ handle_error() {
     echo ""
     echo "Troubleshooting tips:"
     echo "  1. Check if Rust compilation succeeds:"
-    echo "     - cd src/wasm_near_signer && cargo check"
-    echo "     - cd src/wasm_eth_signer && cargo check"
-    echo "     - cd src/wasm_tempo_signer && cargo check"
+    echo "     - cd ../wasm/near_signer && cargo check"
+    echo "     - cd ../wasm/eth_signer && cargo check"
+    echo "     - cd ../wasm/tempo_signer && cargo check"
     echo "  2. Verify wasm-pack is installed: wasm-pack --version"
     echo "  3. Check for WASM compilation errors in the output above"
     echo "  4. Ensure all Rust dependencies are properly declared"
+    echo ""
+    echo "macOS note: if you see clang '--target=wasm32-unknown-unknown' errors, install Homebrew LLVM:"
+    echo "  brew install llvm"
+    echo "  export CC_wasm32_unknown_unknown=\"\$(brew --prefix llvm)/bin/clang\""
     exit $exit_code
 }
 
@@ -49,38 +55,43 @@ run() {
 # Set up error handling
 trap 'handle_error $LINENO' ERR
 
+# Ensure we can compile C dependencies for wasm32 (e.g. blst).
+log ""
+log "+ ensure_wasm32_cc"
+ensure_wasm32_cc
+log "CC_wasm32_unknown_unknown=$CC_wasm32_unknown_unknown"
+
 # 1. Build WASM crates and generate TypeScript definitions
 echo "Building WASM near signer worker..."
-cd "$SOURCE_WASM_SIGNER"
+pushd "$SDK_ROOT/$SOURCE_WASM_SIGNER" >/dev/null
 
 echo "Running cargo check first..."
 run cargo check
 
 echo "Running wasm-pack build..."
 run wasm-pack build --target web --out-dir pkg --out-name wasm_signer_worker
-
-cd ../..
+popd >/dev/null
 
 echo "Building eth signer WASM..."
-cd "$SOURCE_WASM_ETH_SIGNER"
+pushd "$SDK_ROOT/$SOURCE_WASM_ETH_SIGNER" >/dev/null
 echo "Running cargo check first..."
 run cargo check
 echo "Running wasm-pack build..."
 run wasm-pack build --target web --out-dir pkg --out-name eth_signer
-cd ../..
+popd >/dev/null
 
 echo "Building tempo signer WASM..."
-cd "$SOURCE_WASM_TEMPO_SIGNER"
+pushd "$SDK_ROOT/$SOURCE_WASM_TEMPO_SIGNER" >/dev/null
 echo "Running cargo check first..."
 run cargo check
 echo "Running wasm-pack build..."
 run wasm-pack build --target web --out-dir pkg --out-name tempo_signer
-cd ../..
+popd >/dev/null
 
 # 2. Check if wasm-bindgen generated types exist
-SIGNER_TYPES="$SOURCE_WASM_SIGNER/pkg/wasm_signer_worker.d.ts"
-ETH_TYPES="$SOURCE_WASM_ETH_SIGNER/pkg/eth_signer.d.ts"
-TEMPO_TYPES="$SOURCE_WASM_TEMPO_SIGNER/pkg/tempo_signer.d.ts"
+SIGNER_TYPES="$SDK_ROOT/$SOURCE_WASM_SIGNER/pkg/wasm_signer_worker.d.ts"
+ETH_TYPES="$SDK_ROOT/$SOURCE_WASM_ETH_SIGNER/pkg/eth_signer.d.ts"
+TEMPO_TYPES="$SDK_ROOT/$SOURCE_WASM_TEMPO_SIGNER/pkg/tempo_signer.d.ts"
 
 if [ ! -f "$SIGNER_TYPES" ]; then
     echo "❌ Signer worker TypeScript definitions not found at $SIGNER_TYPES"

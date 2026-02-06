@@ -78,12 +78,11 @@ The backend never parses chain transactions.
 
 ---
 
-## Identity: pluggable `LoginProvider` (Passkey, SSO, Wallet)
+## Identity: pluggable `LoginProvider` (Passkey + SSO)
 
 Threshold signing needs a strong, replay-safe authorization mechanism. Separately, product UX often wants:
 - **Passkey login** (WebAuthn)
 - **SSO** (e.g. “Sign in with Google”)
-- **Wallet-based login** (EVM wallet signs a login message; commonly “SIWE” / EIP-4361 style)
 
 The clean integration is to treat these as **login providers** that mint an **app session**, and then require **step-up** to mint a **threshold signing session**.
 
@@ -96,7 +95,6 @@ All auth methods implement the same shape:
 Provider examples (initial set):
 - `passkey` (WebAuthn)
 - `sso.google` (OIDC)
-- `wallet.eip155` (SIWE / EIP-4361)
 
 Endpoint shape (one possible pattern):
 - `POST /auth/:provider/options`
@@ -104,7 +102,7 @@ Endpoint shape (one possible pattern):
 - `POST /auth/link` / `POST /auth/unlink` (step-up required)
 
 ### Core idea: two session layers
-- **App session** (SSO / wallet login):
+- **App session** (passkey / SSO):
   - Grants access to app features and lets the user manage/link credentials.
   - Does *not* automatically grant signing rights.
 - **Threshold signing session** (step-up):
@@ -118,13 +116,11 @@ Move away from “`nearAccountId` is the user id” and instead store:
 - linked identities:
   - `webauthn:{credentialId}` (passkey)
   - `google:{sub}` (OIDC subject)
-  - `eip155:{chainId}:{address}` (wallet address)
   - `near:{accountId}` (optional mapping)
   - WebAuthn credential metadata: public key, counters, rpId
 
 This allows:
 - Gmail SSO onboarding → register passkey → create threshold key(s)
-- Wallet login onboarding → register passkey → create threshold key(s)
 - Account linking between these providers with explicit user consent
 
 ### Passkey (WebAuthn) login integration
@@ -141,27 +137,20 @@ Step-up for threshold signing:
 - Use the same WebAuthn verification machinery, but mint a **threshold signing session** (`/threshold-*/session`) scoped to `(schemeId, keyId/relayerKeyId, rpId, participantIds, expiry, remainingUses)`.
 
 ### Google SSO (OIDC) integration
-Backend flow (typical OIDC):
-1. `GET /auth/google/start` → redirects to Google with PKCE + state.
-2. `GET /auth/google/callback` → verifies `state`, exchanges code, verifies `id_token`, extracts `sub` + email.
-3. Relay creates/loads `userId`, mints **app session cookie/JWT**.
+Backend flow (two viable patterns):
+1) **Redirect-based PKCE (classic OIDC)**
+   1. `GET /auth/google/start` → redirects to Google with PKCE + state.
+   2. `GET /auth/google/callback` → verifies `state`, exchanges code, verifies `id_token`, extracts `sub` + email.
+   3. Relay creates/loads `userId`, mints **app session cookie/JWT**.
+
+2) **`id_token` verify (server-side verify, no redirect endpoints)**
+   1. Client completes OIDC with Google and obtains `id_token` (e.g. via Google Identity Services).
+   2. `POST /auth/google/verify` → relay verifies signature (JWKS) + `aud` + time claims, extracts `sub` + email.
+   3. Relay creates/loads `userId`, mints **app session cookie/JWT**.
 
 Security notes:
 - Use OIDC `sub` as the stable identifier; email is display/secondary.
 - Bind session cookies with `SameSite`, `Secure`, and CSRF protection for state-changing endpoints.
-
-### “Sign in with wallet” (SIWE-style) integration
-Backend flow (EIP-4361 style):
-1. `POST /auth/siwe/options` → returns `{ nonce, domain, uri, chainId, issuedAt, expirationTime }`.
-2. App asks wallet to sign the SIWE message (EIP-191 / `personal_sign`) using an injected EIP-1193 provider (e.g. MetaMask).
-3. `POST /auth/siwe/verify` → relay verifies:
-  - signature recovers `address`
-  - message fields match expected domain/uri/nonce/expiry
-  - nonce not reused (replay protection)
-4. Relay creates/loads `userId` linked to `eip155:{chainId}:{address}`, mints **app session**.
-
-Optional follow-on:
-- If the user already has a passkey-based account, allow “link wallet” by requiring step-up (passkey) before attaching the address to that `userId`.
 
 ### Mapping auth → threshold signing
 Rules of thumb:
@@ -171,7 +160,7 @@ Rules of thumb:
 - `/threshold-*/authorize` should accept either:
   - threshold session JWT/cookie (fast path), or
   - per-intent proof (slower path; still possible), but keep it scheme-agnostic.
-- SSO/wallet login sessions should never be sufficient to call `/threshold-*/sign/*` directly.
+- App sessions should never be sufficient to call `/threshold-*/sign/*` directly.
 
 ---
 
@@ -400,30 +389,35 @@ Add a top-level “enabled schemes” config concept:
 
 ### Phase 1.5 — Identity providers + step-up sessions
 - [x] Hard-cut passkey auth to `/auth/passkey/*` (no `/login/*` compatibility).
-- [ ] Introduce a `LoginProvider` registry (passkey, google-oidc, wallet-siwe) and route `/auth/*` through it.
-- [ ] Add app-session auth routes:
+- [x] Introduce a `LoginProvider` registry (passkey, google-oidc) and route `/auth/*` through it.
+- [x] Add a durable identity map (`subject` → `userId`, `userId` → linked identities) backed by the same persistence layer as threshold stores.
+- [x] Add app-session auth routes:
   - [x] Passkey (WebAuthn) options/verify for app-session login (`/auth/passkey/options`, `/auth/passkey/verify`).
-  - [ ] Google OIDC (start/callback) or “verify id_token” (server-to-server) depending on deployment needs.
-  - [ ] SIWE options/verify for wallet-based login.
-- [ ] Add account-linking flows gated by step-up (passkey) to prevent takeover via a single provider.
+  - [x] Google OIDC “verify id_token” (`/auth/google/verify`) with JWKS signature verification + `aud` checks.
+- [x] Add account-linking flows gated by step-up (passkey) to prevent takeover via a single provider.
   - Linking/unlinking refers to attaching/detaching additional identity providers to the same `userId`
-    (e.g. `google:{sub}`, `eip155:{chainId}:{address}`), not “SSO” specifically.
+    (e.g. `google:{sub}`, `near:{accountId}`), not “SSO” specifically.
   - Unlink should require step-up and should refuse to remove the last remaining auth factor.
+  - Implemented: `/auth/identities` (list), `/auth/link`, `/auth/unlink` (step-up required via passkey).
 - [x] Split “app session” vs “threshold signing session” tokens via a `kind` claim + middleware checks (token confusion mitigation).
 - [x] Default threshold sessions to JWTs (Authorization header); optionally set HttpOnly cookies when `sessionKind: "cookie"`.
 
 #### Next steps (Phase 1.5)
-- Implement the `LoginProvider` interface + registry wiring so `/auth/*` is provider-driven (passkey/google/siwe) instead of one-off routes.
-- Add a durable identity map (`providerSubject` → `userId`, `userId` → linked identities), and define “unlink” safety rules (can’t remove last factor).
-- Implement Google OIDC and SIWE providers (nonce/state replay protection, stable identifiers, and clear session minting semantics).
-- Add account link/unlink APIs gated by passkey step-up + session revocation rules for removed identities.
-- If cookies are used: add CSRF protection for state-changing endpoints and standardize cookie flags (`Secure`, `HttpOnly`, `SameSite`).
+- [x] Add app-session revocation rules for removed identities: include an `appSessionVersion` claim in app-session JWTs and validate it server-side; rotate it on `/auth/unlink` and reissue the caller’s session.
+- Optional: add redirect-based Google OIDC (`/auth/google/start`, `/auth/google/callback`) for deployments that can’t/do not want to use client-side `id_token` flows.
+- If cookies are used broadly: add CSRF protection for state-changing endpoints and standardize cookie flags (`Secure`, `HttpOnly`, `SameSite`).
+- Consider “merge accounts” UX when linking a subject already linked to a different user (currently allowed only when that subject is the other user’s sole identity).
+
+### Cleanup — Prune deprecated auth code paths
+- [x] Remove deprecated (unwired) routes (`webauthnLogin.ts` in express + cloudflare).
+- [x] Remove SIWE (wallet login) endpoints and supporting code (`/auth/siwe/*`, nonce store, SIWE parsing helpers).
+- [x] Remove any remaining legacy auth route references in docs/tests/examples.
 
 ### Phase 2 — Add threshold-ecdsa scaffolding (no crypto yet)
 - [x] Add `/threshold-ecdsa/*` routes for both express + cloudflare.
 - [x] Add `THRESHOLD_SECP256K1_MASTER_SECRET_B64U` config for deterministic relayer shares (stateless key material).
 - [x] Implement `/threshold-ecdsa/session` and `/threshold-ecdsa/authorize` (WebAuthn step-up + session/token scope + mpcSessionId minting).
-- [ ] Add ECDSA keystore/session/auth store prefixes and storage kind support (currently reuses ed25519 stores).
+- [x] Add ECDSA keystore/session/auth store prefixes + store wiring (`THRESHOLD_ECDSA_{KEYSTORE,SESSION,AUTH}_PREFIX`) so ECDSA state does not collide with Ed25519.
 - [x] Add request/response types and status codes (mirroring ed25519 patterns).
 
 ### Phase 3 — Implement threshold ECDSA signing
@@ -433,6 +427,12 @@ Add a top-level “enabled schemes” config concept:
 - [ ] Implement `/threshold-ecdsa/sign/init` and `/threshold-ecdsa/sign/finalize`.
 - [ ] Implement presignature pool management (refill, reserve, consume) and wire it into `/threshold-ecdsa/sign/*`.
 - [ ] Add digest-binding invariants + replay protections.
+
+#### Next steps (Phase 2/3)
+- Fix `wasm/eth_signer` WASM toolchain build on macOS (the `blst`/clang wasm target issue).
+- Decide whether ECDSA presignature pool must be durable (Redis/Postgres) and implement it.
+- Implement transcript/digest binding invariants + replay protections for `/threshold-ecdsa/*`.
+- Add end-to-end tests for threshold-ecdsa signing flows (pool empty/refill, replay, expiry).
 
 #### Keygen/share format alignment (for `near/threshold-signatures`)
 `near/threshold-signatures` is built around Shamir-style threshold shares: each participant holds a scalar share and the protocol “linearizes” shares using Lagrange coefficients computed from participant identifiers (see `participants.lagrange(..)` usage in `src/ecdsa/ot_based_ecdsa/*` and `src/ecdsa/robust_ecdsa/sign.rs`).
@@ -537,7 +537,7 @@ NEAR’s `mpc` docs explicitly call out background triple generation and presign
 - Correct handling of ECDSA low-s normalization and recovery id across the MPC protocol.
 - Key import security (clipboard/logging/exfil) must remain wallet-origin only.
 - Maintaining parity across both express and cloudflare deployments.
-- Token confusion: enforce `kind`-based checks so app-session tokens can’t access `/threshold-*/session|authorize|sign/*`, and threshold-session tokens can’t be treated as app sessions.
+- Token confusion: enforce `kind`-based checks so app-session tokens can’t access `/threshold-*/session|authorize|sign/*`, and threshold-session tokens can’t be treated as app sessions; preserve claims on refresh and use `appSessionVersion` checks for server-side revocation.
 - Session transport: JWT is the default; if using HttpOnly cookies, require CSRF defenses + `Secure`/`SameSite` correctness for any state-changing endpoints.
 - Hard cutovers: older clients/old auth routes (e.g. `/login/*` vs `/auth/passkey/*`) and old session-token formats will fail; coordinate deploys.
-- Account linking/unlinking: always gate by step-up (passkey) to prevent takeover via a single provider; define “unlink” safety rules (can’t remove last factor, revoke related sessions).
+- Account linking/unlinking: always gate by step-up (passkey) to prevent takeover via a single provider; enforce “unlink” safety rules (can’t remove last factor; revoke related app sessions via `appSessionVersion` rotation).

@@ -4,8 +4,21 @@
     "outDir": "./dist/types",
     "emitDeclarationOnly": true,
     "noEmit": false,
-    "rootDir": "."
+    "rootDir": ".."
   },
-  "include": ["src/**/*", "build-paths.ts"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "examples/", "docs/"]
+  "include": [
+    "../client/src/**/*",
+    "../server/src/**/*",
+    "../shared/src/**/*",
+    "build-paths.ts"
+  ],
+  "exclude": [
+    "../client/src/**/*.test.ts",
+    "../client/src/**/*.test.tsx",
+    "../server/src/**/*.test.ts",
+    "../server/src/**/*.test.tsx",
+    "../examples/",
+    "../docs/",
+    "../tests/"
+  ]
 }

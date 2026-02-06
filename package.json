@@ -5,9 +5,9 @@
     "install-all": "pnpm -r install",
     "build:sdk": "pnpm -C sdk build",
     "build:sdk-prod": "pnpm -C sdk build:prod",
-    "examples:vite": "pnpm -C examples/vite dev",
-    "examples:vite-iphone": "pnpm -C examples/vite dev:iphone",
-    "examples:docs": "pnpm -C examples/tatchi-docs gen:home-snippets && concurrently --kill-others --names app,docs \"pnpm -C examples/tatchi-docs dev\" \"pnpm docs:dev\"",
+    "examples:vite": "concurrently --kill-others --names server,docs \"pnpm run server\" \"pnpm -C examples/tatchi-docs dev\"",
+    "examples:vite-iphone": "concurrently --kill-others --names server,docs \"pnpm run server:iphone\" \"pnpm -C examples/tatchi-docs dev:iphone\"",
+    "examples:docs": "pnpm -C examples/tatchi-docs dev",
     "server": "pnpm -C examples/relay-server postgres:up && EXPECTED_ORIGIN=https://example.localhost EXPECTED_WALLET_ORIGIN=https://wallet.example.localhost pnpm -C examples/relay-server dev",
     "server:3-relays": "pnpm -C examples/relay-server postgres:up && EXPECTED_ORIGIN=https://example.localhost EXPECTED_WALLET_ORIGIN=https://wallet.example.localhost pnpm -C examples/relay-server dev:threshold:3relays",
     "server:iphone": "pnpm -C examples/relay-server postgres:up && EXPECTED_ORIGIN=https://pta-m4.local EXPECTED_WALLET_ORIGIN=https://pta-m4.local:8443 pnpm -C examples/relay-server dev",
@@ -21,7 +21,7 @@
     "test:unit": "pnpm -C sdk test:unit",
     "test:wallet-iframe": "pnpm -C sdk test:wallet-iframe",
     "test:lit-components": "pnpm -C sdk test:lit-components",
-    "test:wasm-near-worker": "cd sdk/src/wasm_near_signer && cargo test",
+    "test:wasm-near-worker": "cd wasm/near_signer && cargo test",
     "test:relayer": "pnpm -C sdk test:relayer",
     "show-report": "pnpm -C sdk exec playwright show-report"
   },
@@ -30,5 +30,6 @@
     "concurrently": "^9.1.2",
     "dotenv": "^16.5.0",
     "vitepress": "^1.5.0"
-  }
+  },
+  "packageManager": "pnpm@10.28.2+sha512.41872f037ad22f7348e3b1debbaf7e867cfd448f2726d9cf74c08f19507c31d2c8e7a11525b983febc2df640b5438dee6023ebb1f84ed43cc2d654d2bc326264"
 }

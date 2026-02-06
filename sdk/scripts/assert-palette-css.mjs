@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Assert that all colors from src/theme/palette.json exist as CSS variables
+ * Assert that all colors from client/src/theme/palette.json exist as CSS variables
  * in the generated w3a-components.css.
  *
  * Usage:
@@ -10,20 +10,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-// Resolve SDK root robustly whether invoked from repo root or sdk/
-
-function resolveSdkRoot() {
+// Resolve repo root robustly whether invoked from repo root or sdk/
+function resolveRepoRoot() {
   const cwd = process.cwd();
-  const tryDirect = path.join(cwd, 'src', 'theme', 'palette.json');
-  if (fs.existsSync(tryDirect)) return cwd; // inside sdk/
-  const trySdk = path.join(cwd, 'sdk', 'src', 'theme', 'palette.json');
-  if (fs.existsSync(trySdk)) return path.join(cwd, 'sdk'); // repo root
+  const tryDirect = path.join(cwd, 'client', 'src', 'theme', 'palette.json');
+  if (fs.existsSync(tryDirect)) return cwd; // repo root
+  const tryFromSdk = path.join(cwd, '..', 'client', 'src', 'theme', 'palette.json');
+  if (fs.existsSync(tryFromSdk)) return path.join(cwd, '..'); // sdk/
   return cwd; // best effort; downstream checks will fail with clear message
 }
 
-const repoRoot = resolveSdkRoot();
-const palettePath = path.join(repoRoot, 'src', 'theme', 'palette.json');
-const defaultCssPath = path.join(repoRoot, 'dist', 'esm', 'sdk', 'w3a-components.css');
+const repoRoot = resolveRepoRoot();
+const palettePath = path.join(repoRoot, 'client', 'src', 'theme', 'palette.json');
+const defaultCssPath = path.join(repoRoot, 'sdk', 'dist', 'esm', 'sdk', 'w3a-components.css');
 
 const cssPath = process.argv[2]
   ? path.resolve(process.argv[2])

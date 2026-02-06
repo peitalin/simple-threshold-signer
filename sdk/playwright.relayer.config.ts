@@ -1,7 +1,5 @@
-import { defineConfig } from '@playwright/test';
-
-export default defineConfig({
-  testDir: './src/__tests__',
+export default {
+  testDir: '../tests',
   testMatch: [
     '**/relayer/**/*.test.ts',
   ],
@@ -10,5 +8,4 @@ export default defineConfig({
   workers: 1,
   timeout: 30_000,
   reporter: 'html',
-});
-
+};

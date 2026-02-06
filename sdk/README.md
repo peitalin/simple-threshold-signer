@@ -147,29 +147,28 @@ iframeWallet: {
 ## Project Structure
 
 ```
-sdk/
-├── src/
-│   ├── core/                     # Framework-agnostic core
-│   │   ├── TatchiPasskey.ts      # Main SDK class
-│   │   ├── WebAuthnManager.ts    # WebAuthn operations
-│   │   └── WalletIframe/         # Iframe host/client, messaging
-│   ├── react/                    # React bindings
-│   │   ├── PasskeyProvider.tsx   # Context provider
-│   │   └── hooks.ts              # usePasskeyManager, etc.
-│   ├── wasm_near_signer/         # Rust WASM (NEAR threshold signing)
-│   ├── wasm_vrf_worker/          # Rust WASM (VRF challenges)
-│   └── plugins/
-│       └── vite.ts               # Vite dev/build helpers
-│
-├── dist/                         # Build output
-│   ├── core/                     # Core SDK bundles
-│   ├── react/                    # React component bundles
-│   ├── workers/                  # WASM worker modules
-│   └── wallet-iframe-host-runtime.js     # Wallet iframe entry point
-│
-├── build-paths.ts                # Build configuration (source of truth)
-├── rolldown.config.ts            # Rolldown bundler config
-└── README.md                     # This file
+repo/
+├── client/
+│   └── src/
+│       ├── core/                 # Framework-agnostic client core
+│       ├── react/                # React bindings
+│       └── plugins/              # Vite/dev helpers
+├── server/
+│   └── src/
+│       └── server/               # Relay backend (routers, storage, threshold)
+├── shared/
+│   └── src/                      # Cross-platform utils/types
+├── wasm/
+│   ├── near_signer/              # Rust WASM (NEAR threshold signing)
+│   ├── eth_signer/               # Rust WASM (EIP-1559 signing)
+│   └── tempo_signer/             # Rust WASM (Tempo tx signing)
+├── tests/                        # Playwright + unit tests
+└── sdk/
+    ├── dist/                     # Build output
+    ├── build-paths.ts            # Build configuration (source of truth)
+    ├── rolldown.config.ts        # Rolldown bundler config
+    ├── scripts/                  # Build/test scripts
+    └── README.md                 # This file
 ```
 
 

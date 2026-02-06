@@ -24,12 +24,12 @@ Atomically create a NEAR account and register a WebAuthn authenticator in relay 
 
 This route is consumed internally by the SDK’s registration flows.
 
-### Sessions (`POST /login/options` → `POST /login/verify`)
+### Sessions (`POST /auth/passkey/options` → `POST /auth/passkey/verify`)
 
 Verifies a standard WebAuthn assertion (contract-free; relay-stored authenticators + counter persistence) and issues a session.
 
-- Step 1 (options): `POST /login/options` with `{ user_id, rp_id, ttl_ms? }` → `{ challengeId, challengeB64u }`
-- Step 2 (verify): `POST /login/verify` with:
+- Step 1 (options): `POST /auth/passkey/options` with `{ user_id, rp_id, ttl_ms? }` → `{ challengeId, challengeB64u }`
+- Step 2 (verify): `POST /auth/passkey/verify` with:
   ```json
   { "sessionKind": "jwt" | "cookie", "challengeId": "<id>", "webauthn_authentication": { /* assertion */ } }
   ```
