@@ -1,5 +1,0 @@
-/Users/pta/Dev/rust/simple-threshold-signer/sdk/src/wasm_tempo_signer/target/release/build/proc-macro2-a0dc5c23f366f482/build_script_build-a0dc5c23f366f482: /Users/pta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.106/build.rs
-
-/Users/pta/Dev/rust/simple-threshold-signer/sdk/src/wasm_tempo_signer/target/release/build/proc-macro2-a0dc5c23f366f482/build_script_build-a0dc5c23f366f482.d: /Users/pta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.106/build.rs
-
-/Users/pta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.106/build.rs:
