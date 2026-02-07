@@ -31,6 +31,9 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Add Rust components (rustfmt + clippy)
+        run: rustup component add rustfmt clippy
+
       - name: Add wasm32 target
         run: rustup target add wasm32-unknown-unknown
 
@@ -38,17 +41,17 @@ jobs:
         run: |
           curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
 
+      - name: Generate WASM TypeScript types (wasm-pack)
+        run: pnpm -C sdk exec bash ./scripts/generate-types.sh
+
+      - name: Check (lint + format + type-check)
+        run: pnpm check
+
       - name: Setup Bun (for worker bundling)
         uses: oven-sh/setup-bun@v2
 
       - name: Install Playwright (Chromium + system deps)
         run: pnpm -C sdk exec playwright install --with-deps chromium
-
-      - name: Generate WASM TypeScript types (wasm-pack)
-        run: pnpm -C sdk exec bash ./scripts/generate-types.sh
-
-      - name: Type-check SDK
-        run: pnpm -C sdk type-check
 
       - name: Build SDK (production)
         run: pnpm build:sdk-prod

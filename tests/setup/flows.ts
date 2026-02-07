@@ -1,10 +1,13 @@
 import type { PasskeyFixture } from './fixtures';
 import type { TestUtils } from './index';
 import { printLog } from './logging';
-import { ActionType } from '../../core/types/actions';
+import { ActionType } from '@/core/types/actions';
 import type { Page } from '@playwright/test';
 
-export async function clickWalletIframeConfirm(page: Page, opts?: { timeoutMs?: number }): Promise<boolean> {
+export async function clickWalletIframeConfirm(
+  page: Page,
+  opts?: { timeoutMs?: number },
+): Promise<boolean> {
   const timeoutMs = Math.max(250, Math.floor(opts?.timeoutMs ?? 15_000));
   try {
     const iframeEl = page.locator('iframe[allow*="publickey-credentials-get"]').first();
@@ -24,7 +27,7 @@ export async function clickWalletIframeConfirm(page: Page, opts?: { timeoutMs?: 
 export async function autoConfirmWalletIframeUntil<T>(
   page: Page,
   task: Promise<T>,
-  opts?: { timeoutMs?: number; intervalMs?: number }
+  opts?: { timeoutMs?: number; intervalMs?: number },
 ): Promise<T> {
   const timeoutMs = Math.max(250, Math.floor(opts?.timeoutMs ?? 55_000));
   const intervalMs = Math.max(50, Math.floor(opts?.intervalMs ?? 250));
@@ -36,10 +39,10 @@ export async function autoConfirmWalletIframeUntil<T>(
     while (!done && Date.now() < deadline) {
       try {
         await clickWalletIframeConfirm(page, { timeoutMs: Math.min(500, intervalMs) });
-      } catch { }
+      } catch {}
       try {
         await page.waitForTimeout(intervalMs);
-      } catch { }
+      } catch {}
     }
   })();
 
@@ -67,74 +70,89 @@ export interface RegistrationFlowResult {
 
 export async function registerPasskey(
   passkey: PasskeyFixture,
-  options: RegistrationFlowOptions = {}
+  options: RegistrationFlowOptions = {},
 ): Promise<RegistrationFlowResult> {
   await passkey.setup();
 
-  const accountId = options.accountId ?? (await passkey.withTestUtils(() => {
-    const utils = (window as any).testUtils as TestUtils;
-    return utils.generateTestAccountId();
-  }));
+  const accountId =
+    options.accountId ??
+    (await passkey.withTestUtils(() => {
+      const utils = (window as any).testUtils as TestUtils;
+      return utils.generateTestAccountId();
+    }));
 
   printLog('flow', `starting registration for ${accountId}`, { step: 'register' });
 
-  const registrationPromise = passkey.withTestUtils((args) => {
-    const utils = (window as any).testUtils as TestUtils;
-    const toAccountId = (window as any).toAccountId ?? ((id: string) => id);
-    const events: any[] = [];
+  const registrationPromise = passkey.withTestUtils(
+    (args) => {
+      const utils = (window as any).testUtils as TestUtils;
+      const toAccountId = (window as any).toAccountId ?? ((id: string) => id);
+      const events: any[] = [];
 
-    const confirmVariant = args.confirmVariant ?? 'none';
-    const overrides = (utils.confirmOverrides ?? {}) as Record<string, any>;
-    const defaultConfirm = { uiMode: 'none', behavior: 'skipClick', autoProceedDelay: 0 };
-    const confirmConfig = overrides[confirmVariant] ?? overrides.none ?? defaultConfirm;
+      const confirmVariant = args.confirmVariant ?? 'none';
+      const overrides = (utils.confirmOverrides ?? {}) as Record<string, any>;
+      const defaultConfirm = { uiMode: 'none', behavior: 'skipClick', autoProceedDelay: 0 };
+      const confirmConfig = overrides[confirmVariant] ?? overrides.none ?? defaultConfirm;
 
-    try {
-      console.log(`[flow:register] invoking registerPasskeyInternal for ${args.accountId}`);
-      return utils.tatchi.registerPasskeyInternal(toAccountId(args.accountId), {
-        onEvent: (event: any) => {
-          events.push(event);
-          console.log(`[flow:register]   -> ${event.phase} | ${event.message}`);
-        },
-        onError: (error: any) => {
-          console.error(`[flow:register] ! ${error}`);
-        }
-      }, confirmConfig).then((result: any) => {
-        const response: RegistrationFlowResult = {
-          success: !!result.success,
+      try {
+        console.log(`[flow:register] invoking registerPasskeyInternal for ${args.accountId}`);
+        return utils.tatchi
+          .registerPasskeyInternal(
+            toAccountId(args.accountId),
+            {
+              onEvent: (event: any) => {
+                events.push(event);
+                console.log(`[flow:register]   -> ${event.phase} | ${event.message}`);
+              },
+              onError: (error: any) => {
+                console.error(`[flow:register] ! ${error}`);
+              },
+            },
+            confirmConfig,
+          )
+          .then((result: any) => {
+            const response: RegistrationFlowResult = {
+              success: !!result.success,
+              accountId: args.accountId,
+              events,
+              raw: result,
+              error: result?.error,
+              skippedDueToExisting: false,
+            };
+
+            if (
+              !response.success &&
+              typeof response.error === 'string' &&
+              response.error.includes('already exists')
+            ) {
+              response.skippedDueToExisting = true;
+              response.success = true;
+            }
+
+            return response;
+          });
+      } catch (error: any) {
+        console.error(`[flow:register] error: ${error?.message || error}`);
+        const fallback: RegistrationFlowResult = {
+          success: false,
           accountId: args.accountId,
           events,
-          raw: result,
-          error: result?.error,
+          error: error?.message || String(error),
           skippedDueToExisting: false,
         };
+        return fallback;
+      }
+    },
+    { accountId, confirmVariant: options.confirmVariant ?? 'none' },
+  );
 
-        if (!response.success && typeof response.error === 'string' && response.error.includes('already exists')) {
-          response.skippedDueToExisting = true;
-          response.success = true;
-        }
-
-        return response;
-      });
-    } catch (error: any) {
-      console.error(`[flow:register] error: ${error?.message || error}`);
-      const fallback: RegistrationFlowResult = {
-        success: false,
-        accountId: args.accountId,
-        events,
-        error: error?.message || String(error),
-        skippedDueToExisting: false,
-      };
-      return fallback;
-    }
-  }, { accountId, confirmVariant: options.confirmVariant ?? 'none' });
-
-  // Registration in a cross-origin wallet iframe requires a user activation.
-  // confirmTxFlow enforces requireClick; provide the click from Playwright while
-  // the browser-side registration promise is pending.
-  const clickPromise = clickWalletIframeConfirm(passkey.page, { timeoutMs: 20_000 });
-  await Promise.race([registrationPromise.then(() => undefined), clickPromise]);
-
-  const registrationResult = await registrationPromise;
+  // Registration in a cross-origin wallet iframe requires user activation.
+  // confirmTxFlow enforces requireClick; keep clicking while the browser-side
+  // registration promise is pending (more reliable than a one-shot click).
+  const registrationResult = await autoConfirmWalletIframeUntil(passkey.page, registrationPromise, {
+    timeoutMs: 90_000,
+    intervalMs: 250,
+  });
 
   if (registrationResult.skippedDueToExisting) {
     printLog('flow', `registration skipped because ${accountId} already exists`, {
@@ -142,10 +160,14 @@ export async function registerPasskey(
       indent: 1,
     });
   } else {
-    printLog('flow', `registration ${registrationResult.success ? 'succeeded' : 'failed'} for ${accountId}` , {
-      step: 'register',
-      indent: 1,
-    });
+    printLog(
+      'flow',
+      `registration ${registrationResult.success ? 'succeeded' : 'failed'} for ${accountId}`,
+      {
+        step: 'register',
+        indent: 1,
+      },
+    );
   }
 
   return registrationResult;
@@ -165,50 +187,55 @@ export interface LoginFlowResult {
 
 export async function loginAndCreateSession(
   passkey: PasskeyFixture,
-  options: LoginFlowOptions
+  options: LoginFlowOptions,
 ): Promise<LoginFlowResult> {
   await passkey.setup();
 
   const accountId = options.accountId;
   printLog('flow', `starting login for ${accountId}`, { step: 'login' });
 
-  const loginPromise = passkey.withTestUtils((args) => {
-    const utils = (window as any).testUtils as TestUtils;
-    const toAccountId = (window as any).toAccountId ?? ((id: string) => id);
-    const events: any[] = [];
+  const loginPromise = passkey.withTestUtils(
+    (args) => {
+      const utils = (window as any).testUtils as TestUtils;
+      const toAccountId = (window as any).toAccountId ?? ((id: string) => id);
+      const events: any[] = [];
 
-    try {
-      console.log(`[flow:login] invoking loginAndCreateSession for ${args.accountId}`);
-      return utils.tatchi.loginAndCreateSession(toAccountId(args.accountId), {
-        onEvent: (event: any) => {
-          events.push(event);
-          console.log(`[flow:login]   -> ${event.phase} | ${event.message}`);
-        },
-        onError: (error: any) => {
-          console.error(`[flow:login] ! ${error}`);
-        }
-      }).then((result: any) => ({
-        success: !!result.success,
-        accountId: args.accountId,
-        events,
-        error: result?.error,
-        raw: result,
-      }));
-    } catch (error: any) {
-      console.error(`[flow:login] error: ${error?.message || error}`);
-      return {
-        success: false,
-        accountId: args.accountId,
-        events,
-        error: error?.message || String(error),
-      };
-    }
-  }, { accountId });
+      try {
+        console.log(`[flow:login] invoking loginAndCreateSession for ${args.accountId}`);
+        return utils.tatchi
+          .loginAndCreateSession(toAccountId(args.accountId), {
+            onEvent: (event: any) => {
+              events.push(event);
+              console.log(`[flow:login]   -> ${event.phase} | ${event.message}`);
+            },
+            onError: (error: any) => {
+              console.error(`[flow:login] ! ${error}`);
+            },
+          })
+          .then((result: any) => ({
+            success: !!result.success,
+            accountId: args.accountId,
+            events,
+            error: result?.error,
+            raw: result,
+          }));
+      } catch (error: any) {
+        console.error(`[flow:login] error: ${error?.message || error}`);
+        return {
+          success: false,
+          accountId: args.accountId,
+          events,
+          error: error?.message || String(error),
+        };
+      }
+    },
+    { accountId },
+  );
 
-  const clickPromise = clickWalletIframeConfirm(passkey.page, { timeoutMs: 20_000 });
-  await Promise.race([loginPromise.then(() => undefined), clickPromise]);
-
-  const loginResult = await loginPromise;
+  const loginResult = await autoConfirmWalletIframeUntil(passkey.page, loginPromise, {
+    timeoutMs: 60_000,
+    intervalMs: 250,
+  });
 
   printLog('flow', `login ${loginResult.success ? 'succeeded' : 'failed'} for ${accountId}`, {
     step: 'login',
@@ -234,7 +261,7 @@ export interface TransferFlowResult {
 
 export async function executeTransfer(
   passkey: PasskeyFixture,
-  options: TransferFlowOptions
+  options: TransferFlowOptions,
 ): Promise<TransferFlowResult> {
   await passkey.setup();
 
@@ -244,50 +271,55 @@ export async function executeTransfer(
     step: 'transfer',
   });
 
-  const resultPromise = passkey.withTestUtils((args) => {
-    const utils = (window as any).testUtils as TestUtils;
-    const toAccountId = (window as any).toAccountId ?? ((id: string) => id);
-    const events: any[] = [];
+  const resultPromise = passkey.withTestUtils(
+    (args) => {
+      const utils = (window as any).testUtils as TestUtils;
+      const toAccountId = (window as any).toAccountId ?? ((id: string) => id);
+      const events: any[] = [];
 
-    try {
-      console.log(`[flow:transfer] executing action for ${args.accountId}`);
-      return utils.tatchi.executeAction({
-        nearAccountId: toAccountId(args.accountId),
-        receiverId: args.receiverId,
-        actionArgs: {
-          type: args.actionType ?? 'Transfer',
-          amount: args.amountYocto,
-        },
-	        options: {
-	          signerMode: { mode: 'local-signer' },
-	          onEvent: (event: any) => {
-	            events.push(event);
-	            console.log(`[flow:transfer]   -> ${event.phase} | ${event.message}`);
-	          },
-          onError: (error: any) => {
-            console.error(`[flow:transfer] ! ${error}`);
-          }
-        }
-      }).then((result: any) => ({
-        success: !!result.success,
-        events,
-        error: result?.error,
-        raw: result,
-      }));
-    } catch (error: any) {
-      console.error(`[flow:transfer] error: ${error?.message || error}`);
-      return {
-        success: false,
-        events,
-        error: error?.message || String(error),
-      };
-    }
-  }, { ...options, actionType });
+      try {
+        console.log(`[flow:transfer] executing action for ${args.accountId}`);
+        return utils.tatchi
+          .executeAction({
+            nearAccountId: toAccountId(args.accountId),
+            receiverId: args.receiverId,
+            actionArgs: {
+              type: args.actionType ?? 'Transfer',
+              amount: args.amountYocto,
+            },
+            options: {
+              signerMode: { mode: 'local-signer' },
+              onEvent: (event: any) => {
+                events.push(event);
+                console.log(`[flow:transfer]   -> ${event.phase} | ${event.message}`);
+              },
+              onError: (error: any) => {
+                console.error(`[flow:transfer] ! ${error}`);
+              },
+            },
+          })
+          .then((result: any) => ({
+            success: !!result.success,
+            events,
+            error: result?.error,
+            raw: result,
+          }));
+      } catch (error: any) {
+        console.error(`[flow:transfer] error: ${error?.message || error}`);
+        return {
+          success: false,
+          events,
+          error: error?.message || String(error),
+        };
+      }
+    },
+    { ...options, actionType },
+  );
 
-  const clickPromise = clickWalletIframeConfirm(passkey.page, { timeoutMs: 20_000 });
-  await Promise.race([resultPromise.then(() => undefined), clickPromise]);
-
-  const result = await resultPromise;
+  const result = await autoConfirmWalletIframeUntil(passkey.page, resultPromise, {
+    timeoutMs: 60_000,
+    intervalMs: 250,
+  });
 
   printLog('flow', `transfer ${result.success ? 'succeeded' : 'failed'}`, {
     step: 'transfer',

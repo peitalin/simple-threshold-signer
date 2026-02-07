@@ -37,19 +37,13 @@
       "react": ["./node_modules/@types/react/index.d.ts"],
       "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime.d.ts"],
       "react-dom": ["./node_modules/@types/react-dom/index.d.ts"],
+      "react-dom/client": ["./node_modules/@types/react-dom/client.d.ts"],
+      "react-dom/server": ["./node_modules/@types/react-dom/server.d.ts"],
       "qrcode": ["./node_modules/@types/qrcode/index.d.ts"],
       "pg": ["./node_modules/@types/pg/index.d.ts"],
       "*": ["./node_modules/*", "../node_modules/*"]
     }
   },
-  "include": [
-    "../client/src/**/*",
-    "../server/src/**/*",
-    "../shared/src/**/*",
-    "../tests/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+  "include": ["../client/src/**/*", "../server/src/**/*", "../shared/src/**/*", "../tests/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

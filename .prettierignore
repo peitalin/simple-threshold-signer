@@ -1,0 +1,17 @@
+**/node_modules/**
+**/dist/**
+**/.next/**
+**/.svelte-kit/**
+**/.vercel/**
+**/.wrangler/**
+**/.turbo/**
+**/.vitepress/cache/**
+**/coverage/**
+**/playwright-report/**
+**/test-results/**
+
+wasm/**/pkg/**
+wasm/**/target/**
+
+examples/tatchi-docs/public/**
+
