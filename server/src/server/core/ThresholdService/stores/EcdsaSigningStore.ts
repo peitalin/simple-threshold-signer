@@ -254,6 +254,51 @@ function parseJson(raw: string): unknown | null {
   }
 }
 
+const ECDSA_PRESIGN_RESERVE_LUA = `
+local listKey = KEYS[1]
+local reservedKeyPrefix = KEYS[2]
+local ttlSeconds = tonumber(ARGV[1]) or 120
+local maxAttempts = tonumber(ARGV[2]) or 8
+
+for _ = 1, maxAttempts do
+  local item = redis.call('LPOP', listKey)
+  if not item then
+    return nil
+  end
+  local ok, decoded = pcall(cjson.decode, item)
+  if ok and type(decoded) == 'table' then
+    local presignatureId = decoded['presignatureId']
+    if type(presignatureId) == 'string' and presignatureId ~= '' then
+      redis.call('SET', reservedKeyPrefix .. presignatureId, item, 'EX', ttlSeconds)
+      return item
+    end
+  end
+end
+
+return nil
+`.trim();
+
+function toRedisSeconds(ms: number): number {
+  return Math.max(1, Math.ceil(Math.max(0, Number(ms) || 0) / 1000));
+}
+
+function parsePresignatureRecordFromRaw(raw: unknown): ThresholdEcdsaPresignatureRelayerShareRecord | null {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === 'string') {
+    return (parseThresholdEcdsaPresignatureRelayerShareRecord(parseJson(raw)) as ThresholdEcdsaPresignatureRelayerShareRecord | null);
+  }
+  return (parseThresholdEcdsaPresignatureRelayerShareRecord(raw) as ThresholdEcdsaPresignatureRelayerShareRecord | null);
+}
+
+function isEvalUnsupportedError(message: string): boolean {
+  const m = String(message || '').toLowerCase();
+  if (!m) return false;
+  return m.includes('unknown command')
+    || m.includes('err unknown command')
+    || m.includes('noperm')
+    || m.includes('command is not allowed');
+}
+
 class UpstashRedisRestThresholdEcdsaPresignaturePool implements ThresholdEcdsaPresignaturePool {
   private readonly client: UpstashRedisRestClient;
   private readonly keyPrefix: string;
@@ -273,6 +318,10 @@ class UpstashRedisRestThresholdEcdsaPresignaturePool implements ThresholdEcdsaPr
     return `${this.keyPrefix}res:${relayerKeyId}:${presignatureId}`;
   }
 
+  private reservedKeyPrefix(relayerKeyId: string): string {
+    return `${this.keyPrefix}res:${relayerKeyId}:`;
+  }
+
   async put(record: ThresholdEcdsaPresignatureRelayerShareRecord): Promise<void> {
     const relayerKeyId = toOptionalTrimmedString(record.relayerKeyId);
     const presignatureId = toOptionalTrimmedString(record.presignatureId);
@@ -283,15 +332,21 @@ class UpstashRedisRestThresholdEcdsaPresignaturePool implements ThresholdEcdsaPr
   async reserve(relayerKeyId: string): Promise<ThresholdEcdsaPresignatureRelayerShareRecord | null> {
     const key = toOptionalTrimmedString(relayerKeyId);
     if (!key) return null;
-    for (let i = 0; i < 8; i++) {
-      const popped = await this.client.lpop(this.availKey(key));
-      if (!popped) return null;
-      const parsed = parseThresholdEcdsaPresignatureRelayerShareRecord(parseJson(popped));
-      if (!parsed) continue;
-      await this.client.setJson(this.reservedKey(key, parsed.presignatureId), parsed, this.reservationTtlMs);
-      return parsed as ThresholdEcdsaPresignatureRelayerShareRecord;
+    const ttlSeconds = String(toRedisSeconds(this.reservationTtlMs));
+    try {
+      const raw = await this.client.eval(
+        ECDSA_PRESIGN_RESERVE_LUA,
+        [this.availKey(key), this.reservedKeyPrefix(key)],
+        [ttlSeconds, '8'],
+      );
+      return parsePresignatureRecordFromRaw(raw);
+    } catch (e: unknown) {
+      const msg = String((e && typeof e === 'object' && 'message' in e) ? (e as { message?: unknown }).message : e || '');
+      if (isEvalUnsupportedError(msg)) {
+        throw new Error('[threshold-ecdsa] Upstash EVAL is required for atomic presignature reserve; ensure scripting is enabled');
+      }
+      throw e;
     }
-    return null;
   }
 
   async consume(relayerKeyId: string, presignatureId: string): Promise<ThresholdEcdsaPresignatureRelayerShareRecord | null> {
@@ -315,13 +370,6 @@ async function redisRpushRaw(client: RedisTcpClient, key: string, value: string)
   if (resp.type === 'error') throw new Error(`Redis RPUSH error: ${resp.value}`);
 }
 
-async function redisLpopRaw(client: RedisTcpClient, key: string): Promise<string | null> {
-  const resp = await client.send(['LPOP', key]);
-  if (resp.type === 'bulk') return resp.value || null;
-  if (resp.type === 'error') throw new Error(`Redis LPOP error: ${resp.value}`);
-  return null;
-}
-
 class RedisTcpThresholdEcdsaPresignaturePool implements ThresholdEcdsaPresignaturePool {
   private readonly client: RedisTcpClient;
   private readonly keyPrefix: string;
@@ -343,6 +391,10 @@ class RedisTcpThresholdEcdsaPresignaturePool implements ThresholdEcdsaPresignatu
     return `${this.keyPrefix}res:${relayerKeyId}:${presignatureId}`;
   }
 
+  private reservedKeyPrefix(relayerKeyId: string): string {
+    return `${this.keyPrefix}res:${relayerKeyId}:`;
+  }
+
   async put(record: ThresholdEcdsaPresignatureRelayerShareRecord): Promise<void> {
     const relayerKeyId = toOptionalTrimmedString(record.relayerKeyId);
     const presignatureId = toOptionalTrimmedString(record.presignatureId);
@@ -353,15 +405,26 @@ class RedisTcpThresholdEcdsaPresignaturePool implements ThresholdEcdsaPresignatu
   async reserve(relayerKeyId: string): Promise<ThresholdEcdsaPresignatureRelayerShareRecord | null> {
     const key = toOptionalTrimmedString(relayerKeyId);
     if (!key) return null;
-    for (let i = 0; i < 8; i++) {
-      const popped = await redisLpopRaw(this.client, this.availKey(key));
-      if (!popped) return null;
-      const parsed = parseThresholdEcdsaPresignatureRelayerShareRecord(parseJson(popped));
-      if (!parsed) continue;
-      await redisSetJson(this.client, this.reservedKey(key, parsed.presignatureId), parsed, this.reservationTtlMs);
-      return parsed as ThresholdEcdsaPresignatureRelayerShareRecord;
+    const ttlSeconds = String(toRedisSeconds(this.reservationTtlMs));
+    const evalResp = await this.client.send([
+      'EVAL',
+      ECDSA_PRESIGN_RESERVE_LUA,
+      '2',
+      this.availKey(key),
+      this.reservedKeyPrefix(key),
+      ttlSeconds,
+      '8',
+    ]);
+    if (evalResp.type === 'bulk') {
+      return parsePresignatureRecordFromRaw(evalResp.value);
     }
-    return null;
+    if (evalResp.type === 'error') {
+      if (isEvalUnsupportedError(evalResp.value)) {
+        throw new Error('[threshold-ecdsa] Redis EVAL is required for atomic presignature reserve; enable scripting permissions');
+      }
+      throw new Error(`Redis EVAL error: ${evalResp.value}`);
+    }
+    throw new Error(`[threshold-ecdsa] Redis EVAL returned unexpected response type: ${evalResp.type}`);
   }
 
   async consume(relayerKeyId: string, presignatureId: string): Promise<ThresholdEcdsaPresignatureRelayerShareRecord | null> {

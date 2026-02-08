@@ -135,6 +135,18 @@ export class UpstashRedisRestClient {
     if (Array.isArray(raw) && typeof raw[0] === 'string') return raw[0];
     return String(raw);
   }
+
+  async eval(script: string, keys: string[], args: string[]): Promise<unknown | null> {
+    const keyList = Array.isArray(keys) ? keys : [];
+    const argList = Array.isArray(args) ? args : [];
+    const segments = ['eval', script, String(keyList.length), ...keyList, ...argList]
+      .map((part) => encodeURIComponent(String(part)));
+    const json = await this.call(`/${segments.join('/')}`, 'POST');
+    if (isObject(json) && typeof (json as Record<string, unknown>).error === 'string') {
+      throw new Error(`Upstash EVAL error: ${(json as Record<string, unknown>).error as string}`);
+    }
+    return readResult(json);
+  }
 }
 
 export type RedisResp =

@@ -192,8 +192,18 @@ function deriveRelayerSecp256k1SigningShare32(input: { masterSecretB64u: string;
   return numberToBytesBE(reduced, 32);
 }
 
+function sameParticipantIds(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 type PresignSessionRecord = {
   expiresAtMs: number;
+  userId: string;
+  rpId: string;
   relayerKeyId: string;
   clientParticipantId: number;
   relayerParticipantId: number;
@@ -337,9 +347,12 @@ export class ThresholdEcdsaSigningHandlers {
       participantId: this.relayerParticipantId,
     });
 
+    const participantIds = normalizeThresholdEd25519ParticipantIds(claims.participantIds)
+      || [...this.participantIds2p];
+
     const presignSessionId = this.createPresignSessionId();
     const wasmSession = new ThresholdEcdsaPresignSession(
-      new Uint32Array(claims.participantIds),
+      new Uint32Array(participantIds),
       this.relayerParticipantId,
       2,
       relayerThresholdShare32,
@@ -354,10 +367,12 @@ export class ThresholdEcdsaSigningHandlers {
     this.presignSessions.set(presignSessionId, {
       value: {
         expiresAtMs,
+        userId,
+        rpId: tokenRpId,
         relayerKeyId,
         clientParticipantId: this.clientParticipantId,
         relayerParticipantId: this.relayerParticipantId,
-        participantIds: [...claims.participantIds],
+        participantIds,
         wasmSession,
       },
       expiresAtMs,
@@ -407,6 +422,21 @@ export class ThresholdEcdsaSigningHandlers {
     }
 
     const claims = input.claims;
+    const tokenUserId = toOptionalTrimmedString(claims?.sub);
+    const tokenRpId = toOptionalTrimmedString(claims?.rpId);
+    const tokenParticipantIds = normalizeThresholdEd25519ParticipantIds(claims?.participantIds);
+    if (!tokenUserId || !tokenRpId || !tokenParticipantIds) {
+      this.presignSessions.delete(presignSessionId);
+      return { ok: false, code: 'unauthorized', message: 'Invalid threshold session token claims' };
+    }
+    if (
+      tokenUserId !== record.userId
+      || tokenRpId !== record.rpId
+      || !sameParticipantIds(tokenParticipantIds, record.participantIds)
+    ) {
+      this.presignSessions.delete(presignSessionId);
+      return { ok: false, code: 'unauthorized', message: 'presignSessionId does not match threshold session scope' };
+    }
     if (toOptionalTrimmedString(claims?.relayerKeyId) !== record.relayerKeyId) {
       this.presignSessions.delete(presignSessionId);
       return { ok: false, code: 'unauthorized', message: 'presignSessionId does not match threshold session scope' };
