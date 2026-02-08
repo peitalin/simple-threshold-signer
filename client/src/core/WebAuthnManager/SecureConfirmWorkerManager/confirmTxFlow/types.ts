@@ -157,10 +157,21 @@ export interface DecryptPrivateKeyWithPrfPayload {
   publicKey: string;
 }
 
-export interface ShowSecurePrivateKeyUiPayload {
-  nearAccountId: string;
+export type ExportPrivateKeyScheme = 'ed25519' | 'secp256k1';
+
+export interface ExportPrivateKeyDisplayEntry {
+  scheme: ExportPrivateKeyScheme;
+  label: string;
   publicKey: string;
   privateKey: string;
+  address?: string;
+}
+
+export interface ShowSecurePrivateKeyUiPayload {
+  nearAccountId: string;
+  publicKey?: string;
+  privateKey?: string;
+  keys?: ExportPrivateKeyDisplayEntry[];
   variant?: 'drawer' | 'modal';
   theme?: 'dark' | 'light';
 }

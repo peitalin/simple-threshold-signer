@@ -1,6 +1,7 @@
 import { isObject, isString, isBoolean } from '../../../../../../shared/src/utils/validation';
 import { LitComponentEvents, type LitComponentEventDetailMap } from '../lit-events';
 import { W3A_DRAWER_ID, W3A_EXPORT_KEY_VIEWER_ID } from '../tags';
+import type { ExportPrivateKeyDisplayEntry } from '../../SecureConfirmWorkerManager/confirmTxFlow/types';
 
 type MessageType =
   | 'READY'
@@ -22,7 +23,8 @@ type MessagePayloads = {
     theme?: 'dark' | 'light';
     variant?: 'drawer' | 'modal';
     accountId: string;
-    publicKey: string;
+    publicKey?: string;
+    keys?: ExportPrivateKeyDisplayEntry[];
   };
   SET_LOADING: boolean;
   SET_ERROR: string;
@@ -48,7 +50,7 @@ function postToParent<T extends MessageType>(type: T, payload?: MessagePayloads[
 function isSetExportDataPayload(payload: unknown): payload is MessagePayloads['SET_EXPORT_DATA'] {
   if (!isObject(payload)) return false;
   const p = payload as any;
-  return isString(p.accountId) && isString(p.publicKey);
+  return isString(p.accountId);
 }
 
 // Ensure a drawer element exists in body; use id 'exp'
@@ -63,7 +65,16 @@ function getDrawer(): HTMLElement & { theme?: string; open?: boolean; height?: s
 }
 
 // Ensure viewer element is a child of drawer
-function getViewer(): HTMLElement & { theme?: string; variant?: string; accountId?: string; publicKey?: string; privateKey?: string; loading?: boolean; errorMessage?: string } {
+function getViewer(): HTMLElement & {
+  theme?: string;
+  variant?: string;
+  accountId?: string;
+  publicKey?: string;
+  privateKey?: string;
+  keys?: ExportPrivateKeyDisplayEntry[];
+  loading?: boolean;
+  errorMessage?: string;
+} {
   const drawer = getDrawer();
   let viewer = drawer.querySelector(W3A_EXPORT_KEY_VIEWER_ID) as any;
   if (!viewer) {
@@ -102,7 +113,8 @@ function onMessage(e: MessageEvent<{ type: MessageType; payload?: any }>) {
       }
       if (payload.variant && isString(payload.variant)) viewer.variant = payload.variant;
       viewer.accountId = payload.accountId;
-      viewer.publicKey = payload.publicKey;
+      viewer.publicKey = payload.publicKey || '';
+      viewer.keys = Array.isArray(payload.keys) ? payload.keys : undefined;
 
       const drawer = getDrawer();
       if (payload.theme && isString(payload.theme)) drawer.theme = payload.theme;

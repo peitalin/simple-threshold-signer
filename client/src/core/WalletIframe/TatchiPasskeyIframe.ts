@@ -563,6 +563,17 @@ export class TatchiPasskeyIframe {
     return this.router.exportNearKeypairWithUI(nearAccountId);
   }
 
+  async exportPrivateKeysWithUI(
+    nearAccountId: string,
+    options?: {
+      schemes?: Array<'ed25519' | 'secp256k1'>;
+      variant?: 'drawer' | 'modal';
+      theme?: 'dark' | 'light';
+    },
+  ): Promise<void> {
+    return this.router.exportPrivateKeysWithUI(nearAccountId, options);
+  }
+
   // Utility: sign and send in one call via wallet iframe (single before/after)
   async signAndSendTransactions(args: {
     nearAccountId: string;

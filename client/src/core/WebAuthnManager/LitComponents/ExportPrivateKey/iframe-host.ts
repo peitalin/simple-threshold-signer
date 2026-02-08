@@ -8,6 +8,7 @@ import type { ExportViewerVariant, ExportViewerTheme } from './viewer';
 import { isObject, isString, isBoolean } from '../../../../../../shared/src/utils/validation';
 import { dispatchLitCancel, dispatchLitConfirm, dispatchLitCopy } from '../lit-events';
 import { ensureExternalStyles } from '../css/css-loader';
+import type { ExportPrivateKeyDisplayEntry } from '../../SecureConfirmWorkerManager/confirmTxFlow/types';
 
 type MessageType =
   | 'READY'
@@ -31,7 +32,8 @@ type MessagePayloads = {
     theme?: 'dark' | 'light';
     variant?: 'drawer' | 'modal';
     accountId: string;
-    publicKey: string;
+    publicKey?: string;
+    keys?: ExportPrivateKeyDisplayEntry[];
   };
   SET_LOADING: boolean;
   SET_ERROR: string;
@@ -50,6 +52,7 @@ export class IframeExportHost extends LitElementWithProps {
     accountId: { type: String, attribute: 'account-id' },
     publicKey: { type: String, attribute: 'public-key' },
     privateKey: { type: String, attribute: 'private-key' },
+    keys: { attribute: false },
     loading: { type: Boolean },
     errorMessage: { type: String },
   } as const;
@@ -59,6 +62,7 @@ export class IframeExportHost extends LitElementWithProps {
   declare accountId: string;
   declare publicKey: string;
   declare privateKey?: string;
+  declare keys?: ExportPrivateKeyDisplayEntry[];
   declare loading: boolean;
   declare errorMessage?: string;
 
@@ -78,6 +82,7 @@ export class IframeExportHost extends LitElementWithProps {
     this.accountId = '';
     this.publicKey = '';
     this.privateKey = undefined;
+    this.keys = undefined;
     this.loading = false;
   }
 
@@ -116,6 +121,7 @@ export class IframeExportHost extends LitElementWithProps {
       variant: this.variant,
       accountId: this.accountId,
       publicKey: this.publicKey,
+      keys: this.keys,
     });
     if (changed.has('loading')) {
       this.postToIframe('SET_LOADING', !!this.loading);
@@ -202,6 +208,7 @@ export class IframeExportHost extends LitElementWithProps {
             variant: this.variant,
             accountId: this.accountId,
             publicKey: this.publicKey,
+            keys: this.keys,
           });
           this.postToIframe('SET_LOADING', !!this.loading);
           if (this.errorMessage) this.postToIframe('SET_ERROR', this.errorMessage);
@@ -285,6 +292,7 @@ export type ExportViewerIframeElement = HTMLElement & {
   accountId?: string;
   publicKey?: string;
   privateKey?: string;
+  keys?: ExportPrivateKeyDisplayEntry[];
   loading?: boolean;
   errorMessage?: string;
 };

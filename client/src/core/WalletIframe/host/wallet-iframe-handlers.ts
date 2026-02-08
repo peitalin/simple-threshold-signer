@@ -275,6 +275,23 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       respondOkResult(req.requestId, result);
     },
 
+    PM_EXPORT_KEYS_UI: async (req: Req<'PM_EXPORT_KEYS_UI'>) => {
+      const pm = getTatchiPasskey();
+      const { nearAccountId, schemes, variant, theme } = req.payload!;
+      if ((pm as any).exportPrivateKeysWithUI) {
+        void (pm as any).exportPrivateKeysWithUI(nearAccountId, { schemes, variant, theme })
+          .catch((err: unknown) => {
+            if (isTouchIdCancellationError(err)) {
+              postToParent?.({ type: 'EXPORT_KEYS_CANCELLED', nearAccountId });
+              postToParent?.({ type: 'WALLET_UI_CLOSED' });
+              return;
+            }
+            postToParent?.({ type: 'WALLET_UI_CLOSED', error: errorMessage(err) });
+          });
+      }
+      respondOk(req.requestId);
+    },
+
     PM_EXPORT_NEAR_KEYPAIR_UI: async (req: Req<'PM_EXPORT_NEAR_KEYPAIR_UI'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId, variant, theme } = req.payload!;

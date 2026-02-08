@@ -1223,6 +1223,21 @@ export class WalletIframeRouter {
     nearAccountId: string,
     options?: { variant?: 'drawer' | 'modal'; theme?: 'dark' | 'light' }
   ): Promise<void> {
+    return await this.exportPrivateKeysWithUI(nearAccountId, {
+      schemes: ['ed25519'],
+      variant: options?.variant,
+      theme: options?.theme,
+    });
+  }
+
+  async exportPrivateKeysWithUI(
+    nearAccountId: string,
+    options?: {
+      schemes?: Array<'ed25519' | 'secp256k1'>;
+      variant?: 'drawer' | 'modal';
+      theme?: 'dark' | 'light';
+    },
+  ): Promise<void> {
     // Make the wallet iframe visible while the export viewer is open.
     // Unlike request/response flows, the wallet host renders UI and manages
     // its own lifecycle; it will notify us when to hide via window message.
@@ -1231,8 +1246,13 @@ export class WalletIframeRouter {
     const detachClosed = this.attachExportUiClosedListener(walletOrigin);
     try {
       await this.post<void>({
-        type: 'PM_EXPORT_NEAR_KEYPAIR_UI',
-        payload: { nearAccountId, variant: options?.variant, theme: options?.theme },
+        type: 'PM_EXPORT_KEYS_UI',
+        payload: {
+          nearAccountId,
+          schemes: Array.isArray(options?.schemes) ? options?.schemes : undefined,
+          variant: options?.variant,
+          theme: options?.theme,
+        },
         options: { sticky: true }
       });
       // Cleanup once posted (handler will remove itself on event)
@@ -1453,6 +1473,7 @@ export class WalletIframeRouter {
   private computeOverlayIntent(type: ParentToChildEnvelope['type']): { mode: 'hidden' | 'fullscreen' } {
     switch (type) {
       // Operations that require fullscreen overlay for WebAuthn activation
+      case 'PM_EXPORT_KEYS_UI':
       case 'PM_EXPORT_NEAR_KEYPAIR_UI':
       case 'PM_REGISTER':
       case 'PM_LOGIN':

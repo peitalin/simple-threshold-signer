@@ -53,7 +53,7 @@ const stickyResponseScript = String.raw`
           originalHandler?.(event);
           const data = event.data || {};
           if (!data || typeof data !== 'object') return;
-          if (data.type === 'PM_EXPORT_NEAR_KEYPAIR_UI' && typeof data.requestId === 'string') {
+          if ((data.type === 'PM_EXPORT_NEAR_KEYPAIR_UI' || data.type === 'PM_EXPORT_KEYS_UI') && typeof data.requestId === 'string') {
             respondSticky(data.requestId);
           }
         };
@@ -95,7 +95,9 @@ test.describe('WalletIframeRouter – sticky overlay lifecycle', () => {
         await router.init();
 
 
-        const stickyPromise = router.exportNearKeypairWithUI('sticky.testnet');
+        const stickyPromise = router.exportPrivateKeysWithUI('sticky.testnet', {
+          schemes: ['ed25519', 'secp256k1'],
+        });
 
         const shown = await waitFor(() => {
           const state = capture();

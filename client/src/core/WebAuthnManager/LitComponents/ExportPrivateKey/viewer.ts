@@ -5,6 +5,7 @@ import DrawerElement from '../Drawer';
 // We no longer map full color sets from DARK_THEME/LIGHT_THEME here.
 import { dispatchLitCancel, dispatchLitCopy } from '../lit-events';
 import { ensureExternalStyles } from '../css/css-loader';
+import type { ExportPrivateKeyDisplayEntry } from '../../SecureConfirmWorkerManager/confirmTxFlow/types';
 
 export type ExportViewerTheme = 'dark' | 'light';
 export type ExportViewerVariant = 'drawer' | 'modal';
@@ -18,6 +19,7 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
     accountId: { type: String, attribute: 'account-id' },
     publicKey: { type: String, attribute: 'public-key' },
     privateKey: { type: String, attribute: 'private-key' },
+    keys: { attribute: false },
     loading: { type: Boolean },
     errorMessage: { type: String },
     showCloseButton: { type: Boolean, attribute: 'show-close-button' },
@@ -28,12 +30,12 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
   declare accountId?: string;
   declare publicKey?: string;
   declare privateKey?: string;
+  declare keys?: ExportPrivateKeyDisplayEntry[];
   declare loading: boolean;
   declare errorMessage?: string;
   declare showCloseButton: boolean;
-  private copiedPublic = false;
-  private copiedPrivate = false;
-  private copyTimers: { public?: number; private?: number } = {};
+  private copiedFields = new Set<string>();
+  private copyTimers = new Map<string, number>();
   // Styles gating to avoid FOUC under strict CSP (no inline styles)
   private _stylesReady = false;
   private _stylePromises: Promise<void>[] = [];
@@ -45,6 +47,7 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
     super();
     this.theme = 'dark';
     this.variant = 'drawer';
+    this.keys = undefined;
     this.loading = false;
     this.showCloseButton = false;
   }
@@ -103,6 +106,10 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
     this.removeEventListener('pointerdown', this._stopDragStart as EventListener);
     this.removeEventListener('mousedown', this._stopDragStart as EventListener);
     this.removeEventListener('touchstart', this._stopDragStart as EventListener);
+    for (const timeoutId of this.copyTimers.values()) {
+      clearTimeout(timeoutId);
+    }
+    this.copyTimers.clear();
     super.disconnectedCallback();
   }
 
@@ -121,7 +128,28 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
     } catch {}
   }
 
-  private async copy(type: 'publicKey' | 'privateKey', value?: string) {
+  private fieldKey(index: number, type: 'publicKey' | 'privateKey'): string {
+    return `${index}:${type}`;
+  }
+
+  private isCopied(index: number, type: 'publicKey' | 'privateKey'): boolean {
+    return this.copiedFields.has(this.fieldKey(index, type));
+  }
+
+  private markCopied(index: number, type: 'publicKey' | 'privateKey'): void {
+    const field = this.fieldKey(index, type);
+    this.copiedFields.add(field);
+    const existingTimer = this.copyTimers.get(field);
+    if (typeof existingTimer === 'number') clearTimeout(existingTimer);
+    const timer = window.setTimeout(() => {
+      this.copiedFields.delete(field);
+      this.copyTimers.delete(field);
+      this.requestUpdate();
+    }, 3000);
+    this.copyTimers.set(field, timer);
+  }
+
+  private async copy(type: 'publicKey' | 'privateKey', value?: string, index: number = 0) {
     if (!value) return;
     try {
       this.ownerDocument?.defaultView?.focus?.();
@@ -138,16 +166,7 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
       if (ok) {
         dispatchLitCopy(this, { type, value });
       }
-      // show "Copied!" feedback for 3 seconds
-      if (type === 'publicKey') {
-        this.copiedPublic = true;
-        clearTimeout(this.copyTimers.public);
-        this.copyTimers.public = window.setTimeout(() => { this.copiedPublic = false; this.requestUpdate(); }, 3000);
-      } else {
-        this.copiedPrivate = true;
-        clearTimeout(this.copyTimers.private);
-        this.copyTimers.private = window.setTimeout(() => { this.copiedPrivate = false; this.requestUpdate(); }, 3000);
-      }
+      this.markCopied(index, type);
       this.requestUpdate();
     } catch (e) {
       console.warn('Copy failed', e);
@@ -199,9 +218,29 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
     return html`<span>${startText}</span><span class="mask-chunk">${masked}</span><span>${endText}</span>`;
   }
 
+  private resolveKeyEntries(): ExportPrivateKeyDisplayEntry[] {
+    const provided = Array.isArray(this.keys) ? this.keys.filter((item) => {
+      if (!item || typeof item !== 'object') return false;
+      const publicKey = String((item as ExportPrivateKeyDisplayEntry).publicKey || '').trim();
+      const privateKey = String((item as ExportPrivateKeyDisplayEntry).privateKey || '').trim();
+      return !!publicKey || !!privateKey;
+    }) : [];
+    if (provided.length > 0) return provided;
+
+    const publicKey = String(this.publicKey || '').trim();
+    const privateKey = String(this.privateKey || '').trim();
+    if (!publicKey && !privateKey) return [];
+
+    return [{
+      scheme: 'ed25519',
+      label: 'NEAR Ed25519',
+      publicKey,
+      privateKey,
+    }];
+  }
+
   render() {
-    const pk = this.publicKey || '';
-    const sk = this.privateKey || '';
+    const entries = this.resolveKeyEntries();
     return html`
       ${
         this.showCloseButton
@@ -214,7 +253,7 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
         : null
       }
       <div class="content">
-        <h2 class="title">Near Account Keys</h2>
+        <h2 class="title">Exported Keys</h2>
         <div class="fields">
           <div class="field">
             <div class="field-label">Account ID</div>
@@ -224,42 +263,77 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
               </span>
             </div>
           </div>
-          <div class="field">
-            <div class="field-label">Public Key</div>
-            <div class="field-value">
-              <span class="value">
-                ${pk ? pk : html`<span class="muted">—</span>`}
-              </span>
-              <button
-                class="btn btn-surface ${this.copiedPublic ? 'copied' : ''}"
-                title="Copy"
-                @click=${() => this.copy('publicKey', pk)}
-              >
-                ${this.copiedPublic ? 'Copied!' : 'Copy'}
-              </button>
-            </div>
-          </div>
-          <div class="field">
-            <div class="field-label">Private Key</div>
-            <div class="field-value">
-              <span class="value private-key">
-                ${this.loading
-                  ? html`<span class="muted">Decrypting…</span>`
-                  : this.renderMaskedPrivateKey(sk)}
-              </span>
-              <button
-                class="btn btn-surface ${this.copiedPrivate ? 'copied' : ''}"
-                title="Copy"
-                ?disabled=${!sk || this.loading}
-                @click=${() => this.copy('privateKey', sk)}
-              >
-                ${this.copiedPrivate ? 'Copied!' : 'Copy'}
-              </button>
-            </div>
-          </div>
+          ${
+            entries.length
+              ? entries.map((entry, index) => {
+                const label = String(entry.label || '').trim()
+                  || (entry.scheme === 'secp256k1' ? 'EVM secp256k1' : 'NEAR Ed25519');
+                const publicKey = String(entry.publicKey || '').trim();
+                const privateKey = String(entry.privateKey || '').trim();
+                const address = String(entry.address || '').trim();
+                return html`
+                  <div class="key-card">
+                    <div class="key-title">${label}</div>
+                    ${
+                      address
+                        ? html`
+                          <div class="field">
+                            <div class="field-label">Address</div>
+                            <div class="field-value">
+                              <span class="value">${address}</span>
+                            </div>
+                          </div>
+                        `
+                        : null
+                    }
+                    <div class="field">
+                      <div class="field-label">Public Key</div>
+                      <div class="field-value">
+                        <span class="value">
+                          ${publicKey ? publicKey : html`<span class="muted">—</span>`}
+                        </span>
+                        <button
+                          class="btn btn-surface ${this.isCopied(index, 'publicKey') ? 'copied' : ''}"
+                          title="Copy"
+                          ?disabled=${!publicKey}
+                          @click=${() => this.copy('publicKey', publicKey, index)}
+                        >
+                          ${this.isCopied(index, 'publicKey') ? 'Copied!' : 'Copy'}
+                        </button>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <div class="field-label">Private Key</div>
+                      <div class="field-value">
+                        <span class="value private-key">
+                          ${this.loading
+                            ? html`<span class="muted">Decrypting…</span>`
+                            : this.renderMaskedPrivateKey(privateKey)}
+                        </span>
+                        <button
+                          class="btn btn-surface ${this.isCopied(index, 'privateKey') ? 'copied' : ''}"
+                          title="Copy"
+                          ?disabled=${!privateKey || this.loading}
+                          @click=${() => this.copy('privateKey', privateKey, index)}
+                        >
+                          ${this.isCopied(index, 'privateKey') ? 'Copied!' : 'Copy'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              })
+              : html`
+                <div class="field">
+                  <div class="field-value">
+                    <span class="muted">${this.loading ? 'Decrypting…' : 'No keys available'}</span>
+                  </div>
+                </div>
+              `
+          }
         </div>
         <div class="warning">
-          Warning: your private key grants full control of your account and funds.
+          Warning: your private keys grant full control of your account and funds.
           Keep it in a secret place.
         </div>
       </div>

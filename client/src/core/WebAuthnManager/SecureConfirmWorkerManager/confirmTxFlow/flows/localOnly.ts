@@ -5,6 +5,7 @@ import {
   TransactionSummary,
   LocalOnlySecureConfirmRequest,
   type ShowSecurePrivateKeyUiPayload,
+  type ExportPrivateKeyDisplayEntry,
 } from '../types';
 import type { SecureConfirmSecurityContext } from '../../../../types';
 import { addLitCancelListener } from '../../../LitComponents/lit-events';
@@ -41,6 +42,7 @@ async function mountExportViewer(
   host.accountId = payload.nearAccountId;
   host.publicKey = payload.publicKey;
   host.privateKey = payload.privateKey;
+  host.keys = Array.isArray(payload.keys) ? payload.keys as ExportPrivateKeyDisplayEntry[] : undefined;
   host.loading = false;
 
   window.parent?.postMessage({ type: 'WALLET_UI_OPENED' }, '*');

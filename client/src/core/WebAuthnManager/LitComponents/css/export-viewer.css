@@ -53,6 +53,20 @@ w3a-export-key-viewer { display: block; position: relative; font-family: -apple-
 }
 
 .fields { display: flex; flex-direction: column; gap: 0.5rem; }
+.key-card {
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  background: var(--w3a-colors-surface2);
+  border-radius: 1rem;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.key-title {
+  color: var(--w3a-colors-textPrimary, #f6f7f8);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
 .field {
   display: flex;
   flex-direction: column;

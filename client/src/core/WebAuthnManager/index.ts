@@ -47,8 +47,13 @@ import { connectThresholdEcdsaSessionLite } from '../threshold/connectThresholdE
 import { collectAuthenticationCredentialForChallengeB64u } from './collectAuthenticationCredentialForChallengeB64u';
 import { computeThresholdEd25519KeygenIntentDigest } from '../digests/intentDigest';
 import { deriveNearKeypairFromPrfSecondB64u } from '../nearCrypto';
+import { deriveSecp256k1KeypairFromPrfSecondB64u } from '../multichain/evm/deriveSecp256k1KeypairFromPrfSecond';
 import { runSecureConfirm } from './SecureConfirmWorkerManager/secureConfirmBridge';
-import { SecureConfirmationType, type SecureConfirmRequest } from './SecureConfirmWorkerManager/confirmTxFlow/types';
+import {
+  SecureConfirmationType,
+  type SecureConfirmRequest,
+  type ExportPrivateKeyDisplayEntry,
+} from './SecureConfirmWorkerManager/confirmTxFlow/types';
 import type { TempoSecp256k1SigningRequest, TempoSigningRequest } from '../multichain/tempo/types';
 import type { TempoSignedResult } from '../multichain/tempo/tempoAdapter';
 import { WebAuthnP256Engine } from '../multichain/engines/webauthn-p256';
@@ -238,6 +243,17 @@ export class WebAuthnManager {
     const trimmed = typeof prfFirst === 'string' ? prfFirst.trim() : '';
     if (!trimmed) {
       throw new Error('Missing PRF.first output from credential (requires a PRF-enabled passkey)');
+    }
+    return trimmed;
+  }
+
+  private extractPrfSecondB64u(
+    credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential,
+  ): string {
+    const prfSecond = (credential as any)?.clientExtensionResults?.prf?.results?.second;
+    const trimmed = typeof prfSecond === 'string' ? prfSecond.trim() : '';
+    if (!trimmed) {
+      throw new Error('Missing PRF.second output from credential (requires a PRF-enabled passkey)');
     }
     return trimmed;
   }
@@ -1011,6 +1027,182 @@ export class WebAuthnManager {
       accountId: String(nearAccountId),
       publicKey: userData?.clientNearPublicKey ?? '',
       privateKey: '',
+    };
+  }
+
+  /**
+   * Worker-driven multi-key export:
+   * - collects PRF outputs in wallet origin
+   * - derives/decrypts requested key material
+   * - displays all requested keys in ExportPrivateKey iframe viewer
+   */
+  async exportPrivateKeysWithUIWorkerDriven(
+    nearAccountId: AccountId,
+    options?: {
+      schemes?: Array<'ed25519' | 'secp256k1'>;
+      variant?: 'drawer' | 'modal';
+      theme?: 'dark' | 'light';
+    },
+  ): Promise<void> {
+    const resolvedTheme = options?.theme ?? this.theme;
+    const requestedSchemes = Array.isArray(options?.schemes) && options?.schemes.length
+      ? options.schemes
+      : (['ed25519', 'secp256k1'] as const);
+    const schemes = Array.from(new Set(requestedSchemes))
+      .filter((scheme): scheme is 'ed25519' | 'secp256k1' => scheme === 'ed25519' || scheme === 'secp256k1');
+    if (!schemes.length) throw new Error('No export schemes requested');
+
+    const accountId = toAccountId(nearAccountId);
+    const [last, latest] = await Promise.all([
+      IndexedDBManager.clientDB.getLastUser().catch(() => null),
+      IndexedDBManager.clientDB.getLastDBUpdatedUser(accountId).catch(() => null),
+    ]);
+    const userForAccount = (last && last.nearAccountId === accountId) ? last : latest;
+    const deviceNumber =
+      (last && last.nearAccountId === accountId && typeof last.deviceNumber === 'number')
+        ? last.deviceNumber
+        : (latest && typeof latest.deviceNumber === 'number')
+          ? latest.deviceNumber
+          : null;
+    if (deviceNumber === null) {
+      throw new Error(`No deviceNumber found for account ${accountId} (export/decrypt)`);
+    }
+
+    const [keyMaterial, thresholdKeyMaterial] = await Promise.all([
+      IndexedDBManager.nearKeysDB.getLocalKeyMaterial(accountId, deviceNumber).catch(() => null),
+      IndexedDBManager.nearKeysDB.getThresholdKeyMaterial(accountId, deviceNumber).catch(() => null),
+    ]);
+    if (!keyMaterial && !thresholdKeyMaterial) {
+      throw new Error(`No key material found for account ${accountId} device ${deviceNumber}`);
+    }
+
+    const publicKeyHint = String(
+      userForAccount?.clientNearPublicKey
+      || keyMaterial?.publicKey
+      || thresholdKeyMaterial?.publicKey
+      || '',
+    ).trim();
+
+    const requestId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+      ? crypto.randomUUID()
+      : `export-keys-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+    const decision = await runSecureConfirm(this.secureConfirmWorkerManager.getContext(), {
+      requestId,
+      type: SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF,
+      summary: {
+        operation: 'Export Private Key',
+        accountId: String(accountId),
+        publicKey: publicKeyHint || '(derived from passkey)',
+        warning: 'Authenticate with your passkey to prepare export keys.',
+      },
+      payload: {
+        nearAccountId: String(accountId),
+        publicKey: publicKeyHint,
+      },
+      intentDigest: `export-keys:${accountId}:${deviceNumber}`,
+    } satisfies SecureConfirmRequest);
+
+    if (!decision?.confirmed) {
+      throw new Error(decision?.error || 'User rejected export request');
+    }
+    if (!decision.credential) {
+      throw new Error('Missing WebAuthn credential for export request');
+    }
+
+    const credential = decision.credential as WebAuthnAuthenticationCredential;
+    const exportKeys: ExportPrivateKeyDisplayEntry[] = [];
+
+    if (schemes.includes('ed25519')) {
+      const localWrapKeySalt = String(keyMaterial?.wrapKeySalt || '').trim();
+      if (keyMaterial && localWrapKeySalt) {
+        const prfFirstB64u = this.extractPrfFirstB64u(credential);
+        const decrypted = await this.signerWorkerManager.decryptPrivateKeyWithPrf({
+          nearAccountId: accountId,
+          authenticators: [],
+          sessionId: `${requestId}:ed25519`,
+          prfFirstB64u,
+          wrapKeySalt: localWrapKeySalt,
+        });
+        exportKeys.push({
+          scheme: 'ed25519',
+          label: 'NEAR Ed25519',
+          publicKey: String(keyMaterial.publicKey || publicKeyHint || '').trim(),
+          privateKey: String(decrypted.decryptedPrivateKey || '').trim(),
+        });
+      } else {
+        const prfSecondB64u = this.extractPrfSecondB64u(credential);
+        const derived = await deriveNearKeypairFromPrfSecondB64u({
+          prfSecondB64u,
+          nearAccountId: String(accountId),
+        });
+        exportKeys.push({
+          scheme: 'ed25519',
+          label: 'NEAR Ed25519',
+          publicKey: derived.publicKey,
+          privateKey: derived.privateKey,
+        });
+      }
+    }
+
+    if (schemes.includes('secp256k1')) {
+      const prfSecondB64u = this.extractPrfSecondB64u(credential);
+      const derived = deriveSecp256k1KeypairFromPrfSecondB64u({
+        prfSecondB64u,
+        nearAccountId: String(accountId),
+      });
+      exportKeys.push({
+        scheme: 'secp256k1',
+        label: 'EVM secp256k1',
+        publicKey: derived.publicKeyHex,
+        privateKey: derived.privateKeyHex,
+        address: derived.ethereumAddress,
+      });
+    }
+
+    if (!exportKeys.length) {
+      throw new Error('No exportable keys were produced');
+    }
+
+    const first = exportKeys[0]!;
+    await runSecureConfirm(this.secureConfirmWorkerManager.getContext(), {
+      requestId: `${requestId}-show`,
+      type: SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI,
+      summary: {
+        operation: 'Export Private Key',
+        accountId: String(accountId),
+        publicKey: first.publicKey,
+        warning: 'Anyone with your private key can fully control your account. Never share it.',
+      },
+      payload: {
+        nearAccountId: String(accountId),
+        publicKey: first.publicKey,
+        privateKey: first.privateKey,
+        keys: exportKeys,
+        variant: options?.variant,
+        theme: resolvedTheme,
+      },
+      intentDigest: `export-keys:${accountId}:${deviceNumber}`,
+    } satisfies SecureConfirmRequest);
+  }
+
+  async exportPrivateKeysWithUI(
+    nearAccountId: AccountId,
+    options?: {
+      schemes?: Array<'ed25519' | 'secp256k1'>;
+      variant?: 'drawer' | 'modal';
+      theme?: 'dark' | 'light';
+    },
+  ): Promise<{ accountId: string; exportedSchemes: Array<'ed25519' | 'secp256k1'> }> {
+    const requestedSchemes = Array.isArray(options?.schemes) && options?.schemes.length
+      ? options.schemes
+      : (['ed25519', 'secp256k1'] as const);
+    const exportedSchemes = Array.from(new Set(requestedSchemes))
+      .filter((scheme): scheme is 'ed25519' | 'secp256k1' => scheme === 'ed25519' || scheme === 'secp256k1');
+    await this.exportPrivateKeysWithUIWorkerDriven(nearAccountId, options);
+    return {
+      accountId: String(nearAccountId),
+      exportedSchemes,
     };
   }
 

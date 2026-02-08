@@ -503,8 +503,8 @@ NEAR’s `mpc` docs explicitly call out background triple generation and presign
 
 ### Phase 4 — Key lifecycle (keygen + export)
 - [x] Add `keygen` for ECDSA (`POST /threshold-ecdsa/keygen`, deterministic derived shares).
-- [ ] Add key export flow for ECDSA (optional; wallet-origin only).
-- [ ] Add key export flow for Ed25519 if needed by product (optional).
+- [x] Add key export flow for ECDSA (optional; wallet-origin only).
+- [x] Add key export flow for Ed25519 if needed by product (optional).
 
 ### Phase 5 — End-to-end integration tests
 - [x] Ed25519: existing tests remain; add scheme registry + dispatch coverage.

@@ -1412,14 +1412,16 @@ export class TatchiPasskey {
   ///////////////////////////////////////
 
   /**
-   * Canonical entrypoint to show the Export Private Key UI (secure drawer/modal)
-   * without returning the key to the caller. All dApps should use this wrapper;
-   * the underlying WebAuthnManager.exportNearKeypairWithUI() is fully worker-
-   * driven and only ever reveals the private key inside trusted UI surfaces.
+   * Canonical entrypoint to show secure key export UI (wallet-origin only) without
+   * returning private keys to the caller.
    */
-  async exportNearKeypairWithUI(
+  async exportPrivateKeysWithUI(
     nearAccountId: string,
-    options?: { variant?: 'drawer' | 'modal'; theme?: 'dark' | 'light' }
+    options?: {
+      schemes?: Array<'ed25519' | 'secp256k1'>;
+      variant?: 'drawer' | 'modal';
+      theme?: 'dark' | 'light';
+    },
   ): Promise<void> {
     const resolvedOptions = {
       ...options,
@@ -1430,14 +1432,28 @@ export class TatchiPasskey {
     try {
       if (this.shouldUseWalletIframe()) {
         const router = await this.requireWalletIframeRouter(nearAccountId);
-        await router.exportNearKeypairWithUI(nearAccountId, resolvedOptions);
+        await router.exportPrivateKeysWithUI(nearAccountId, resolvedOptions);
         return;
       }
     } catch {
       // Fall back to local worker-driven UI (app origin) if wallet host is unavailable.
     }
 
-    await this.webAuthnManager.exportNearKeypairWithUI(toAccountId(nearAccountId), resolvedOptions);
+    await this.webAuthnManager.exportPrivateKeysWithUI(toAccountId(nearAccountId), resolvedOptions);
+  }
+
+  /**
+   * Backwards-compatible NEAR-only export helper.
+   */
+  async exportNearKeypairWithUI(
+    nearAccountId: string,
+    options?: { variant?: 'drawer' | 'modal'; theme?: 'dark' | 'light' }
+  ): Promise<void> {
+    await this.exportPrivateKeysWithUI(nearAccountId, {
+      schemes: ['ed25519'],
+      variant: options?.variant,
+      theme: options?.theme,
+    });
   }
 
   ///////////////////////////////////////

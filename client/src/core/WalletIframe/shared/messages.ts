@@ -42,6 +42,7 @@ export type ParentToChildType =
   | 'PM_SIGN_DELEGATE_ACTION'
   | 'PM_SIGN_NEP413'
   | 'PM_SIGN_TEMPO'
+  | 'PM_EXPORT_KEYS_UI'
   | 'PM_EXPORT_NEAR_KEYPAIR_UI'
   | 'PM_GET_RECENT_LOGINS'
   | 'PM_PREFETCH_BLOCKHEIGHT'
@@ -243,6 +244,12 @@ export interface PMSignTempoPayload {
 
 export interface PMExportNearKeypairPayload { nearAccountId: string }
 export interface PMExportNearKeypairUiPayload { nearAccountId: string; variant?: 'modal' | 'drawer'; theme?: 'dark' | 'light' }
+export interface PMExportKeysUiPayload {
+  nearAccountId: string;
+  schemes?: Array<'ed25519' | 'secp256k1'>;
+  variant?: 'modal' | 'drawer';
+  theme?: 'dark' | 'light';
+}
 
 export interface PMSetConfirmBehaviorPayload { behavior: 'requireClick' | 'skipClick'; nearAccountId?: string }
 
@@ -358,6 +365,7 @@ export type ParentToChildEnvelope =
   | RpcEnvelope<'PM_SIGN_DELEGATE_ACTION', PMSignDelegateActionPayload>
   | RpcEnvelope<'PM_SIGN_NEP413', PMSignNep413Payload>
   | RpcEnvelope<'PM_SIGN_TEMPO', PMSignTempoPayload>
+  | RpcEnvelope<'PM_EXPORT_KEYS_UI', PMExportKeysUiPayload>
   | RpcEnvelope<'PM_EXPORT_NEAR_KEYPAIR_UI', PMExportNearKeypairUiPayload>
   | RpcEnvelope<'PM_GET_RECENT_LOGINS'>
   | RpcEnvelope<'PM_PREFETCH_BLOCKHEIGHT'>
