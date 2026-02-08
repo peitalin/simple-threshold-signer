@@ -142,7 +142,7 @@ class PostgresThresholdEd25519KeyStore implements ThresholdEd25519KeyStore {
     if (!id) return null;
     const pool = await this.poolPromise;
     const { rows } = await pool.query(
-      'SELECT record_json FROM tatchi_threshold_ed25519_keys WHERE namespace = $1 AND relayer_key_id = $2 LIMIT 1',
+      'SELECT record_json FROM threshold_ed25519_keys WHERE namespace = $1 AND relayer_key_id = $2 LIMIT 1',
       [this.namespace, id],
     );
     return parseThresholdEd25519KeyRecord(rows[0]?.record_json);
@@ -156,7 +156,7 @@ class PostgresThresholdEd25519KeyStore implements ThresholdEd25519KeyStore {
     const pool = await this.poolPromise;
     await pool.query(
       `
-        INSERT INTO tatchi_threshold_ed25519_keys (namespace, relayer_key_id, record_json)
+        INSERT INTO threshold_ed25519_keys (namespace, relayer_key_id, record_json)
         VALUES ($1, $2, $3)
         ON CONFLICT (namespace, relayer_key_id)
         DO UPDATE SET record_json = EXCLUDED.record_json
@@ -170,7 +170,7 @@ class PostgresThresholdEd25519KeyStore implements ThresholdEd25519KeyStore {
     if (!id) return;
     const pool = await this.poolPromise;
     await pool.query(
-      'DELETE FROM tatchi_threshold_ed25519_keys WHERE namespace = $1 AND relayer_key_id = $2',
+      'DELETE FROM threshold_ed25519_keys WHERE namespace = $1 AND relayer_key_id = $2',
       [this.namespace, id],
     );
   }

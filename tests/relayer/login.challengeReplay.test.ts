@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { AuthService } from '../../server/core/AuthService';
-import { createRelayRouter } from '../../server/router/express-adaptor';
+import { AuthService } from '@server/core/AuthService';
+import { createRelayRouter } from '@server/router/express-adaptor';
 import { fetchJson, makeSessionAdapter, startExpressRouter } from './helpers';
 import { DEFAULT_TEST_CONFIG } from '../setup/config';
 

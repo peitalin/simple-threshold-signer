@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { parseContractExecutionError } from '../../server/core/errors';
+import { parseContractExecutionError } from '@server/core/errors';
 
 test.describe('parseContractExecutionError()', () => {
   test.beforeEach(() => {

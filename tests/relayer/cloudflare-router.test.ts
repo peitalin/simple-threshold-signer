@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createCloudflareRouter } from '../../server/router/cloudflare-adaptor';
+import { createCloudflareRouter } from '@server/router/cloudflare-adaptor';
 import { callCf, makeCfCtx, makeFakeAuthService, makeSessionAdapter } from './helpers';
 
 function validLoginOptionsBody(overrides?: Partial<any>): any {

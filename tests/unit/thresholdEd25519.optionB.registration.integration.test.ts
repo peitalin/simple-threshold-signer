@@ -1,13 +1,13 @@
 import { test, expect } from '@playwright/test';
-import { setupBasicPasskeyTest } from '../setup';
+import { setupBasicPasskeyTest, SDK_ESM_PATHS, sdkEsmPath } from '../setup';
 import { DEFAULT_TEST_CONFIG } from '../setup/config';
 import bs58 from 'bs58';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { createHash } from 'node:crypto';
 
 const IMPORT_PATHS = {
-  nearKeysDb: '/sdk/esm/core/IndexedDBManager/passkeyNearKeysDB.js',
-  tatchi: '/sdk/esm/core/TatchiPasskey/index.js',
+  nearKeysDb: sdkEsmPath('core/IndexedDBManager/passkeyNearKeysDB.js'),
+  tatchi: SDK_ESM_PATHS.tatchiPasskey,
 } as const;
 
 function toB64u(bytes: Uint8Array): string {
@@ -40,11 +40,11 @@ test.describe('Threshold Ed25519 (registration) — relay-created threshold key'
 
     // setupBasicPasskeyTest() skips bootstrap "global fallbacks" when tatchi init is skipped.
     // WebAuthn mocks expect base64UrlEncode/base64UrlDecode to be present on window.
-    await page.evaluate(async () => {
-      const { base64UrlEncode, base64UrlDecode } = await import('/sdk/esm/utils/base64.js');
+    await page.evaluate(async (base64Path) => {
+      const { base64UrlEncode, base64UrlDecode } = await import(base64Path);
       (window as any).base64UrlEncode = base64UrlEncode;
       (window as any).base64UrlDecode = base64UrlDecode;
-    });
+    }, SDK_ESM_PATHS.base64);
   });
 
   test('registration with signerMode=threshold-signer stores threshold material (no client-side send_tx)', async ({ page }) => {
@@ -319,9 +319,9 @@ test.describe('Threshold Ed25519 (registration) — relay-created threshold key'
       });
     });
 
-    const registration = await page.evaluate(async () => {
+    const registration = await page.evaluate(async ({ paths }) => {
       try {
-        const { TatchiPasskey } = await import('/sdk/esm/core/TatchiPasskey/index.js');
+        const { TatchiPasskey } = await import(paths.tatchi);
         const suffix =
           (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
             ? crypto.randomUUID()
@@ -361,7 +361,7 @@ test.describe('Threshold Ed25519 (registration) — relay-created threshold key'
       } catch (error: any) {
         return { accountId: 'unknown', success: false, error: error?.message || String(error) };
       }
-    });
+    }, { paths: IMPORT_PATHS });
 
     if (!registration.success) {
       throw new Error(`registration failed: ${registration.error || 'unknown'}`);
@@ -641,9 +641,9 @@ test.describe('Threshold Ed25519 (registration) — relay-created threshold key'
       });
     });
 
-    const registration = await page.evaluate(async () => {
+    const registration = await page.evaluate(async ({ paths }) => {
       try {
-        const { TatchiPasskey } = await import('/sdk/esm/core/TatchiPasskey/index.js');
+        const { TatchiPasskey } = await import(paths.tatchi);
         const suffix =
           (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
             ? crypto.randomUUID()
@@ -681,7 +681,7 @@ test.describe('Threshold Ed25519 (registration) — relay-created threshold key'
       } catch (error: any) {
         return { accountId: 'unknown', success: false, error: error?.message || String(error) };
       }
-    });
+    }, { paths: IMPORT_PATHS });
 
     expect(registration.success).toBe(false);
     expect(Boolean(registration.error)).toBe(true);

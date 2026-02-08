@@ -327,7 +327,7 @@ class PostgresWebAuthnAuthenticatorStore implements WebAuthnAuthenticatorStore {
     const { rows } = await pool.query(
       `
         SELECT credential_public_key_b64u, counter, created_at_ms, updated_at_ms
-        FROM tatchi_webauthn_authenticators
+        FROM webauthn_authenticators
         WHERE namespace = $1 AND user_id = $2 AND credential_id_b64u = $3
         LIMIT 1
       `,
@@ -354,16 +354,16 @@ class PostgresWebAuthnAuthenticatorStore implements WebAuthnAuthenticatorStore {
     const pool = await this.poolPromise;
     await pool.query(
       `
-        INSERT INTO tatchi_webauthn_authenticators (
+        INSERT INTO webauthn_authenticators (
           namespace, user_id, credential_id_b64u, credential_public_key_b64u, counter, created_at_ms, updated_at_ms
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7)
         ON CONFLICT (namespace, user_id, credential_id_b64u)
         DO UPDATE SET
           credential_public_key_b64u = EXCLUDED.credential_public_key_b64u,
-          counter = GREATEST(tatchi_webauthn_authenticators.counter, EXCLUDED.counter),
-          created_at_ms = LEAST(tatchi_webauthn_authenticators.created_at_ms, EXCLUDED.created_at_ms),
-          updated_at_ms = GREATEST(tatchi_webauthn_authenticators.updated_at_ms, EXCLUDED.updated_at_ms)
+          counter = GREATEST(webauthn_authenticators.counter, EXCLUDED.counter),
+          created_at_ms = LEAST(webauthn_authenticators.created_at_ms, EXCLUDED.created_at_ms),
+          updated_at_ms = GREATEST(webauthn_authenticators.updated_at_ms, EXCLUDED.updated_at_ms)
       `,
       [
         this.namespace,
@@ -383,7 +383,7 @@ class PostgresWebAuthnAuthenticatorStore implements WebAuthnAuthenticatorStore {
     if (!uid || !cid) return;
     const pool = await this.poolPromise;
     await pool.query(
-      'DELETE FROM tatchi_webauthn_authenticators WHERE namespace = $1 AND user_id = $2 AND credential_id_b64u = $3',
+      'DELETE FROM webauthn_authenticators WHERE namespace = $1 AND user_id = $2 AND credential_id_b64u = $3',
       [this.namespace, uid, cid],
     );
   }
@@ -395,7 +395,7 @@ class PostgresWebAuthnAuthenticatorStore implements WebAuthnAuthenticatorStore {
     const { rows } = await pool.query(
       `
         SELECT credential_id_b64u, credential_public_key_b64u, counter, created_at_ms, updated_at_ms
-        FROM tatchi_webauthn_authenticators
+        FROM webauthn_authenticators
         WHERE namespace = $1 AND user_id = $2
         ORDER BY created_at_ms ASC
       `,

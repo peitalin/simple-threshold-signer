@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupBasicPasskeyTest, handleInfrastructureErrors } from '../setup';
+import { setupBasicPasskeyTest, handleInfrastructureErrors, SDK_ESM_PATHS } from '../setup';
 import { buildWalletServiceHtml, registerWalletServiceRoute, waitFor } from './harness';
 
 const WALLET_ORIGIN = 'https://wallet.example.localhost';
@@ -123,12 +123,13 @@ test.describe('Wallet iframe preferences sync', () => {
       if (msg.type() === 'error') consoleErrors.push(msg.text());
     });
 
-    const result = await page.evaluate(async ({ walletOrigin, waitForSource }) => {
+    const tatchiPath = SDK_ESM_PATHS.tatchiPasskey;
+    const result = await page.evaluate(async ({ walletOrigin, waitForSource, tatchiPath }) => {
       const waitFor = eval(waitForSource) as typeof import('./harness').waitFor;
       try {
         const base = window.location.origin === 'null' ? 'https://example.localhost' : window.location.origin;
-        const mod = await import(new URL('/sdk/esm/core/TatchiPasskey/index.js', base).toString());
-        const { TatchiPasskey } = mod as typeof import('../../core/TatchiPasskey');
+        const mod = await import(new URL(tatchiPath, base).toString());
+        const { TatchiPasskey } = mod as typeof import('@/core/TatchiPasskey');
 
         const tatchi = new TatchiPasskey({
           nearRpcUrl: 'https://test.rpc.fastnear.com',
@@ -165,7 +166,7 @@ test.describe('Wallet iframe preferences sync', () => {
       } catch (error: any) {
         return { success: false, error: error?.message || String(error) };
       }
-    }, { walletOrigin: WALLET_ORIGIN, waitForSource: WAIT_FOR_SOURCE });
+    }, { walletOrigin: WALLET_ORIGIN, waitForSource: WAIT_FOR_SOURCE, tatchiPath });
 
     if (!result.success) {
       if (handleInfrastructureErrors(result)) return;
@@ -187,11 +188,12 @@ test.describe('Wallet iframe preferences sync', () => {
   });
 
   test('tatchi.setTheme forwards updates to the wallet host', async ({ page }) => {
-    const result = await page.evaluate(async ({ walletOrigin }) => {
+    const tatchiPath = SDK_ESM_PATHS.tatchiPasskey;
+    const result = await page.evaluate(async ({ walletOrigin, tatchiPath }) => {
       try {
         const base = window.location.origin === 'null' ? 'https://example.localhost' : window.location.origin;
-        const mod = await import(new URL('/sdk/esm/core/TatchiPasskey/index.js', base).toString());
-        const { TatchiPasskey } = mod as typeof import('../../core/TatchiPasskey');
+        const mod = await import(new URL(tatchiPath, base).toString());
+        const { TatchiPasskey } = mod as typeof import('@/core/TatchiPasskey');
 
         const tatchi = new TatchiPasskey({
           nearRpcUrl: 'https://test.rpc.fastnear.com',
@@ -212,7 +214,7 @@ test.describe('Wallet iframe preferences sync', () => {
       } catch (error: any) {
         return { success: false, error: error?.message || String(error) };
       }
-    }, { walletOrigin: WALLET_ORIGIN });
+    }, { walletOrigin: WALLET_ORIGIN, tatchiPath });
 
     if (!result.success) {
       if (handleInfrastructureErrors(result)) return;

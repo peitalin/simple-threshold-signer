@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { setupBasicPasskeyTest } from '../setup';
+import { setupBasicPasskeyTest, SDK_ESM_PATHS, sdkEsmPath } from '../setup';
 import { DEFAULT_TEST_CONFIG } from '../setup/config';
 import bs58 from 'bs58';
 import { ed25519 } from '@noble/curves/ed25519.js';
 
 const IMPORT_PATHS = {
-  nearKeysDb: '/sdk/esm/core/IndexedDBManager/passkeyNearKeysDB.js',
-  tatchi: '/sdk/esm/core/TatchiPasskey/index.js',
+  nearKeysDb: sdkEsmPath('core/IndexedDBManager/passkeyNearKeysDB.js'),
+  tatchi: SDK_ESM_PATHS.tatchiPasskey,
 } as const;
 
 function toB64u(bytes: Uint8Array): string {
@@ -41,11 +41,11 @@ test.describe('Threshold Ed25519 rotation helper', () => {
 
     // setupBasicPasskeyTest() skips bootstrap global fallbacks when tatchi init is skipped.
     // The WebAuthn mocks expect base64UrlEncode/base64UrlDecode to exist on window.
-    await page.evaluate(async () => {
-      const { base64UrlEncode, base64UrlDecode } = await import('/sdk/esm/utils/base64.js');
+    await page.evaluate(async (base64Path) => {
+      const { base64UrlEncode, base64UrlDecode } = await import(base64Path);
       (window as any).base64UrlEncode = base64UrlEncode;
       (window as any).base64UrlDecode = base64UrlDecode;
-    });
+    }, SDK_ESM_PATHS.base64);
   });
 
   test('rotateThresholdEd25519Key performs keygen and updates local threshold metadata', async ({ page }) => {
@@ -354,13 +354,13 @@ test.describe('Threshold Ed25519 rotation helper', () => {
       });
     });
 
-    const result = await page.evaluate(async () => {
+    const result = await page.evaluate(async ({ paths }) => {
       // Run the SDK flow inside the browser context:
       // - register a passkey-backed account with signerMode=threshold-signer (Option B)
       // - rotate the threshold key and return the helper output for assertions
       try {
-        const { TatchiPasskey } = await import('/sdk/esm/core/TatchiPasskey/index.js');
-        const { PasskeyNearKeysDBManager } = await import('/sdk/esm/core/IndexedDBManager/passkeyNearKeysDB.js');
+        const { TatchiPasskey } = await import(paths.tatchi);
+        const { PasskeyNearKeysDBManager } = await import(paths.nearKeysDb);
         const suffix =
           (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
             ? crypto.randomUUID()
@@ -409,7 +409,7 @@ test.describe('Threshold Ed25519 rotation helper', () => {
       } catch (error: any) {
         return { ok: false, accountId: 'unknown', error: error?.message || String(error) };
       }
-    });
+    }, { paths: IMPORT_PATHS });
 
     if (!result.ok) {
       throw new Error([

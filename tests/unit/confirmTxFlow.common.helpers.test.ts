@@ -15,7 +15,7 @@ test.describe('confirmTxFlow common helpers', () => {
       const mod = await import(paths.helpers);
       // compile‑time type query, TypeScript requires module specifier to be a literal string
       const { sanitizeForPostMessage } = mod as typeof import(
-        '../../core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/adapters/common'
+        '@/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/adapters/common'
       );
       const input = {
         confirmed: true,
@@ -47,7 +47,7 @@ test.describe('confirmTxFlow common helpers', () => {
     const result = await page.evaluate(async ({ paths }) => {
       const mod = await import(paths.helpers);
       const { sanitizeForPostMessage } = mod as typeof import(
-        '../../core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/adapters/common'
+        '@/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/adapters/common'
       );
       const sanitized = sanitizeForPostMessage({
         confirmed: false,
@@ -70,7 +70,7 @@ test.describe('confirmTxFlow common helpers', () => {
     const result = await page.evaluate(async ({ paths }) => {
       const mod = await import(paths.helpers);
       const { parseTransactionSummary } = mod as typeof import(
-        '../../core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/adapters/common'
+        '@/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/adapters/common'
       );
       const parsed = parseTransactionSummary('{"totalAmount":"10","method":"transfer"}');
       const fallback = parseTransactionSummary('{invalid json');

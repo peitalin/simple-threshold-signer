@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { setupBasicPasskeyTest } from '../setup';
+import { setupBasicPasskeyTest, SDK_ESM_PATHS } from '../setup';
 import { waitFor as harnessWaitFor } from '../wallet-iframe/harness';
-import { ActionType, type TransactionInputWasm, type ActionArgsWasm } from '../../core/types/actions';
+import { ActionType, type TransactionInputWasm, type ActionArgsWasm } from '@/core/types/actions';
 
 const SECURITY_CONTEXT = {
   rpId: 'example.com',
@@ -12,8 +12,8 @@ const SECURITY_CONTEXT = {
 const SUMMARY = { intentDigest: 'intent-xyz' } as any;
 const WAIT_FOR_SOURCE = `(${harnessWaitFor.toString()})`;
 const IMPORT_PATHS = {
-  confirmUi: '/sdk/esm/core/WebAuthnManager/LitComponents/confirm-ui.js',
-  events: '/sdk/esm/core/WalletIframe/events.js'
+  confirmUi: SDK_ESM_PATHS.confirmUi,
+  events: SDK_ESM_PATHS.walletEvents
 } as const;
 
 function buildCtxStub(overrides: Record<string, unknown> = {}) {
@@ -43,7 +43,7 @@ test.describe('confirm-ui inline confirmer', () => {
       const waitFor = eval(waitForSource) as typeof harnessWaitFor;
       const mod = await import(paths.confirmUi);
       const events = await import(paths.events);
-      const { awaitConfirmUIDecision } = mod as typeof import('../../core/WebAuthnManager/LitComponents/confirm-ui');
+      const { awaitConfirmUIDecision } = mod as typeof import('@/core/WebAuthnManager/LitComponents/confirm-ui');
       const buildCtxStub = (overrides: Record<string, unknown> = {}) => ({
         userPreferencesManager: {
           getCurrentUserAccountId: () => 'alice.testnet',
@@ -88,7 +88,7 @@ test.describe('confirm-ui inline confirmer', () => {
       const waitFor = eval(waitForSource) as typeof harnessWaitFor;
       const mod = await import(paths.confirmUi);
       const events = await import(paths.events);
-      const { awaitConfirmUIDecision } = mod as typeof import('../../core/WebAuthnManager/LitComponents/confirm-ui');
+      const { awaitConfirmUIDecision } = mod as typeof import('@/core/WebAuthnManager/LitComponents/confirm-ui');
       const buildCtxStub = (overrides: Record<string, unknown> = {}) => ({
         userPreferencesManager: {
           getCurrentUserAccountId: () => 'alice.testnet',
@@ -142,7 +142,7 @@ test.describe('confirm-ui inline confirmer', () => {
       const waitFor = eval(waitForSource) as typeof harnessWaitFor;
       const mod = await import(paths.confirmUi);
       const events = await import(paths.events);
-      const { awaitConfirmUIDecision } = mod as typeof import('../../core/WebAuthnManager/LitComponents/confirm-ui');
+      const { awaitConfirmUIDecision } = mod as typeof import('@/core/WebAuthnManager/LitComponents/confirm-ui');
       const buildCtxStub = (overrides: Record<string, unknown> = {}) => ({
         userPreferencesManager: {
           getCurrentUserAccountId: () => 'alice.testnet',
@@ -192,7 +192,7 @@ test.describe('confirm-ui inline confirmer', () => {
       const waitFor = eval(waitForSource) as typeof harnessWaitFor;
       const mod = await import(paths.confirmUi);
       const events = await import(paths.events);
-      const { awaitConfirmUIDecision } = mod as typeof import('../../core/WebAuthnManager/LitComponents/confirm-ui');
+      const { awaitConfirmUIDecision } = mod as typeof import('@/core/WebAuthnManager/LitComponents/confirm-ui');
       const buildCtxStub = (overrides: Record<string, unknown> = {}) => ({
         userPreferencesManager: {
           getCurrentUserAccountId: () => 'alice.testnet',
@@ -240,7 +240,7 @@ test.describe('confirm-ui inline confirmer', () => {
       const waitFor = eval(waitForSource) as typeof harnessWaitFor;
       const mod = await import(paths.confirmUi);
       const events = await import(paths.events);
-      const { awaitConfirmUIDecision } = mod as typeof import('../../core/WebAuthnManager/LitComponents/confirm-ui');
+      const { awaitConfirmUIDecision } = mod as typeof import('@/core/WebAuthnManager/LitComponents/confirm-ui');
       const buildCtxStub = (overrides: Record<string, unknown> = {}) => ({
         userPreferencesManager: {
           getCurrentUserAccountId: () => 'alice.testnet',

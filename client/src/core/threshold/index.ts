@@ -6,6 +6,7 @@ export * from './connectThresholdEcdsaSessionLite';
 export * from './thresholdEd25519AuthSession';
 export * from './thresholdEcdsaAuthSession';
 export * from './thresholdEcdsaAuthorize';
+export * from './thresholdEcdsaSigning';
 export * from './thresholdEd25519RelayerHealth';
 export * from './thresholdSessionPolicy';
 export * from './prfSalts';

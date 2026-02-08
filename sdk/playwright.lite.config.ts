@@ -1,5 +1,11 @@
-import { defineConfig } from '@playwright/test';
+import * as playwrightNs from '@playwright/test';
 import base from './playwright.config';
+
+const defineConfig =
+  (playwrightNs as any).defineConfig || (playwrightNs as any).default?.defineConfig;
+if (typeof defineConfig !== 'function') {
+  throw new Error('Playwright lite config failed to load defineConfig from @playwright/test');
+}
 
 /**
  * "Lite" test suite: focuses on the threshold-only / wallet-origin flows and avoids

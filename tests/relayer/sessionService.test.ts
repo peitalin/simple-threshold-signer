@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { SessionService } from '../../server/core/SessionService';
+import { SessionService } from '@server/core/SessionService';
 
 test.describe('SessionService (server)', () => {
   test('buildSetCookie() defaults include HttpOnly/Secure/SameSite/Max-Age/Expires', async () => {

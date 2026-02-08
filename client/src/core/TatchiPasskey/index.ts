@@ -1,4 +1,4 @@
-import { WebAuthnManager } from '../WebAuthnManager';
+import { WebAuthnManager, type ThresholdEcdsaSessionBootstrapResult } from '../WebAuthnManager';
 import {
   loginAndCreateSession,
   getLoginSession,
@@ -19,8 +19,9 @@ import {
   type SignedTransaction,
   type AccessKeyList,
 } from '../NearClient';
-import type { TempoSigningRequest } from '../multichain/tempo/types';
+import type { TempoSecp256k1SigningRequest, TempoSigningRequest } from '../multichain/tempo/types';
 import type { TempoSignedResult } from '../multichain/tempo/tempoAdapter';
+import type { ThresholdEcdsaSecp256k1KeyRef } from '../multichain/types';
 import type {
   ActionResult,
   DelegateRelayResult,
@@ -1323,6 +1324,7 @@ export class TatchiPasskey {
     request: TempoSigningRequest;
     options?: {
       confirmationConfig?: Partial<ConfirmationConfig>;
+      thresholdEcdsaKeyRef?: ThresholdEcdsaSecp256k1KeyRef;
     };
   }): Promise<TempoSignedResult> {
     if (this.shouldUseWalletIframe()) {
@@ -1332,6 +1334,7 @@ export class TatchiPasskey {
         request: args.request,
         options: {
           confirmationConfig: args.options?.confirmationConfig,
+          thresholdEcdsaKeyRef: args.options?.thresholdEcdsaKeyRef,
         },
       });
     }
@@ -1340,6 +1343,67 @@ export class TatchiPasskey {
       nearAccountId: args.nearAccountId,
       request: args.request,
       confirmationConfigOverride: args.options?.confirmationConfig,
+      thresholdEcdsaKeyRef: args.options?.thresholdEcdsaKeyRef,
+    });
+  }
+
+  async signTempoWithThresholdEcdsa(args: {
+    nearAccountId: string;
+    request: TempoSecp256k1SigningRequest;
+    thresholdEcdsaKeyRef: ThresholdEcdsaSecp256k1KeyRef;
+    options?: {
+      confirmationConfig?: Partial<ConfirmationConfig>;
+    };
+  }): Promise<TempoSignedResult> {
+    if (args.request.senderSignatureAlgorithm !== 'secp256k1') {
+      throw new Error('[TatchiPasskey] signTempoWithThresholdEcdsa requires senderSignatureAlgorithm=secp256k1');
+    }
+
+    if (this.shouldUseWalletIframe()) {
+      const router = await this.requireWalletIframeRouter(args.nearAccountId);
+      return await router.signTempoWithThresholdEcdsa({
+        nearAccountId: args.nearAccountId,
+        request: args.request,
+        thresholdEcdsaKeyRef: args.thresholdEcdsaKeyRef,
+        options: {
+          confirmationConfig: args.options?.confirmationConfig,
+        },
+      });
+    }
+
+    return await this.webAuthnManager.signTempoWithThresholdEcdsa({
+      nearAccountId: args.nearAccountId,
+      request: args.request,
+      thresholdEcdsaKeyRef: args.thresholdEcdsaKeyRef,
+      confirmationConfigOverride: args.options?.confirmationConfig,
+    });
+  }
+
+  async bootstrapThresholdEcdsaSession(args: {
+    nearAccountId: string;
+    options?: {
+      relayerUrl?: string;
+      participantIds?: number[];
+      sessionKind?: 'jwt' | 'cookie';
+      ttlMs?: number;
+      remainingUses?: number;
+    };
+  }): Promise<ThresholdEcdsaSessionBootstrapResult> {
+    if (this.shouldUseWalletIframe()) {
+      const router = await this.requireWalletIframeRouter(args.nearAccountId);
+      return await router.bootstrapThresholdEcdsaSession({
+        nearAccountId: args.nearAccountId,
+        options: args.options,
+      });
+    }
+
+    return await this.webAuthnManager.bootstrapThresholdEcdsaSessionLite({
+      nearAccountId: toAccountId(args.nearAccountId),
+      relayerUrl: args.options?.relayerUrl,
+      participantIds: args.options?.participantIds,
+      sessionKind: args.options?.sessionKind,
+      ttlMs: args.options?.ttlMs,
+      remainingUses: args.options?.remainingUses,
     });
   }
 

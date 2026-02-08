@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { buildPermissionsPolicy, buildWalletCsp } from '../../plugins/headers'
+import { buildPermissionsPolicy, buildWalletCsp } from '@/plugins/headers'
 
 test('wallet-service headers are present and consistent', async ({ request }) => {
   const walletOrigin = process.env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost'
@@ -22,4 +22,3 @@ test('wallet-service headers are present and consistent', async ({ request }) =>
   expect(coep).toBe('require-corp')
   expect(corp).toBe('cross-origin')
 })
-

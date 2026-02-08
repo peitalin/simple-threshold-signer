@@ -57,7 +57,18 @@ export function toThresholdEcdsaAuthPrefix(prefix: unknown): string {
   return toPrefixWithColon(prefix, 'w3a:threshold-ecdsa:auth:');
 }
 
-export function toThresholdEcdsaPrefixFromBase(basePrefix: unknown, kind: 'key' | 'sess' | 'auth'): string {
+export function toThresholdEcdsaSigningPrefix(prefix: unknown): string {
+  return toPrefixWithColon(prefix, 'w3a:threshold-ecdsa:signing:');
+}
+
+export function toThresholdEcdsaPresignPrefix(prefix: unknown): string {
+  return toPrefixWithColon(prefix, 'w3a:threshold-ecdsa:presign:');
+}
+
+export function toThresholdEcdsaPrefixFromBase(
+  basePrefix: unknown,
+  kind: 'key' | 'sess' | 'auth' | 'signing' | 'presign',
+): string {
   const base = toOptionalString(basePrefix);
   if (!base) return '';
   const trimmed = base.trim();
@@ -319,6 +330,87 @@ export function parseThresholdEd25519AuthSessionRecord(raw: unknown): ParsedThre
   if (!isValidNumber(expiresAtMs)) return null;
   if (!relayerKeyId || !userId || !rpId) return null;
   return { expiresAtMs, relayerKeyId, userId, rpId, participantIds };
+}
+
+export type ParsedThresholdEcdsaSigningSessionRecord = {
+  expiresAtMs: number;
+  mpcSessionId: string;
+  relayerKeyId: string;
+  signingDigestB64u: string;
+  userId: string;
+  rpId: string;
+  clientVerifyingShareB64u: string;
+  participantIds: number[];
+  presignatureId: string;
+  entropyB64u: string;
+  bigRB64u?: string;
+};
+
+export function parseThresholdEcdsaSigningSessionRecord(raw: unknown): ParsedThresholdEcdsaSigningSessionRecord | null {
+  if (!isObject(raw)) return null;
+  const expiresAtMs = raw.expiresAtMs;
+  const mpcSessionId = toOptionalString(raw.mpcSessionId);
+  const relayerKeyId = toOptionalString(raw.relayerKeyId);
+  const signingDigestB64u = toOptionalString(raw.signingDigestB64u);
+  const userId = toOptionalString(raw.userId);
+  const rpId = toOptionalString(raw.rpId);
+  const clientVerifyingShareB64u = toOptionalString(raw.clientVerifyingShareB64u);
+  const participantIds =
+    normalizeThresholdEd25519ParticipantIds(raw.participantIds)
+    || [...THRESHOLD_ED25519_2P_PARTICIPANT_IDS];
+  const presignatureId = toOptionalString(raw.presignatureId);
+  const entropyB64u = toOptionalString(raw.entropyB64u);
+  const bigRB64u = toOptionalString(raw.bigRB64u);
+  if (!isValidNumber(expiresAtMs)) return null;
+  if (
+    !mpcSessionId
+    || !relayerKeyId
+    || !signingDigestB64u
+    || !userId
+    || !rpId
+    || !clientVerifyingShareB64u
+    || !presignatureId
+    || !entropyB64u
+  ) {
+    return null;
+  }
+  return {
+    expiresAtMs,
+    mpcSessionId,
+    relayerKeyId,
+    signingDigestB64u,
+    userId,
+    rpId,
+    clientVerifyingShareB64u,
+    participantIds,
+    presignatureId,
+    entropyB64u,
+    ...(bigRB64u ? { bigRB64u } : {}),
+  };
+}
+
+export type ParsedThresholdEcdsaPresignatureRelayerShareRecord = {
+  relayerKeyId: string;
+  presignatureId: string;
+  bigRB64u: string;
+  kShareB64u: string;
+  sigmaShareB64u: string;
+  createdAtMs: number;
+};
+
+export function parseThresholdEcdsaPresignatureRelayerShareRecord(
+  raw: unknown,
+): ParsedThresholdEcdsaPresignatureRelayerShareRecord | null {
+  if (!isObject(raw)) return null;
+  const relayerKeyId = toOptionalString(raw.relayerKeyId);
+  const presignatureId = toOptionalString(raw.presignatureId);
+  const bigRB64u = toOptionalString(raw.bigRB64u);
+  const kShareB64u = toOptionalString(raw.kShareB64u);
+  const sigmaShareB64u = toOptionalString(raw.sigmaShareB64u);
+  const createdAtMs = raw.createdAtMs;
+  if (!relayerKeyId || !presignatureId || !bigRB64u || !kShareB64u || !sigmaShareB64u) return null;
+  if (!isValidNumber(createdAtMs)) return null;
+  return { relayerKeyId, presignatureId, bigRB64u, kShareB64u, sigmaShareB64u, createdAtMs };
 }
 
 export type ThresholdEd25519SessionClaims = {

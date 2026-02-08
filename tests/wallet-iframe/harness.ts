@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import { injectImportMap } from '../setup/bootstrap';
+import { SDK_ESM_PATHS } from '../setup/sdkEsmPaths';
 
 export interface WalletServiceHtmlOptions {
   respondReady?: boolean;
@@ -172,14 +173,15 @@ export const initRouter = async (
     ...options,
   };
 
-  await page.evaluate(async (routerOptions) => {
+  await page.evaluate(async ({ routerOptions, modulePath }) => {
     // @ts-ignore - runtime import resolved by dev server during tests
-    const base = window.location.origin === 'null' ? 'https://example.localhost' : window.location.origin;
-    const module = await import(new URL('/sdk/esm/core/WalletIframe/client/router.js', base).toString());
-    const { WalletIframeRouter } = module as typeof import('../../core/WalletIframe/client/router');
+    const base =
+      window.location.origin === 'null' ? 'https://example.localhost' : window.location.origin;
+    const module = await import(new URL(modulePath, base).toString());
+    const { WalletIframeRouter } = module as typeof import('@/core/WalletIframe/client/router');
     const router = new WalletIframeRouter(routerOptions);
     (window as any).__walletRouter = router;
-  }, opts);
+  }, { routerOptions: opts, modulePath: SDK_ESM_PATHS.walletIframeRouter });
 };
 
 export const waitFor = async (

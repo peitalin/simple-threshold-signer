@@ -245,7 +245,7 @@ class PostgresWebAuthnCredentialBindingStore implements WebAuthnCredentialBindin
     const { rows } = await pool.query(
       `
         SELECT record_json
-        FROM tatchi_webauthn_credential_bindings
+        FROM webauthn_credential_bindings
         WHERE namespace = $1 AND rp_id = $2 AND credential_id_b64u = $3
         LIMIT 1
       `,
@@ -260,15 +260,15 @@ class PostgresWebAuthnCredentialBindingStore implements WebAuthnCredentialBindin
     const pool = await this.poolPromise;
     await pool.query(
       `
-        INSERT INTO tatchi_webauthn_credential_bindings (
+        INSERT INTO webauthn_credential_bindings (
           namespace, rp_id, credential_id_b64u, record_json, created_at_ms, updated_at_ms
         )
         VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT (namespace, rp_id, credential_id_b64u)
         DO UPDATE SET
           record_json = EXCLUDED.record_json,
-          created_at_ms = LEAST(tatchi_webauthn_credential_bindings.created_at_ms, EXCLUDED.created_at_ms),
-          updated_at_ms = GREATEST(tatchi_webauthn_credential_bindings.updated_at_ms, EXCLUDED.updated_at_ms)
+          created_at_ms = LEAST(webauthn_credential_bindings.created_at_ms, EXCLUDED.created_at_ms),
+          updated_at_ms = GREATEST(webauthn_credential_bindings.updated_at_ms, EXCLUDED.updated_at_ms)
       `,
       [this.namespace, parsed.rpId, parsed.credentialIdB64u, parsed, parsed.createdAtMs, parsed.updatedAtMs],
     );
@@ -280,7 +280,7 @@ class PostgresWebAuthnCredentialBindingStore implements WebAuthnCredentialBindin
     if (!r || !c) return;
     const pool = await this.poolPromise;
     await pool.query(
-      'DELETE FROM tatchi_webauthn_credential_bindings WHERE namespace = $1 AND rp_id = $2 AND credential_id_b64u = $3',
+      'DELETE FROM webauthn_credential_bindings WHERE namespace = $1 AND rp_id = $2 AND credential_id_b64u = $3',
       [this.namespace, r, c],
     );
   }
@@ -293,7 +293,7 @@ class PostgresWebAuthnCredentialBindingStore implements WebAuthnCredentialBindin
     const { rows } = await pool.query(
       `
         SELECT MAX((record_json->>'deviceNumber')::int) AS max_device_number
-        FROM tatchi_webauthn_credential_bindings
+        FROM webauthn_credential_bindings
         WHERE namespace = $1
         ${rpId ? 'AND rp_id = $2' : ''}
         AND (record_json->>'userId') = $${rpId ? 3 : 2}
@@ -313,13 +313,13 @@ class PostgresWebAuthnCredentialBindingStore implements WebAuthnCredentialBindin
     const query = rpId
       ? `
           SELECT record_json
-          FROM tatchi_webauthn_credential_bindings
+          FROM webauthn_credential_bindings
           WHERE namespace = $1 AND rp_id = $2 AND record_json->>'userId' = $3
           ORDER BY (record_json->>'deviceNumber')::int ASC
         `
       : `
           SELECT record_json
-          FROM tatchi_webauthn_credential_bindings
+          FROM webauthn_credential_bindings
           WHERE namespace = $1 AND record_json->>'userId' = $2
           ORDER BY (record_json->>'deviceNumber')::int ASC
         `;

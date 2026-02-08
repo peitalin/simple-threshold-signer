@@ -3,6 +3,17 @@ export { keygenThresholdEcdsaLite } from '../core/threshold/keygenThresholdEcdsa
 export { connectThresholdEd25519SessionLite } from '../core/threshold/connectThresholdEd25519SessionLite';
 export { connectThresholdEcdsaSessionLite } from '../core/threshold/connectThresholdEcdsaSessionLite';
 export { authorizeThresholdEcdsaWithSession } from '../core/threshold/thresholdEcdsaAuthorize';
+export {
+  thresholdEcdsaPresignInit,
+  thresholdEcdsaPresignStep,
+  thresholdEcdsaSignInit,
+  thresholdEcdsaSignFinalize,
+} from '../core/threshold/thresholdEcdsaSigning';
+export {
+  signThresholdEcdsaDigestWithPool,
+  refillThresholdEcdsaClientPresignaturePool,
+  clearAllThresholdEcdsaClientPresignatures,
+} from '../core/multichain/walletOrigin/thresholdEcdsaCoordinator';
 
 export {
   THRESHOLD_SESSION_POLICY_VERSION,

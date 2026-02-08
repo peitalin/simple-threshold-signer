@@ -13,6 +13,7 @@ import type { DelegateActionInput } from '../../types/delegate';
 import type { ConfirmationConfig } from '../../types/signer-worker';
 import type { SignerMode } from '../../types/signer-worker';
 import type { TempoSigningRequest } from '../../multichain/tempo/types';
+import type { ThresholdEcdsaSecp256k1KeyRef } from '../../multichain/types';
 
 export type WalletProtocolVersion = '1.0.0';
 
@@ -24,6 +25,7 @@ export type ParentToChildType =
   | 'PM_REGISTER'
   | 'PM_ENROLL_THRESHOLD_ED25519_KEY'
   | 'PM_ROTATE_THRESHOLD_ED25519_KEY'
+  | 'PM_BOOTSTRAP_THRESHOLD_ECDSA_SESSION'
   | 'PM_LOGIN'
   | 'PM_LOGOUT'
   | 'PM_GET_LOGIN_SESSION'
@@ -144,6 +146,17 @@ export interface PMRotateThresholdEd25519KeyPayload {
   };
 }
 
+export interface PMBootstrapThresholdEcdsaSessionPayload {
+  nearAccountId: string;
+  options?: {
+    relayerUrl?: string;
+    participantIds?: number[];
+    sessionKind?: 'jwt' | 'cookie';
+    ttlMs?: number;
+    remainingUses?: number;
+  };
+}
+
 export interface PMLoginPayload {
   nearAccountId: string;
   options?: Record<string, unknown>;
@@ -224,6 +237,7 @@ export interface PMSignTempoPayload {
   request: TempoSigningRequest;
   options?: {
     confirmationConfig?: Partial<ConfirmationConfig>;
+    thresholdEcdsaKeyRef?: ThresholdEcdsaSecp256k1KeyRef;
   };
 }
 
@@ -328,6 +342,7 @@ export type ParentToChildEnvelope =
   | RpcEnvelope<'PM_REGISTER', PMRegisterPayload>
   | RpcEnvelope<'PM_ENROLL_THRESHOLD_ED25519_KEY', PMEnrollThresholdEd25519KeyPayload>
   | RpcEnvelope<'PM_ROTATE_THRESHOLD_ED25519_KEY', PMRotateThresholdEd25519KeyPayload>
+  | RpcEnvelope<'PM_BOOTSTRAP_THRESHOLD_ECDSA_SESSION', PMBootstrapThresholdEcdsaSessionPayload>
   | RpcEnvelope<'PM_LOGIN', PMLoginPayload>
   | RpcEnvelope<'PM_LOGOUT'>
   | RpcEnvelope<'PM_GET_LOGIN_SESSION', PMGetLoginSessionPayload>

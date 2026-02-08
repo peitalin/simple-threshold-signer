@@ -195,7 +195,7 @@ class PostgresWebAuthnLoginChallengeStore implements WebAuthnLoginChallengeStore
     const pool = await this.poolPromise;
     await pool.query(
       `
-        INSERT INTO tatchi_webauthn_challenges (namespace, challenge_id, record_json, expires_at_ms)
+        INSERT INTO webauthn_challenges (namespace, challenge_id, record_json, expires_at_ms)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (namespace, challenge_id)
         DO UPDATE SET record_json = EXCLUDED.record_json, expires_at_ms = EXCLUDED.expires_at_ms
@@ -211,7 +211,7 @@ class PostgresWebAuthnLoginChallengeStore implements WebAuthnLoginChallengeStore
     const nowMs = Date.now();
     const { rows } = await pool.query(
       `
-        DELETE FROM tatchi_webauthn_challenges
+        DELETE FROM webauthn_challenges
         WHERE namespace = $1 AND challenge_id = $2 AND expires_at_ms > $3
         RETURNING record_json
       `,
@@ -228,7 +228,7 @@ class PostgresWebAuthnLoginChallengeStore implements WebAuthnLoginChallengeStore
     if (!id) return;
     const pool = await this.poolPromise;
     await pool.query(
-      'DELETE FROM tatchi_webauthn_challenges WHERE namespace = $1 AND challenge_id = $2',
+      'DELETE FROM webauthn_challenges WHERE namespace = $1 AND challenge_id = $2',
       [this.namespace, id],
     );
   }

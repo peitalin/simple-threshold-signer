@@ -1,5 +1,5 @@
 import { Page } from '@playwright/test';
-import { buildPermissionsPolicy, buildWalletCsp } from '../../plugins/headers';
+import { buildPermissionsPolicy, buildWalletCsp } from '@/plugins/headers';
 import { DEFAULT_TEST_CONFIG } from './config';
 import { formatLog, printLog, printStepLine } from './logging';
 

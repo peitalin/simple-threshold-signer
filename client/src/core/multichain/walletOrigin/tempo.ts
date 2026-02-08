@@ -8,8 +8,6 @@ import { bytesToHex } from '../evm/bytes';
 import { TempoAdapter, type TempoSignedResult } from '../tempo/tempoAdapter';
 import type { TempoSigningRequest } from '../tempo/types';
 import { resolveWebAuthnP256KeyRefForNearAccount } from './webauthnKeyRef';
-import { authorizeThresholdEcdsaWithSession } from '../../threshold/thresholdEcdsaAuthorize';
-import { getCachedThresholdEcdsaAuthSessionJwt, makeThresholdEcdsaAuthSessionCacheKey } from '../../threshold/thresholdEcdsaAuthSession';
 
 function makeRequestId(prefix: string): string {
   const c = (globalThis as any).crypto;
@@ -30,6 +28,13 @@ export async function signTempoWithSecureConfirm(args: {
   engines: Record<string, SignerEngine>;
   keyRefsByAlgorithm?: Partial<Record<string, KeyRef>>;
   confirmationConfigOverride?: Partial<ConfirmationConfig>;
+  dispenseThresholdEcdsaPrfFirstForSession?: (args: {
+    sessionId: string;
+    uses?: number;
+  }) => Promise<
+    | { ok: true; prfFirstB64u: string; remainingUses: number; expiresAtMs: number }
+    | { ok: false; code: string; message: string }
+  >;
 }): Promise<TempoSignedResult> {
   const adapter = new TempoAdapter();
   const intent = await adapter.buildIntent(args.request);
@@ -75,11 +80,6 @@ export async function signTempoWithSecureConfirm(args: {
     const engine = args.engines[signReq.algorithm];
     if (!engine) throw new Error(`[multichain] missing engine for algorithm: ${signReq.algorithm}`);
 
-    const keyRef = (() => {
-      if (signReq.algorithm === 'webauthn-p256') return undefined;
-      return args.keyRefsByAlgorithm?.[signReq.algorithm];
-    })();
-
     if (signReq.kind === 'webauthn') {
       if (!decision.credential) {
         throw new Error('[multichain] missing WebAuthn credential from SecureConfirm');
@@ -93,48 +93,9 @@ export async function signTempoWithSecureConfirm(args: {
       continue;
     }
 
+    const keyRef = args.keyRefsByAlgorithm?.[signReq.algorithm];
     if (!keyRef) {
       throw new Error(`[multichain] missing keyRef for algorithm: ${signReq.algorithm}`);
-    }
-
-    if (signReq.kind === 'digest' && signReq.algorithm === 'secp256k1' && keyRef.type === 'threshold-ecdsa-secp256k1') {
-      const rpId = args.ctx.touchIdPrompt.getRpId();
-      if (!rpId) {
-        throw new Error('[multichain] Missing rpId for threshold-ecdsa authorize');
-      }
-
-      const sessionKind: 'jwt' | 'cookie' = keyRef.thresholdSessionKind || 'jwt';
-      const thresholdSessionJwt = sessionKind === 'jwt'
-        ? (
-            keyRef.thresholdSessionJwt ||
-            getCachedThresholdEcdsaAuthSessionJwt(makeThresholdEcdsaAuthSessionCacheKey({
-              userId: keyRef.userId,
-              rpId,
-              relayerUrl: keyRef.relayerUrl,
-              relayerKeyId: keyRef.relayerKeyId,
-              participantIds: keyRef.participantIds,
-            }))
-          )
-        : undefined;
-
-      if (sessionKind === 'jwt' && !thresholdSessionJwt) {
-        throw new Error('[multichain] No cached threshold-ecdsa session token; call connectThresholdEcdsaSessionLite first');
-      }
-
-      const purpose = String(signReq.label || 'tempo:secp256k1');
-      const authorized = await authorizeThresholdEcdsaWithSession({
-        relayerUrl: keyRef.relayerUrl,
-        relayerKeyId: keyRef.relayerKeyId,
-        clientVerifyingShareB64u: keyRef.clientVerifyingShareB64u,
-        purpose,
-        signingDigest32: signReq.digest32,
-        sessionKind,
-        ...(thresholdSessionJwt ? { thresholdSessionJwt } : {}),
-      });
-      if (!authorized.ok || !authorized.mpcSessionId) {
-        throw new Error(authorized.message || authorized.code || '[multichain] threshold-ecdsa authorize failed');
-      }
-      keyRef.mpcSessionId = authorized.mpcSessionId;
     }
     signatures.push(await engine.sign(signReq, keyRef));
   }

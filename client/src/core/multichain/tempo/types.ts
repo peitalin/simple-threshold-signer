@@ -43,3 +43,5 @@ export type TempoSigningRequest =
       senderSignatureAlgorithm: 'secp256k1';
     };
 
+export type TempoSecp256k1SigningRequest =
+  Extract<TempoSigningRequest, { senderSignatureAlgorithm: 'secp256k1' }>;

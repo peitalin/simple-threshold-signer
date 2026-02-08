@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { createRelayRouter } from '../../server/router/express-adaptor';
-import { createCloudflareRouter } from '../../server/router/cloudflare-adaptor';
+import { createRelayRouter } from '@server/router/express-adaptor';
+import { createCloudflareRouter } from '@server/router/cloudflare-adaptor';
 import { callCf, fetchJson, getPath, makeFakeAuthService, startExpressRouter } from './helpers';
 
 test.describe('relayer health/ready + well-known', () => {

@@ -680,7 +680,7 @@ class PostgresIdentityStore implements IdentityStore {
     if (!s) return null;
     const pool = await this.poolPromise;
     const { rows } = await pool.query(
-      'SELECT user_id FROM tatchi_identity_links WHERE namespace = $1 AND subject = $2 LIMIT 1',
+      'SELECT user_id FROM identity_links WHERE namespace = $1 AND subject = $2 LIMIT 1',
       [this.namespace, s],
     );
     const uid = toOptionalTrimmedString(rows[0]?.user_id);
@@ -692,7 +692,7 @@ class PostgresIdentityStore implements IdentityStore {
     if (!uid) return [];
     const pool = await this.poolPromise;
     const { rows } = await pool.query(
-      'SELECT subject FROM tatchi_identity_links WHERE namespace = $1 AND user_id = $2 ORDER BY created_at_ms ASC',
+      'SELECT subject FROM identity_links WHERE namespace = $1 AND user_id = $2 ORDER BY created_at_ms ASC',
       [this.namespace, uid],
     );
     return rows.map((r) => toOptionalTrimmedString(r?.subject)).filter(Boolean) as string[];
@@ -713,7 +713,7 @@ class PostgresIdentityStore implements IdentityStore {
 
     try {
       const existing = await pool.query(
-        'SELECT user_id, created_at_ms FROM tatchi_identity_links WHERE namespace = $1 AND subject = $2 LIMIT 1',
+        'SELECT user_id, created_at_ms FROM identity_links WHERE namespace = $1 AND subject = $2 LIMIT 1',
         [this.namespace, subject],
       );
       const existingUserId = toOptionalTrimmedString(existing.rows[0]?.user_id);
@@ -727,7 +727,7 @@ class PostgresIdentityStore implements IdentityStore {
         }
 
         const count = await pool.query(
-          'SELECT COUNT(*)::bigint AS c FROM tatchi_identity_links WHERE namespace = $1 AND user_id = $2',
+          'SELECT COUNT(*)::bigint AS c FROM identity_links WHERE namespace = $1 AND user_id = $2',
           [this.namespace, existingUserId],
         );
         const cRaw = count.rows[0]?.c;
@@ -742,7 +742,7 @@ class PostgresIdentityStore implements IdentityStore {
 
         await pool.query(
           `
-            UPDATE tatchi_identity_links
+            UPDATE identity_links
             SET user_id = $3, record_json = $4, updated_at_ms = $5
             WHERE namespace = $1 AND subject = $2
           `,
@@ -766,7 +766,7 @@ class PostgresIdentityStore implements IdentityStore {
 
       await pool.query(
         `
-          INSERT INTO tatchi_identity_links (namespace, subject, user_id, record_json, created_at_ms, updated_at_ms)
+          INSERT INTO identity_links (namespace, subject, user_id, record_json, created_at_ms, updated_at_ms)
           VALUES ($1, $2, $3, $4, $5, $6)
           ON CONFLICT (namespace, subject)
           DO UPDATE SET user_id = EXCLUDED.user_id, record_json = EXCLUDED.record_json, updated_at_ms = EXCLUDED.updated_at_ms
@@ -801,7 +801,7 @@ class PostgresIdentityStore implements IdentityStore {
     const pool = await this.poolPromise;
     try {
       const existing = await pool.query(
-        'SELECT user_id FROM tatchi_identity_links WHERE namespace = $1 AND subject = $2 LIMIT 1',
+        'SELECT user_id FROM identity_links WHERE namespace = $1 AND subject = $2 LIMIT 1',
         [this.namespace, subject],
       );
       const existingUserId = toOptionalTrimmedString(existing.rows[0]?.user_id);
@@ -810,7 +810,7 @@ class PostgresIdentityStore implements IdentityStore {
       }
 
       const count = await pool.query(
-        'SELECT COUNT(*)::bigint AS c FROM tatchi_identity_links WHERE namespace = $1 AND user_id = $2',
+        'SELECT COUNT(*)::bigint AS c FROM identity_links WHERE namespace = $1 AND user_id = $2',
         [this.namespace, userId],
       );
       const cRaw = count.rows[0]?.c;
@@ -820,7 +820,7 @@ class PostgresIdentityStore implements IdentityStore {
       }
 
       await pool.query(
-        'DELETE FROM tatchi_identity_links WHERE namespace = $1 AND subject = $2 AND user_id = $3',
+        'DELETE FROM identity_links WHERE namespace = $1 AND subject = $2 AND user_id = $3',
         [this.namespace, subject, userId],
       );
       return { ok: true };
@@ -834,7 +834,7 @@ class PostgresIdentityStore implements IdentityStore {
     if (!uid) return null;
     const pool = await this.poolPromise;
     const { rows } = await pool.query(
-      'SELECT session_version FROM tatchi_app_session_versions WHERE namespace = $1 AND user_id = $2 LIMIT 1',
+      'SELECT session_version FROM app_session_versions WHERE namespace = $1 AND user_id = $2 LIMIT 1',
       [this.namespace, uid],
     );
     const v = toOptionalTrimmedString(rows[0]?.session_version);
@@ -850,7 +850,7 @@ class PostgresIdentityStore implements IdentityStore {
     const next = generateAppSessionVersion();
     await pool.query(
       `
-        INSERT INTO tatchi_app_session_versions (namespace, user_id, session_version, record_json, created_at_ms, updated_at_ms)
+        INSERT INTO app_session_versions (namespace, user_id, session_version, record_json, created_at_ms, updated_at_ms)
         VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT (namespace, user_id) DO NOTHING
       `,
@@ -871,7 +871,7 @@ class PostgresIdentityStore implements IdentityStore {
     );
 
     const { rows } = await pool.query(
-      'SELECT session_version FROM tatchi_app_session_versions WHERE namespace = $1 AND user_id = $2 LIMIT 1',
+      'SELECT session_version FROM app_session_versions WHERE namespace = $1 AND user_id = $2 LIMIT 1',
       [this.namespace, uid],
     );
     const v = toOptionalTrimmedString(rows[0]?.session_version);
@@ -887,7 +887,7 @@ class PostgresIdentityStore implements IdentityStore {
     const next = generateAppSessionVersion();
     await pool.query(
       `
-        INSERT INTO tatchi_app_session_versions (namespace, user_id, session_version, record_json, created_at_ms, updated_at_ms)
+        INSERT INTO app_session_versions (namespace, user_id, session_version, record_json, created_at_ms, updated_at_ms)
         VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT (namespace, user_id)
         DO UPDATE SET session_version = EXCLUDED.session_version, record_json = EXCLUDED.record_json, updated_at_ms = EXCLUDED.updated_at_ms

@@ -3,125 +3,125 @@
   "version": "0.46.0",
   "type": "module",
   "description": "An embedded passkey wallet SDK built on NEAR protocol",
-  "main": "./dist/cjs/index.js",
+  "main": "./dist/esm/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/types/client/src/index.d.ts",
   "exports": {
     "./package.json": "./package.json",
     ".": {
       "import": "./dist/esm/index.js",
-      "require": "./dist/cjs/index.js",
+      "default": "./dist/esm/index.js",
       "types": "./dist/types/client/src/index.d.ts"
     },
     "./plugins/headers": {
       "import": "./dist/esm/plugins/headers.js",
-      "require": "./dist/cjs/plugins/headers.js",
+      "default": "./dist/esm/plugins/headers.js",
       "types": "./dist/types/client/src/plugins/headers.d.ts"
     },
     "./plugins/next": {
       "import": "./dist/esm/plugins/next.js",
-      "require": "./dist/cjs/plugins/next.js",
+      "default": "./dist/esm/plugins/next.js",
       "types": "./dist/types/client/src/plugins/next.d.ts"
     },
     "./core": {
       "import": "./dist/esm/index.js",
-      "require": "./dist/cjs/index.js",
+      "default": "./dist/esm/index.js",
       "types": "./dist/types/client/src/index.d.ts"
     },
     "./lite": {
       "import": "./dist/esm/lite/index.js",
-      "require": "./dist/cjs/lite/index.js",
+      "default": "./dist/esm/lite/index.js",
       "types": "./dist/types/client/src/lite/index.d.ts"
     },
     "./plugins/vite": {
       "import": "./dist/esm/plugins/vite.js",
-      "require": "./dist/cjs/plugins/vite.js",
+      "default": "./dist/esm/plugins/vite.js",
       "types": "./dist/types/client/src/plugins/vite.d.ts"
     },
     "./server": {
       "import": "./dist/esm/server/index.js",
-      "require": "./dist/cjs/server/index.js",
+      "default": "./dist/esm/server/index.js",
       "types": "./dist/types/server/src/server/index.d.ts"
     },
     "./server/router/express": {
       "import": "./dist/esm/server/router/express.js",
-      "require": "./dist/cjs/server/router/express.js",
+      "default": "./dist/esm/server/router/express.js",
       "types": "./dist/types/server/src/server/router/express-adaptor.d.ts"
     },
     "./server/router/cloudflare": {
       "import": "./dist/esm/server/router/cloudflare.js",
-      "require": "./dist/cjs/server/router/cloudflare.js",
+      "default": "./dist/esm/server/router/cloudflare.js",
       "types": "./dist/types/server/src/server/router/cloudflare-adaptor.d.ts"
     },
     "./server/wasm/signer": {
       "import": "./dist/esm/server/wasm/signer.js",
-      "require": "./dist/cjs/server/wasm/signer.js",
+      "default": "./dist/esm/server/wasm/signer.js",
       "types": "./dist/types/server/src/server/wasm/signer.d.ts"
     },
     "./react": {
       "import": "./dist/esm/react/index.js",
-      "require": "./dist/cjs/react/index.js",
+      "default": "./dist/esm/react/index.js",
       "types": "./dist/types/client/src/react/index.d.ts"
     },
     "./react/profile": {
       "import": "./dist/esm/react/components/AccountMenuButton/index.js",
-      "require": "./dist/cjs/react/components/AccountMenuButton/index.js",
+      "default": "./dist/esm/react/components/AccountMenuButton/index.js",
       "types": "./dist/types/client/src/react/components/AccountMenuButton/index.d.ts"
     },
     "./react/passkey-auth-menu": {
       "import": "./dist/esm/react/components/PasskeyAuthMenu/passkeyAuthMenuCompat.js",
-      "require": "./dist/cjs/react/components/PasskeyAuthMenu/passkeyAuthMenuCompat.js",
+      "default": "./dist/esm/react/components/PasskeyAuthMenu/passkeyAuthMenuCompat.js",
       "types": "./dist/types/client/src/react/components/PasskeyAuthMenu/passkeyAuthMenuCompat.d.ts"
     },
     "./react/passkey-auth-menu/client": {
       "import": "./dist/esm/react/components/PasskeyAuthMenu/client.js",
-      "require": "./dist/cjs/react/components/PasskeyAuthMenu/client.js",
+      "default": "./dist/esm/react/components/PasskeyAuthMenu/client.js",
       "types": "./dist/types/client/src/react/components/PasskeyAuthMenu/client.d.ts"
     },
     "./react/passkey-auth-menu/skeleton": {
       "import": "./dist/esm/react/components/PasskeyAuthMenu/skeleton.js",
-      "require": "./dist/cjs/react/components/PasskeyAuthMenu/skeleton.js",
+      "default": "./dist/esm/react/components/PasskeyAuthMenu/skeleton.js",
       "types": "./dist/types/client/src/react/components/PasskeyAuthMenu/skeleton.d.ts"
     },
     "./react/passkey-auth-menu/preload": {
       "import": "./dist/esm/react/components/PasskeyAuthMenu/preload.js",
-      "require": "./dist/cjs/react/components/PasskeyAuthMenu/preload.js",
+      "default": "./dist/esm/react/components/PasskeyAuthMenu/preload.js",
       "types": "./dist/types/client/src/react/components/PasskeyAuthMenu/preload.d.ts"
     },
     "./react/passkey-auth-menu2": {
       "import": "./dist/esm/react/components/PasskeyAuthMenu/shell.js",
-      "require": "./dist/cjs/react/components/PasskeyAuthMenu/shell.js",
+      "default": "./dist/esm/react/components/PasskeyAuthMenu/shell.js",
       "types": "./dist/types/client/src/react/components/PasskeyAuthMenu/shell.d.ts"
     },
     "./react/passkey-auth-menu2/client": {
       "import": "./dist/esm/react/components/PasskeyAuthMenu/client.js",
-      "require": "./dist/cjs/react/components/PasskeyAuthMenu/client.js",
+      "default": "./dist/esm/react/components/PasskeyAuthMenu/client.js",
       "types": "./dist/types/client/src/react/components/PasskeyAuthMenu/client.d.ts"
     },
     "./react/passkey-auth-menu2/skeleton": {
       "import": "./dist/esm/react/components/PasskeyAuthMenu/skeleton.js",
-      "require": "./dist/cjs/react/components/PasskeyAuthMenu/skeleton.js",
+      "default": "./dist/esm/react/components/PasskeyAuthMenu/skeleton.js",
       "types": "./dist/types/client/src/react/components/PasskeyAuthMenu/skeleton.d.ts"
     },
     "./react/passkey-auth-menu2/preload": {
       "import": "./dist/esm/react/components/PasskeyAuthMenu/preload.js",
-      "require": "./dist/cjs/react/components/PasskeyAuthMenu/preload.js",
+      "default": "./dist/esm/react/components/PasskeyAuthMenu/preload.js",
       "types": "./dist/types/client/src/react/components/PasskeyAuthMenu/preload.d.ts"
     },
     "./react/provider": {
       "import": "./dist/esm/react/context/TatchiPasskeyProvider.js",
-      "require": "./dist/cjs/react/context/TatchiPasskeyProvider.js",
+      "default": "./dist/esm/react/context/TatchiPasskeyProvider.js",
       "types": "./dist/types/client/src/react/context/TatchiPasskeyProvider.d.ts"
     },
     "./react/styles": "./dist/esm/react/styles/styles.css",
     "./chainsigs": {
       "import": "./dist/esm/chainsigs/index.js",
-      "require": "./dist/cjs/chainsigs/index.js",
+      "default": "./dist/esm/chainsigs/index.js",
       "types": "./dist/types/client/src/chainsigs/index.d.ts"
     },
     "./WalletIframe/client/html": {
       "import": "./dist/esm/core/WalletIframe/client/html.js",
-      "require": "./dist/cjs/core/WalletIframe/client/html.js",
+      "default": "./dist/esm/core/WalletIframe/client/html.js",
       "types": "./dist/types/client/src/core/WalletIframe/client/html.d.ts"
     },
     "./worker": "./dist/web3authn-signer.worker.js",
@@ -129,12 +129,12 @@
     "./wasm-js": "./dist/wasm_signer_worker.js",
     "./components/modal": {
       "import": "./dist/esm/core/WebAuthnManager/Components/modal.js",
-      "require": "./dist/cjs/core/WebAuthnManager/Components/modal.js",
+      "default": "./dist/esm/core/WebAuthnManager/Components/modal.js",
       "types": "./dist/types/client/src/core/WebAuthnManager/Components/modal.d.ts"
     },
     "./components/embedded": {
       "import": "./dist/esm/core/WebAuthnManager/Components/embedded.js",
-      "require": "./dist/cjs/core/WebAuthnManager/Components/embedded.js",
+      "default": "./dist/esm/core/WebAuthnManager/Components/embedded.js",
       "types": "./dist/types/client/src/core/WebAuthnManager/Components/embedded.d.ts"
     }
   },

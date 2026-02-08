@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { buildPermissionsPolicy, buildWalletCsp, type CspMode } from '../../plugins/headers';
+import { buildPermissionsPolicy, buildWalletCsp, type CspMode } from '@/plugins/headers';
 
 test.describe('plugins/headers builders', () => {
   test('buildPermissionsPolicy with origin', () => {
@@ -95,4 +95,3 @@ test.describe('plugins/headers builders', () => {
     );
   });
 });
-

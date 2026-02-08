@@ -114,6 +114,12 @@ export type ThresholdEd25519KeyStoreEnvInput = {
   THRESHOLD_ECDSA_SESSION_PREFIX?: string;
   THRESHOLD_ECDSA_AUTH_PREFIX?: string;
   /**
+   * Optional prefixes for threshold ECDSA presignature pool and signing-session storage.
+   * Defaults derive from `THRESHOLD_PREFIX` with a `threshold-ecdsa:*` namespace when unset.
+   */
+  THRESHOLD_ECDSA_PRESIGN_PREFIX?: string;
+  THRESHOLD_ECDSA_SIGNING_PREFIX?: string;
+  /**
    * Optional override for the client FROST participant identifier (u16, >= 1).
    * Must be distinct from `THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID`.
    */

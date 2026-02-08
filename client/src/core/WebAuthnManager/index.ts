@@ -42,15 +42,30 @@ import { ensureEd25519Prefix } from '../../../../shared/src/utils/validation';
 import { enrollThresholdEd25519KeyHandler } from './threshold/enrollThresholdEd25519Key';
 import { rotateThresholdEd25519KeyPostRegistrationHandler } from './threshold/rotateThresholdEd25519KeyPostRegistration';
 import { connectThresholdEd25519SessionLite } from '../threshold/connectThresholdEd25519SessionLite';
+import { keygenThresholdEcdsaLite } from '../threshold/keygenThresholdEcdsaLite';
+import { connectThresholdEcdsaSessionLite } from '../threshold/connectThresholdEcdsaSessionLite';
 import { collectAuthenticationCredentialForChallengeB64u } from './collectAuthenticationCredentialForChallengeB64u';
 import { computeThresholdEd25519KeygenIntentDigest } from '../digests/intentDigest';
 import { deriveNearKeypairFromPrfSecondB64u } from '../nearCrypto';
 import { runSecureConfirm } from './SecureConfirmWorkerManager/secureConfirmBridge';
 import { SecureConfirmationType, type SecureConfirmRequest } from './SecureConfirmWorkerManager/confirmTxFlow/types';
-import type { TempoSigningRequest } from '../multichain/tempo/types';
+import type { TempoSecp256k1SigningRequest, TempoSigningRequest } from '../multichain/tempo/types';
 import type { TempoSignedResult } from '../multichain/tempo/tempoAdapter';
 import { WebAuthnP256Engine } from '../multichain/engines/webauthn-p256';
+import { Secp256k1Engine } from '../multichain/engines/secp256k1';
 import { signTempoWithSecureConfirm } from '../multichain/walletOrigin/tempo';
+import type { ThresholdEcdsaSecp256k1KeyRef } from '../multichain/types';
+
+type ThresholdEcdsaKeygenLiteResult = Awaited<ReturnType<typeof keygenThresholdEcdsaLite>>;
+type ThresholdEcdsaSessionLiteResult = Awaited<ReturnType<typeof connectThresholdEcdsaSessionLite>>;
+type ThresholdEcdsaKeygenLiteSuccess = ThresholdEcdsaKeygenLiteResult & { ok: true };
+type ThresholdEcdsaSessionLiteSuccess = ThresholdEcdsaSessionLiteResult & { ok: true };
+
+export type ThresholdEcdsaSessionBootstrapResult = {
+  thresholdEcdsaKeyRef: ThresholdEcdsaSecp256k1KeyRef;
+  keygen: ThresholdEcdsaKeygenLiteSuccess;
+  session: ThresholdEcdsaSessionLiteSuccess;
+};
 
 const DUMMY_WRAP_KEY_SALT_B64U = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
@@ -777,21 +792,48 @@ export class WebAuthnManager {
     nearAccountId: string;
     request: TempoSigningRequest;
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
+    thresholdEcdsaKeyRef?: ThresholdEcdsaSecp256k1KeyRef;
   }): Promise<TempoSignedResult> {
     if (args.request.chain !== 'tempo') {
       throw new Error('[WebAuthnManager] invalid Tempo request: chain must be tempo');
     }
-    if (args.request.kind !== 'tempoTransaction' || args.request.senderSignatureAlgorithm !== 'webauthn-p256') {
-      throw new Error('[WebAuthnManager] Tempo signing currently supports only tempoTransaction + webauthn-p256');
+    if (args.request.senderSignatureAlgorithm === 'secp256k1' && !args.thresholdEcdsaKeyRef) {
+      throw new Error('[WebAuthnManager] Tempo secp256k1 signing requires thresholdEcdsaKeyRef');
     }
 
+    const ctx = this.secureConfirmWorkerManager.getContext();
     return await signTempoWithSecureConfirm({
-      ctx: this.secureConfirmWorkerManager.getContext(),
+      ctx,
       nearAccountId: args.nearAccountId,
       request: args.request,
       engines: {
+        secp256k1: new Secp256k1Engine({
+          getRpId: () => ctx.touchIdPrompt.getRpId(),
+          dispenseThresholdEcdsaPrfFirstForSession: (payload) =>
+            this.secureConfirmWorkerManager.dispensePrfFirstForThresholdSession(payload),
+        }),
         'webauthn-p256': new WebAuthnP256Engine(),
       },
+      ...(args.thresholdEcdsaKeyRef
+        ? { keyRefsByAlgorithm: { secp256k1: args.thresholdEcdsaKeyRef } }
+        : {}),
+      confirmationConfigOverride: args.confirmationConfigOverride,
+    });
+  }
+
+  async signTempoWithThresholdEcdsa(args: {
+    nearAccountId: string;
+    request: TempoSecp256k1SigningRequest;
+    thresholdEcdsaKeyRef: ThresholdEcdsaSecp256k1KeyRef;
+    confirmationConfigOverride?: Partial<ConfirmationConfig>;
+  }): Promise<TempoSignedResult> {
+    if (args.request.senderSignatureAlgorithm !== 'secp256k1') {
+      throw new Error('[WebAuthnManager] signTempoWithThresholdEcdsa requires senderSignatureAlgorithm=secp256k1');
+    }
+    return await this.signTempo({
+      nearAccountId: args.nearAccountId,
+      request: args.request,
+      thresholdEcdsaKeyRef: args.thresholdEcdsaKeyRef,
       confirmationConfigOverride: args.confirmationConfigOverride,
     });
   }
@@ -1128,6 +1170,96 @@ export class WebAuthnManager {
       ttlMs: args.ttlMs,
       remainingUses: args.remainingUses,
     });
+  }
+
+  /**
+   * Threshold ECDSA (secp256k1) bootstrap helper:
+   * - runs `/threshold-ecdsa/keygen`
+   * - mints a threshold signing session via `/threshold-ecdsa/session`
+   * - returns a ready `threshold-ecdsa-secp256k1` keyRef for high-level Tempo signing APIs
+   *
+   * Wallet-origin only: callers should run this in the wallet iframe / extension origin.
+   */
+  async bootstrapThresholdEcdsaSessionLite(args: {
+    nearAccountId: AccountId | string;
+    relayerUrl?: string;
+    participantIds?: number[];
+    sessionKind?: 'jwt' | 'cookie';
+    ttlMs?: number;
+    remainingUses?: number;
+  }): Promise<ThresholdEcdsaSessionBootstrapResult> {
+    const nearAccountId = toAccountId(args.nearAccountId);
+    const relayerUrl = String(args.relayerUrl || this.tatchiPasskeyConfigs.relayer?.url || '').trim();
+    if (!relayerUrl) {
+      throw new Error('Missing relayer url (configs.relayer.url)');
+    }
+
+    const keygen = await keygenThresholdEcdsaLite({
+      indexedDB: IndexedDBManager,
+      touchIdPrompt: this.touchIdPrompt,
+      relayerUrl,
+      userId: nearAccountId,
+    });
+    if (!keygen.ok) {
+      throw new Error(keygen.message || keygen.code || 'threshold-ecdsa keygen failed');
+    }
+
+    const relayerKeyId = String(keygen.relayerKeyId || '').trim();
+    if (!relayerKeyId) {
+      throw new Error('threshold-ecdsa keygen returned empty relayerKeyId');
+    }
+
+    const clientVerifyingShareB64u = String(keygen.clientVerifyingShareB64u || '').trim();
+    if (!clientVerifyingShareB64u) {
+      throw new Error('threshold-ecdsa keygen returned empty clientVerifyingShareB64u');
+    }
+
+    const session = await connectThresholdEcdsaSessionLite({
+      indexedDB: IndexedDBManager,
+      touchIdPrompt: this.touchIdPrompt,
+      signerWorkerManager: this.signerWorkerManager,
+      relayerUrl,
+      relayerKeyId,
+      userId: nearAccountId,
+      participantIds: args.participantIds || keygen.participantIds,
+      sessionKind: args.sessionKind,
+      sessionId: this.getOrCreateActiveSigningSessionId(nearAccountId),
+      ttlMs: args.ttlMs,
+      remainingUses: args.remainingUses,
+    });
+    if (!session.ok) {
+      throw new Error(session.message || session.code || 'threshold-ecdsa session connect failed');
+    }
+
+    const thresholdEcdsaKeyRef: ThresholdEcdsaSecp256k1KeyRef = {
+      type: 'threshold-ecdsa-secp256k1',
+      userId: nearAccountId,
+      relayerUrl,
+      relayerKeyId,
+      clientVerifyingShareB64u,
+      ...(Array.isArray(args.participantIds)
+        ? { participantIds: args.participantIds }
+        : (Array.isArray(keygen.participantIds) ? { participantIds: keygen.participantIds } : {})),
+      ...(typeof keygen.groupPublicKeyB64u === 'string' && keygen.groupPublicKeyB64u.trim()
+        ? { groupPublicKeyB64u: keygen.groupPublicKeyB64u.trim() }
+        : {}),
+      ...(typeof keygen.relayerVerifyingShareB64u === 'string' && keygen.relayerVerifyingShareB64u.trim()
+        ? { relayerVerifyingShareB64u: keygen.relayerVerifyingShareB64u.trim() }
+        : {}),
+      thresholdSessionKind: args.sessionKind || 'jwt',
+      ...(typeof session.sessionId === 'string' && session.sessionId.trim()
+        ? { thresholdSessionId: session.sessionId.trim() }
+        : {}),
+      ...(typeof session.jwt === 'string' && session.jwt.trim()
+        ? { thresholdSessionJwt: session.jwt.trim() }
+        : {}),
+    };
+
+    return {
+      thresholdEcdsaKeyRef,
+      keygen: keygen as ThresholdEcdsaKeygenLiteSuccess,
+      session: session as ThresholdEcdsaSessionLiteSuccess,
+    };
   }
 
   /**

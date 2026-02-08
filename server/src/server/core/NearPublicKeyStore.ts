@@ -111,7 +111,7 @@ class PostgresNearPublicKeyStore implements NearPublicKeyStore {
     const pool = await this.poolPromise;
     await pool.query(
       `
-        INSERT INTO tatchi_near_public_keys (namespace, user_id, public_key, record_json, created_at_ms, updated_at_ms)
+        INSERT INTO near_public_keys (namespace, user_id, public_key, record_json, created_at_ms, updated_at_ms)
         VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT (namespace, user_id, public_key)
         DO UPDATE SET
@@ -129,7 +129,7 @@ class PostgresNearPublicKeyStore implements NearPublicKeyStore {
     const { rows } = await pool.query(
       `
         SELECT record_json
-        FROM tatchi_near_public_keys
+        FROM near_public_keys
         WHERE namespace = $1 AND user_id = $2
       `,
       [this.namespace, uid],
@@ -166,4 +166,3 @@ export function createNearPublicKeyStore(input: {
   input.logger.info('[near-public-keys] Using in-memory store for NEAR public key metadata');
   return new InMemoryNearPublicKeyStore();
 }
-

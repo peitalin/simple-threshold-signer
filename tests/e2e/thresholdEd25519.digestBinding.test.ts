@@ -7,11 +7,11 @@
 
 import { test, expect } from '@playwright/test';
 import bs58 from 'bs58';
-import { setupBasicPasskeyTest } from '../setup';
+import { setupBasicPasskeyTest, SDK_ESM_PATHS } from '../setup';
 import { DEFAULT_TEST_CONFIG } from '../setup/config';
-import { AuthService } from '../../server/core/AuthService';
-import { createThresholdSigningService } from '../../server/core/ThresholdService';
-import { createRelayRouter } from '../../server/router/express-adaptor';
+import { AuthService } from '@server/core/AuthService';
+import { createThresholdSigningService } from '@server/core/ThresholdService';
+import { createRelayRouter } from '@server/router/express-adaptor';
 import { startExpressRouter } from '../relayer/helpers';
 import { createInMemoryJwtSessionAdapter } from './thresholdEd25519.testUtils';
 
@@ -66,11 +66,11 @@ test.describe('threshold-ed25519 digest binding', () => {
     });
 
     // The WebAuthn mocks expect base64UrlEncode/base64UrlDecode to exist on window.
-    await page.evaluate(async () => {
-      const { base64UrlEncode, base64UrlDecode } = await import('/sdk/esm/utils/base64.js');
+    await page.evaluate(async (base64Path) => {
+      const { base64UrlEncode, base64UrlDecode } = await import(base64Path);
       (window as any).base64UrlEncode = base64UrlEncode;
       (window as any).base64UrlDecode = base64UrlDecode;
-    });
+    }, SDK_ESM_PATHS.base64);
   });
 
   test('rejects tampered signingPayload (signing_digest mismatch)', async ({ page }) => {

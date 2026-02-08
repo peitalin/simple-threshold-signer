@@ -3,6 +3,7 @@ import { printStepLine } from './logging';
 import { installRelayServerProxyShim, installWalletSdkCorsShim } from './cross-origin-headers';
 import type { PasskeyTestConfig } from './types';
 import { DEFAULT_TEST_CONFIG } from './config';
+import { SDK_ESM_PATHS } from './sdkEsmPaths';
 
 async function setupWebAuthnVirtualAuthenticator(page: Page): Promise<string> {
 
@@ -45,6 +46,8 @@ export async function injectImportMap(page: Page, options?: { frontendUrl: strin
     idb: 'https://esm.sh/idb@8.0.0',
     'js-sha256': 'https://esm.sh/js-sha256@0.11.1',
     '@noble/ed25519': 'https://esm.sh/@noble/ed25519@3.0.0',
+    '@noble/curves/': 'https://esm.sh/@noble/curves@2.0.1/',
+    '@noble/hashes/': 'https://esm.sh/@noble/hashes@2.0.1/',
     qrcode: 'https://esm.sh/qrcode@1.5.4',
     jsqr: 'https://esm.sh/jsqr@1.4.0',
     '@near-js/types': 'https://esm.sh/@near-js/types@2.0.1',
@@ -213,9 +216,11 @@ async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestCon
     try {
       printStepLine(5, `importing TatchiPasskey: attempt ${attempt}/${maxRetries}`, 1);
 
-      const loadHandle = await page.waitForFunction(async (setupOptions) => {
+      const modulePaths = { tatchiPasskey: SDK_ESM_PATHS.tatchiPasskey } as const;
+      const loadHandle = await page.waitForFunction(async (args) => {
         try {
-          const { TatchiPasskey } = await import('/sdk/esm/core/TatchiPasskey/index.js');
+          const { setupOptions, modulePaths } = args as any;
+          const { TatchiPasskey } = await import(modulePaths.tatchiPasskey);
 
           if (!TatchiPasskey) {
             throw new Error('TatchiPasskey not found in SDK module');
@@ -254,7 +259,7 @@ async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestCon
           const message = error?.message ? String(error.message) : String(error);
           return { success: false, error: message };
         }
-      }, configs, {
+      }, { setupOptions: configs, modulePaths }, {
         timeout: attemptTimeoutMs,
         polling: 1000
       });
@@ -294,13 +299,14 @@ async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestCon
  * Ensure base64UrlEncode is available as safety measure
  */
 async function ensureGlobalFallbacks(page: Page): Promise<void> {
-  await page.waitForFunction(async () => {
+  const paths = { base64: SDK_ESM_PATHS.base64, accountIds: SDK_ESM_PATHS.accountIds } as const;
+  await page.waitForFunction(async (paths) => {
     try {
       // Defense in depth: Ensure base64UrlEncode is globally available
       // This prevents "base64UrlEncode is not defined" errors even if timing issues occur
       if (typeof (window as any).base64UrlEncode === 'undefined') {
         try {
-          const { base64UrlEncode } = await import('/sdk/esm/utils/base64.js');
+          const { base64UrlEncode } = await import(paths.base64);
           (window as any).base64UrlEncode = base64UrlEncode;
           console.log('[setup:browser] base64UrlEncode made available globally as fallback');
         } catch (encoderError) {
@@ -311,7 +317,7 @@ async function ensureGlobalFallbacks(page: Page): Promise<void> {
       // Also ensure base64UrlDecode is available for credential ID decoding
       if (typeof (window as any).base64UrlDecode === 'undefined') {
         try {
-          const { base64UrlDecode } = await import('/sdk/esm/utils/base64.js');
+          const { base64UrlDecode } = await import(paths.base64);
           (window as any).base64UrlDecode = base64UrlDecode;
         } catch (encoderError) {
           console.error('[setup:browser - step 5] Failed to import base64UrlDecode fallback:', encoderError);
@@ -321,7 +327,7 @@ async function ensureGlobalFallbacks(page: Page): Promise<void> {
       // Ensure toAccountId is available globally for tests
       if (typeof (window as any).toAccountId === 'undefined') {
         try {
-          const { toAccountId } = await import('/sdk/esm/core/types/accountIds.js');
+          const { toAccountId } = await import(paths.accountIds);
           (window as any).toAccountId = toAccountId;
         } catch (accountIdError) {
           console.error('[setup:browser - step 5] Failed to import toAccountId fallback:', accountIdError);
@@ -333,7 +339,7 @@ async function ensureGlobalFallbacks(page: Page): Promise<void> {
       console.error('Global fallbacks setup failed:', error);
       return false;
     }
-  }, {
+  }, paths, {
     timeout: 15000, // 15 second timeout
     polling: 500    // Check every 500ms
   });

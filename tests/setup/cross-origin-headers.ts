@@ -1,5 +1,6 @@
 import { Page } from '@playwright/test';
-import { buildPermissionsPolicy, buildWalletCsp } from '../../plugins/headers';
+import { buildPermissionsPolicy, buildWalletCsp } from '@/plugins/headers';
+import { buildWalletServiceHtml } from '@/plugins/plugin-utils';
 import { printLog, printStepLine } from './logging';
 
 export async function installRelayServerProxyShim(
@@ -8,7 +9,7 @@ export async function installRelayServerProxyShim(
     relayOrigin?: string;
     relayUpstream?: string;
     logStyle?: 'intercept' | 'setup' | 'silent';
-  } = {}
+  } = {},
 ): Promise<void> {
   const relayOrigin = options.relayOrigin ?? 'https://relay-server.localhost';
   const relayUpstream =
@@ -38,7 +39,9 @@ export async function installRelayServerProxyShim(
       const upstreamUrl = new URL(`${u.pathname}${u.search}${u.hash}`, relayUpstream).toString();
 
       if (logStyle === 'intercept') {
-        printLog('intercept', `relay proxy ${method} ${url} → ${upstreamUrl}`, { scope: 'relay-proxy' });
+        printLog('intercept', `relay proxy ${method} ${url} → ${upstreamUrl}`, {
+          scope: 'relay-proxy',
+        });
       }
 
       const fetched = await route.fetch({ url: upstreamUrl });
@@ -55,9 +58,13 @@ export async function installRelayServerProxyShim(
       });
     } catch (error) {
       const msg = String((error as Error)?.message || '');
-      const isTeardownNoise = /Target page|context|browser has been closed|Response has been disposed/i.test(msg);
+      const isTeardownNoise =
+        /Target page|context|browser has been closed|Response has been disposed/i.test(msg);
       if (!isTeardownNoise && logStyle === 'intercept') {
-        printLog('intercept', `relay proxy fell back (${msg})`, { scope: 'relay-proxy', indent: 1 });
+        printLog('intercept', `relay proxy fell back (${msg})`, {
+          scope: 'relay-proxy',
+          indent: 1,
+        });
       }
       return route.fallback();
     }
@@ -85,7 +92,12 @@ export async function installRelayServerProxyShim(
  */
 export async function installWalletSdkCorsShim(
   page: Page,
-  options: { walletOrigin?: string; appOrigin?: string; logStyle?: 'intercept' | 'setup' | 'silent'; mirror?: boolean } = {}
+  options: {
+    walletOrigin?: string;
+    appOrigin?: string;
+    logStyle?: 'intercept' | 'setup' | 'silent';
+    mirror?: boolean;
+  } = {},
 ): Promise<void> {
   const walletOrigin = options.walletOrigin ?? 'https://wallet.example.localhost';
   const appOrigin = options.appOrigin ?? 'https://example.localhost';
@@ -93,7 +105,13 @@ export async function installWalletSdkCorsShim(
   const mirror = options.mirror !== false; // default true to support NO_CADDY
 
   // Prefer BrowserContext glob patterns to ensure reliable matching across transports
-  const walletHost = (() => { try { return new URL(walletOrigin).host } catch { return 'wallet.example.localhost' } })();
+  const walletHost = (() => {
+    try {
+      return new URL(walletOrigin).host;
+    } catch {
+      return 'wallet.example.localhost';
+    }
+  })();
   const sdkPattern: string = `**://${walletHost}/sdk/**`;
   const walletServicePattern: string = `**://${walletHost}/wallet-service*`;
 
@@ -110,7 +128,7 @@ export async function installWalletSdkCorsShim(
       'Cross-Origin-Resource-Policy',
       'Cross-Origin-Embedder-Policy',
       'Access-Control-Allow-Origin',
-      'Content-Type'
+      'Content-Type',
     ].join(', ');
     headers['vary'] = 'Origin';
     if (/\.wasm(\?|$)/i.test(url)) headers['content-type'] = 'application/wasm';
@@ -145,7 +163,9 @@ export async function installWalletSdkCorsShim(
 
     try {
       if (logStyle === 'intercept') {
-        printLog('intercept', `sdk ${method} ${url} [mirror=${mirror ? 'on' : 'off'}]`, { scope: 'cors' });
+        printLog('intercept', `sdk ${method} ${url} [mirror=${mirror ? 'on' : 'off'}]`, {
+          scope: 'cors',
+        });
       }
       const upstreamUrl = mirror ? url.replace(walletOrigin, appOrigin) : url;
       const fetched = await route.fetch({ url: upstreamUrl });
@@ -156,20 +176,28 @@ export async function installWalletSdkCorsShim(
       const headers = buildAssetHeaders(lower, url);
       await route.fulfill({ status: fetched.status(), headers, body });
       if (logStyle === 'intercept') {
-        printLog('intercept', `sdk fulfilled ${url} ← ${upstreamUrl} (status ${fetched.status()})`, { scope: 'cors', indent: 1 });
+        printLog(
+          'intercept',
+          `sdk fulfilled ${url} ← ${upstreamUrl} (status ${fetched.status()})`,
+          { scope: 'cors', indent: 1 },
+        );
       }
     } catch (error) {
       // Quiet teardown noise (page/context closed or response disposed) unless explicitly in intercept mode
-      const msg = String((error as Error)?.message || '')
-      const isTeardownNoise = /Target page|context|browser has been closed|Response has been disposed/i.test(msg)
-      if (!isTeardownNoise && (options.logStyle === 'intercept')) {
+      const msg = String((error as Error)?.message || '');
+      const isTeardownNoise =
+        /Target page|context|browser has been closed|Response has been disposed/i.test(msg);
+      if (!isTeardownNoise && options.logStyle === 'intercept') {
         printLog('intercept', `cors shim fell back (${msg})`, { scope: 'cors', indent: 1 });
       }
       return route.fallback();
     }
   });
   if (logStyle === 'intercept') {
-    printLog('intercept', `wallet SDK CORS/CORP shim installed for ${walletOrigin}/sdk/*`, { scope: 'cors', step: 'ready' });
+    printLog('intercept', `wallet SDK CORS/CORP shim installed for ${walletOrigin}/sdk/*`, {
+      scope: 'cors',
+      step: 'ready',
+    });
   } else if (logStyle === 'setup') {
     printStepLine(1, `wallet SDK CORS/CORP headers installed for ${walletOrigin}/sdk/*`);
   }
@@ -181,10 +209,13 @@ export async function installWalletSdkCorsShim(
       const url = req.url();
       const upstreamUrl = mirror ? url.replace(walletOrigin, appOrigin) : url;
       if (logStyle === 'intercept') {
-        printLog('intercept', `wallet-service GET ${url} [mirror=${mirror ? 'on' : 'off'}]`, { scope: 'cors' });
+        printLog('intercept', `wallet-service GET ${url} [mirror=${mirror ? 'on' : 'off'}]`, {
+          scope: 'cors',
+        });
       }
       const fetched = await route.fetch({ url: upstreamUrl });
-      const body = await fetched.body();
+      let status = fetched.status();
+      let body = await fetched.body();
       const headers: Record<string, string> = {
         'cross-origin-opener-policy': 'unsafe-none',
         'cross-origin-embedder-policy': 'require-corp',
@@ -192,33 +223,64 @@ export async function installWalletSdkCorsShim(
         'permissions-policy': buildPermissionsPolicy(walletOrigin),
         'content-security-policy': buildWalletCsp({ mode: 'strict' }),
       };
-      await route.fulfill({ status: fetched.status(), headers, body });
+
+      // In NO_CADDY (mirror) mode, the app dev server might not have /wallet-service
+      // (e.g. if the Vite plugin didn't load). Fall back to a minimal wallet-service
+      // surface so wallet iframe handshake remains deterministic.
+      if (mirror && (status === 404 || status === 500) && body.byteLength === 0) {
+        body = Buffer.from(buildWalletServiceHtml('/sdk'), 'utf8');
+        status = 200;
+        headers['content-type'] = 'text/html; charset=utf-8';
+      }
+
+      await route.fulfill({ status, headers, body });
       if (logStyle === 'intercept') {
-        printLog('intercept', `wallet-service fulfilled ${url} ← ${upstreamUrl} (status ${fetched.status()})`, { scope: 'cors', indent: 1 });
+        printLog(
+          'intercept',
+          `wallet-service fulfilled ${url} ← ${upstreamUrl} (status ${fetched.status()})`,
+          { scope: 'cors', indent: 1 },
+        );
       }
     } catch (error) {
-      const msg = String((error as Error)?.message || '')
-      const isTeardownNoise = /Target page|context|browser has been closed|Response has been disposed/i.test(msg)
-      if (!isTeardownNoise && (options.logStyle === 'intercept')) {
-        printLog('intercept', `wallet-service shim fell back (${msg})`, { scope: 'cors', indent: 1 });
+      const msg = String((error as Error)?.message || '');
+      const isTeardownNoise =
+        /Target page|context|browser has been closed|Response has been disposed/i.test(msg);
+      if (!isTeardownNoise && options.logStyle === 'intercept') {
+        printLog('intercept', `wallet-service shim fell back (${msg})`, {
+          scope: 'cors',
+          indent: 1,
+        });
       }
       return route.fallback();
     }
   });
   if (logStyle === 'intercept') {
-    printLog('intercept', `wallet service headers shim installed for ${walletOrigin}/wallet-service/*`, { scope: 'cors', step: 'ready' });
+    printLog(
+      'intercept',
+      `wallet service headers shim installed for ${walletOrigin}/wallet-service/*`,
+      { scope: 'cors', step: 'ready' },
+    );
   } else if (logStyle === 'setup') {
-    printStepLine(1, `wallet service headers shim installed for ${walletOrigin}/wallet-service/*`, 2);
+    printStepLine(
+      1,
+      `wallet service headers shim installed for ${walletOrigin}/wallet-service/*`,
+      2,
+    );
   }
 
   // Also emit a browser‑console breadcrumb so logs appear in Playwright console capture
   try {
     if (logStyle === 'intercept') {
-      await page.evaluate((args) => {
-        const { walletOrigin, appOrigin, mirror } = args;
-        console.log(`[cors] shim ready sdk: ${walletOrigin}/sdk/* (mirror=${mirror ? 'on' : 'off'}) → upstream: ${mirror ? appOrigin : walletOrigin}`);
-        console.log(`[cors] shim ready wallet-service: ${walletOrigin}/wallet-service/*`);
-      }, { walletOrigin, appOrigin, mirror });
+      await page.evaluate(
+        (args) => {
+          const { walletOrigin, appOrigin, mirror } = args;
+          console.log(
+            `[cors] shim ready sdk: ${walletOrigin}/sdk/* (mirror=${mirror ? 'on' : 'off'}) → upstream: ${mirror ? appOrigin : walletOrigin}`,
+          );
+          console.log(`[cors] shim ready wallet-service: ${walletOrigin}/wallet-service/*`);
+        },
+        { walletOrigin, appOrigin, mirror },
+      );
     }
   } catch {}
 }

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { tatchiBuildHeaders, tatchiWalletService } from '../../plugins/vite'
+import { tatchiBuildHeaders, tatchiWalletService } from '@/plugins/vite'
 
 test.describe('plugins/vite wallet CORP defaults', () => {
   test('dev wallet-service sets CORP even when COEP is off', async () => {

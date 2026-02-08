@@ -87,8 +87,10 @@ import type {
   SignTransactionResult,
   EmailRecoveryContracts,
 } from '../../types/tatchi';
-import type { TempoSigningRequest } from '../../multichain/tempo/types';
+import type { TempoSecp256k1SigningRequest, TempoSigningRequest } from '../../multichain/tempo/types';
 import type { TempoSignedResult } from '../../multichain/tempo/tempoAdapter';
+import type { ThresholdEcdsaSecp256k1KeyRef } from '../../multichain/types';
+import type { ThresholdEcdsaSessionBootstrapResult } from '../../WebAuthnManager';
 import type { LinkDeviceResult, StartDevice2LinkingFlowArgs, StartDevice2LinkingFlowResults, DeviceLinkingQRData } from '../../types/linkDevice';
 import type { SyncAccountResult } from '../../TatchiPasskey/syncAccount';
 import {
@@ -689,6 +691,32 @@ export class WalletIframeRouter {
     }
   }
 
+  async bootstrapThresholdEcdsaSession(payload: {
+    nearAccountId: string;
+    options?: {
+      relayerUrl?: string;
+      participantIds?: number[];
+      sessionKind?: 'jwt' | 'cookie';
+      ttlMs?: number;
+      remainingUses?: number;
+    };
+  }): Promise<ThresholdEcdsaSessionBootstrapResult> {
+    this.showFrameForActivation();
+    try {
+      const safeOptions = removeFunctionsFromOptions(payload.options);
+      const res = await this.post<ThresholdEcdsaSessionBootstrapResult>({
+        type: 'PM_BOOTSTRAP_THRESHOLD_ECDSA_SESSION',
+        payload: {
+          nearAccountId: payload.nearAccountId,
+          options: safeOptions,
+        },
+      });
+      return res.result;
+    } finally {
+      this.hideFrameForActivation();
+    }
+  }
+
   async loginAndCreateSession(payload: {
     nearAccountId: string;
     options?: {
@@ -793,6 +821,7 @@ export class WalletIframeRouter {
     request: TempoSigningRequest;
     options?: {
       confirmationConfig?: Partial<ConfirmationConfig>;
+      thresholdEcdsaKeyRef?: ThresholdEcdsaSecp256k1KeyRef;
     };
   }): Promise<TempoSignedResult> {
     const res = await this.post<TempoSignedResult>({
@@ -800,10 +829,36 @@ export class WalletIframeRouter {
       payload: {
         nearAccountId: payload.nearAccountId,
         request: payload.request,
-        options: payload.options?.confirmationConfig ? { confirmationConfig: payload.options.confirmationConfig } : undefined,
+        options: payload.options
+          ? {
+              ...(payload.options.confirmationConfig ? { confirmationConfig: payload.options.confirmationConfig } : {}),
+              ...(payload.options.thresholdEcdsaKeyRef ? { thresholdEcdsaKeyRef: payload.options.thresholdEcdsaKeyRef } : {}),
+            }
+          : undefined,
       },
     });
     return res.result;
+  }
+
+  async signTempoWithThresholdEcdsa(payload: {
+    nearAccountId: string;
+    request: TempoSecp256k1SigningRequest;
+    thresholdEcdsaKeyRef: ThresholdEcdsaSecp256k1KeyRef;
+    options?: {
+      confirmationConfig?: Partial<ConfirmationConfig>;
+    };
+  }): Promise<TempoSignedResult> {
+    if (payload.request.senderSignatureAlgorithm !== 'secp256k1') {
+      throw new Error('[WalletIframeRouter] signTempoWithThresholdEcdsa requires senderSignatureAlgorithm=secp256k1');
+    }
+    return await this.signTempo({
+      nearAccountId: payload.nearAccountId,
+      request: payload.request,
+      options: {
+        confirmationConfig: payload.options?.confirmationConfig,
+        thresholdEcdsaKeyRef: payload.thresholdEcdsaKeyRef,
+      },
+    });
   }
 
   async signTransactionWithKeyPair(payload: {
@@ -1405,6 +1460,7 @@ export class WalletIframeRouter {
       case 'PM_EXECUTE_ACTION':
       case 'PM_SEND_TRANSACTION':
       case 'PM_SIGN_TXS_WITH_ACTIONS':
+      case 'PM_BOOTSTRAP_THRESHOLD_ECDSA_SESSION':
       case 'PM_SIGN_TEMPO':
       case 'PM_LINK_DEVICE_WITH_SCANNED_QR_DATA':
       case 'PM_START_DEVICE2_LINKING_FLOW':

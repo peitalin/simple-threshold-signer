@@ -3,9 +3,9 @@ import type { MultichainWorkerKind } from '../../sdkPaths/multichainWorkers';
 import { resolveMultichainWorkerUrl } from '../../sdkPaths/multichainWorkers';
 import { WorkerControlMessage } from '../../workerControlMessages';
 
-type RpcOk = { id: string; ok: true; result: ArrayBuffer };
+type RpcOk<T = unknown> = { id: string; ok: true; result: T };
 type RpcErr = { id: string; ok: false; error: string };
-type RpcResp = RpcOk | RpcErr;
+type RpcResp<T = unknown> = RpcOk<T> | RpcErr;
 
 function makeId(prefix: string): string {
   const c = (globalThis as any).crypto;
@@ -16,7 +16,7 @@ function makeId(prefix: string): string {
 export class WasmSignerWorkerRpc {
   private readonly kind: MultichainWorkerKind;
   private worker: Worker | null = null;
-  private readonly pending = new Map<string, { resolve: (ab: ArrayBuffer) => void; reject: (e: Error) => void }>();
+  private readonly pending = new Map<string, { resolve: (value: any) => void; reject: (e: Error) => void }>();
 
   constructor(kind: MultichainWorkerKind) {
     this.kind = kind;
@@ -51,11 +51,11 @@ export class WasmSignerWorkerRpc {
     return worker;
   }
 
-  async request(args: { type: string; payload: any; transfer?: Transferable[] }): Promise<ArrayBuffer> {
+  async request<T = ArrayBuffer>(args: { type: string; payload: any; transfer?: Transferable[] }): Promise<T> {
     const worker = this.getOrCreateWorker();
     const id = makeId(this.kind);
 
-    return await new Promise<ArrayBuffer>((resolve, reject) => {
+    return await new Promise<T>((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
       try {
         worker.postMessage({ id, type: args.type, payload: args.payload }, args.transfer || []);
@@ -66,4 +66,3 @@ export class WasmSignerWorkerRpc {
     });
   }
 }
-

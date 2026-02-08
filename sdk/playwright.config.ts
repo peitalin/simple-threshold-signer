@@ -1,8 +1,16 @@
-import { defineConfig, devices } from '@playwright/test';
+import * as playwrightNs from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+// Playwright is sometimes loaded via CJS↔ESM interop. Use a tolerant import shape.
+const defineConfig =
+  (playwrightNs as any).defineConfig || (playwrightNs as any).default?.defineConfig;
+const devices = (playwrightNs as any).devices || (playwrightNs as any).default?.devices || {};
+if (typeof defineConfig !== 'function') {
+  throw new Error('Playwright config failed to load defineConfig from @playwright/test');
+}
 // Default to NO_CADDY for tests unless explicitly enabled.
 // Caddy's default HTTPS port (443) is privileged on many systems, which can
 // cause test startup failures when running as a non-root user.
@@ -130,6 +138,12 @@ const DEV_SERVER_PORT = (() => {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+try {
+  process.env.W3A_REPO_ROOT = fs.realpathSync(path.resolve(path.join(__dirname, '..')));
+} catch {}
+try {
+  process.env.W3A_SDK_DIST_ROOT = fs.realpathSync(path.resolve(path.join(__dirname, 'dist')));
+} catch {}
 function resolveExamplesFrontendDir(): string {
   // Prefer the historical examples/vite path when present, but fall back to the
   // current workspace frontend (examples/tatchi-docs) when it's the only one.
@@ -143,6 +157,10 @@ function resolveExamplesFrontendDir(): string {
 const EXAMPLES_FRONTEND_DIR = resolveExamplesFrontendDir();
 
 export default defineConfig({
+  // Use a single tsconfig for all test imports so TS `paths` aliases resolve consistently.
+  tsconfig: './tsconfig.playwright.json',
+  // Don't transform wasm-bindgen outputs; Playwright's transpiler can break these ESM glue files.
+  build: { external: ['wasm/**/pkg/**'] },
   testDir: '../tests',
   testMatch: [
     '**/e2e/**/*.test.ts',

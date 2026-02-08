@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
 import * as ed from '@noble/ed25519';
 import bs58 from 'bs58';
-import { base64UrlEncode } from '../../utils/encoders';
-import { ActionType, type ActionArgsWasm } from '../../core/types/actions';
-import { AuthService } from '../../server/core/AuthService';
-import { createThresholdSigningService } from '../../server/core/ThresholdService';
-import { createRelayRouter } from '../../server/router/express-adaptor';
-import { createCloudflareRouter } from '../../server/router/cloudflare-adaptor';
+import { base64UrlEncode } from '@shared/utils/encoders';
+import { ActionType, type ActionArgsWasm } from '@/core/types/actions';
+import { AuthService } from '@server/core/AuthService';
+import { createThresholdSigningService } from '@server/core/ThresholdService';
+import { createRelayRouter } from '@server/router/express-adaptor';
+import { createCloudflareRouter } from '@server/router/cloudflare-adaptor';
 import { threshold_ed25519_compute_near_tx_signing_digests } from '../../wasm/near_signer/pkg/wasm_signer_worker.js';
 import { callCf, fetchJson, makeCfCtx, makeSessionAdapter, startExpressRouter } from './helpers';
 import type {
@@ -14,7 +14,7 @@ import type {
   ThresholdEd25519AuthConsumeUsesResult,
   ThresholdEd25519AuthSessionRecord,
   ThresholdEd25519AuthSessionStore,
-} from '../../server/core/ThresholdService/stores/AuthSessionStore';
+} from '@server/core/ThresholdService/stores/AuthSessionStore';
 
 function makeAuthServiceForThreshold(): { service: AuthService; threshold: ReturnType<typeof createThresholdSigningService> } {
   const svc = new AuthService({

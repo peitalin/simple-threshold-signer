@@ -15,11 +15,16 @@ export type KeyRef =
       relayerKeyId: string;
       clientVerifyingShareB64u: string;
       participantIds?: number[];
+      groupPublicKeyB64u?: string;
+      relayerVerifyingShareB64u?: string;
       thresholdSessionKind?: 'jwt' | 'cookie';
       thresholdSessionJwt?: string;
+      thresholdSessionId?: string;
       mpcSessionId?: string;
     }
   | { type: 'webauthn-p256'; credentialId: Uint8Array; pubKeyX: Uint8Array; pubKeyY: Uint8Array; rpId?: string };
+
+export type ThresholdEcdsaSecp256k1KeyRef = Extract<KeyRef, { type: 'threshold-ecdsa-secp256k1' }>;
 
 export type SignRequest =
   | {

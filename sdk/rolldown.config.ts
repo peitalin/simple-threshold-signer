@@ -14,6 +14,27 @@ const CLIENT_REACT_ROOT_ABS = path.resolve(SDK_ROOT_ABS, '../client/src/react');
 const CLIENT_CHAINSIGS_ROOT_ABS = path.resolve(SDK_ROOT_ABS, '../client/src/chainsigs');
 const CLIENT_PLUGINS_ROOT_ABS = path.resolve(SDK_ROOT_ABS, '../client/src/plugins');
 const SERVER_SRC_ROOT_ABS = path.resolve(SDK_ROOT_ABS, '../server/src/server');
+const NEAR_SIGNER_WASM_JS_ABS = path.resolve(
+  SDK_ROOT_ABS,
+  '../wasm/near_signer/pkg/wasm_signer_worker.js',
+);
+const NEAR_SIGNER_WASM_JS_OUT = 'wasm/near_signer/pkg/wasm_signer_worker.js';
+
+const toPosixPath = (p: string): string => p.split(path.sep).join('/');
+const stripExt = (p: string): string => p.replace(/\.[^/.]+$/, '');
+const stripLeadingDotDots = (p: string): string => {
+  let out = p;
+  while (out.startsWith('../')) out = out.slice(3);
+  return out;
+};
+const preservedModuleOut = (opts: { facadeModuleId: string; rootAbs: string; prefix: string }) => {
+  const facadeAbs = path.resolve(opts.facadeModuleId);
+  if (facadeAbs === NEAR_SIGNER_WASM_JS_ABS) return NEAR_SIGNER_WASM_JS_OUT;
+
+  const rel = toPosixPath(path.relative(opts.rootAbs, facadeAbs));
+  const relNoExt = stripExt(stripLeadingDotDots(rel));
+  return `${opts.prefix}/${relNoExt}.js`;
+};
 
 // Lightweight define plugin to replace process.env.NODE_ENV with 'production' for
 // browser/embedded bundles so React and others use prod paths and treeshake well.
@@ -85,8 +106,6 @@ const external = [
 
   // WASM modules - externalize so bundlers handle them correctly
   /\.wasm$/,
-  // Externalize WASM glue code so Rolldown doesn't wrap it in __esm and break exports
-  /wasm_signer_worker\.js$/,
 ];
 
 // External dependencies for embedded components.
@@ -101,7 +120,7 @@ const aliasConfig = {
   '@/*': path.resolve(SDK_ROOT_ABS, '../client/src/*'),
   '@shared/*': path.resolve(SDK_ROOT_ABS, '../shared/src/*'),
   '@server': path.resolve(SDK_ROOT_ABS, '../server/src/server/index.ts'),
-  '@server/*': path.resolve(SDK_ROOT_ABS, '../server/src/server/*')
+  '@server/*': path.resolve(SDK_ROOT_ABS, '../server/src/server/*'),
 };
 
 // Static assets expected to be served under `/sdk/*` by hosts.
@@ -109,16 +128,16 @@ const aliasConfig = {
 // directory (often with --delete) keep these files available in production.
 const WALLET_SHIM_SOURCE = [
   // Minimal globals used by some deps in browser context
-  "window.global ||= window; window.process ||= { env: {} };",
+  'window.global ||= window; window.process ||= { env: {} };',
   // Infer absolute SDK base from this script's src and set it for embedded iframes (about:srcdoc)
-  "(function(){try{",
+  '(function(){try{',
   "  var s = (typeof document !== 'undefined' && document.currentScript) ? document.currentScript.src : '';",
-  "  if(!s) return;",
+  '  if(!s) return;',
   "  var u = new URL(s, (typeof location !== 'undefined' ? location.href : ''));",
-  "  var href = u.href;",
+  '  var href = u.href;',
   "  var base = href.slice(0, href.lastIndexOf('/') + 1);",
   "  if (typeof window !== 'undefined' && !window.__W3A_WALLET_SDK_BASE__) { window.__W3A_WALLET_SDK_BASE__ = base; }",
-  "}catch(e){}})();\n",
+  '}catch(e){}})();\n',
 ].join('\n');
 const WALLET_SURFACE_CSS = [
   'html, body { background: transparent !important; margin:0; padding:0; }',
@@ -188,12 +207,18 @@ const buildW3AComponentsCss = async (sdkRoot: string): Promise<string> => {
   const baseStylesPath = path.join(sdkRoot, '../client/src/theme/base-styles.js');
   const base = await import(pathToFileURL(baseStylesPath).href);
   const { createThemeTokens } = base as any;
-  const { DARK_THEME: darkVars, LIGHT_THEME: lightVars, CREAM_THEME: creamVars } = createThemeTokens(palette);
+  const {
+    DARK_THEME: darkVars,
+    LIGHT_THEME: lightVars,
+    CREAM_THEME: creamVars,
+  } = createThemeTokens(palette);
 
   const hostSelector = W3A_COMPONENT_HOSTS.join(',\n');
   const lines: string[] = [];
 
-  lines.push('/* Generated from ../client/src/theme/palette.json + ../client/src/theme/base-styles.js. Do not edit by hand. */');
+  lines.push(
+    '/* Generated from ../client/src/theme/palette.json + ../client/src/theme/base-styles.js. Do not edit by hand. */',
+  );
   lines.push(`${hostSelector} {`);
   lines.push(`  --w3a-modal__btn__focus-outline-color: ${darkVars?.focus || '#3b82f6'};`);
   lines.push('  --w3a-tree__file-content__scrollbar-track__background: rgba(255, 255, 255, 0.06);');
@@ -238,8 +263,12 @@ const buildW3AComponentsCss = async (sdkRoot: string): Promise<string> => {
   lines.push(...emitW3AThemeAliases(creamVars, '  '));
   lines.push('}');
 
-  const themedSelLight = W3A_COMPONENT_HOSTS.map((s) => `:root[data-w3a-theme="light"] ${s}`).join(',\n');
-  const themedSelCream = W3A_COMPONENT_HOSTS.map((s) => `:root[data-w3a-theme="cream"] ${s}`).join(',\n');
+  const themedSelLight = W3A_COMPONENT_HOSTS.map((s) => `:root[data-w3a-theme="light"] ${s}`).join(
+    ',\n',
+  );
+  const themedSelCream = W3A_COMPONENT_HOSTS.map((s) => `:root[data-w3a-theme="cream"] ${s}`).join(
+    ',\n',
+  );
 
   lines.push('');
   lines.push(`${themedSelLight} {`);
@@ -273,44 +302,53 @@ const emitWalletServiceStaticAssets = async (sdkRoot = process.cwd()): Promise<v
     fs.writeFileSync(path.join(sdkDir, 'w3a-components.css'), w3aComponentsCss, 'utf-8');
   } catch (e) {
     console.warn('⚠️  Failed to generate w3a-components.css from palette:', e);
-    const src = path.join(sdkRoot, '../client/src/core/WebAuthnManager/LitComponents/css/w3a-components.css');
+    const src = path.join(
+      sdkRoot,
+      '../client/src/core/WebAuthnManager/LitComponents/css/w3a-components.css',
+    );
     const dest = path.join(sdkDir, 'w3a-components.css');
     if (fs.existsSync(src)) fs.copyFileSync(src, dest);
   }
 
   copyIfMissing(
     path.join(sdkRoot, '../client/src/core/WebAuthnManager/LitComponents/css/tx-tree.css'),
-    path.join(sdkDir, 'tx-tree.css')
+    path.join(sdkDir, 'tx-tree.css'),
   );
   copyIfMissing(
     path.join(sdkRoot, '../client/src/core/WebAuthnManager/LitComponents/css/tx-confirmer.css'),
-    path.join(sdkDir, 'tx-confirmer.css')
+    path.join(sdkDir, 'tx-confirmer.css'),
   );
   copyIfMissing(
     path.join(sdkRoot, '../client/src/core/WebAuthnManager/LitComponents/css/drawer.css'),
-    path.join(sdkDir, 'drawer.css')
+    path.join(sdkDir, 'drawer.css'),
   );
   copyIfMissing(
     path.join(sdkRoot, '../client/src/core/WebAuthnManager/LitComponents/css/halo-border.css'),
-    path.join(sdkDir, 'halo-border.css')
+    path.join(sdkDir, 'halo-border.css'),
   );
   copyIfMissing(
-    path.join(sdkRoot, '../client/src/core/WebAuthnManager/LitComponents/css/passkey-halo-loading.css'),
-    path.join(sdkDir, 'passkey-halo-loading.css')
+    path.join(
+      sdkRoot,
+      '../client/src/core/WebAuthnManager/LitComponents/css/passkey-halo-loading.css',
+    ),
+    path.join(sdkDir, 'passkey-halo-loading.css'),
   );
   copyIfMissing(
     path.join(sdkRoot, '../client/src/core/WebAuthnManager/LitComponents/css/padlock-icon.css'),
-    path.join(sdkDir, 'padlock-icon.css')
+    path.join(sdkDir, 'padlock-icon.css'),
   );
   copyIfMissing(
     path.join(sdkRoot, '../client/src/core/WebAuthnManager/LitComponents/css/export-viewer.css'),
-    path.join(sdkDir, 'export-viewer.css')
+    path.join(sdkDir, 'export-viewer.css'),
   );
   copyIfMissing(
     path.join(sdkRoot, '../client/src/core/WebAuthnManager/LitComponents/css/export-iframe.css'),
-    path.join(sdkDir, 'export-iframe.css')
+    path.join(sdkDir, 'export-iframe.css'),
   );
-  copyIfMissing(path.join(sdkRoot, '../client/src/core/WalletIframe/client/overlay/overlay.css'), path.join(sdkDir, 'overlay.css'));
+  copyIfMissing(
+    path.join(sdkRoot, '../client/src/core/WalletIframe/client/overlay/overlay.css'),
+    path.join(sdkDir, 'overlay.css'),
+  );
 
   console.log('✅ Emitted /sdk wallet-shims.js and wallet-service.css');
 };
@@ -338,73 +376,18 @@ const copyWasmAsset = (source: string, destination: string, label: string): void
 const configs = [
   // ESM build
   {
-    input: ['../client/src/index.ts', '../client/src/lite/index.ts'],
+    input: [
+      '../client/src/index.ts',
+      '../client/src/lite/index.ts',
+      // Treat this as an entry so Rolldown doesn't tree-shake its re-exported WASM enums.
+      // Tests (and some internal tools) import `core/types/signer-worker` directly.
+      '../client/src/core/types/signer-worker.ts',
+    ],
     output: {
       dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',
       preserveModules: true,
       preserveModulesRoot: CLIENT_SRC_ROOT_ABS,
-      sourcemap: true
-    },
-    external,
-    resolve: {
-      alias: aliasConfig
-    },
-  },
-  // CJS build
-  {
-    input: ['../client/src/index.ts', '../client/src/lite/index.ts'],
-    output: {
-      dir: BUILD_PATHS.BUILD.CJS,
-      format: 'cjs',
-      preserveModules: true,
-      preserveModulesRoot: CLIENT_SRC_ROOT_ABS,
-      sourcemap: true,
-      exports: 'named'
-    },
-    external,
-    resolve: {
-      alias: aliasConfig
-    },
-  },
-  // Server ESM build
-  {
-    input: '../server/src/server/index.ts',
-    output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/server`,
-      format: 'esm',
-      preserveModules: true,
-      preserveModulesRoot: SERVER_SRC_ROOT_ABS,
-      sourcemap: true
-    },
-    external,
-    resolve: {
-      alias: aliasConfig
-    },
-  },
-  // Server CJS build
-  {
-    input: '../server/src/server/index.ts',
-    output: {
-      dir: `${BUILD_PATHS.BUILD.CJS}/server`,
-      format: 'cjs',
-      preserveModules: true,
-      preserveModulesRoot: SERVER_SRC_ROOT_ABS,
-      sourcemap: true,
-      exports: 'named'
-    },
-    external,
-    resolve: {
-      alias: aliasConfig
-    },
-  },
-  // Plugins: headers helper ESM
-  {
-    input: '../client/src/plugins/headers.ts',
-    output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/plugins`,
-      format: 'esm',
-      entryFileNames: 'headers.js',
       sourcemap: true,
     },
     external,
@@ -412,15 +395,45 @@ const configs = [
       alias: aliasConfig,
     },
   },
-  // Plugins: headers helper CJS
+  // Server ESM build
+  {
+    input: '../server/src/server/index.ts',
+    output: {
+      dir: BUILD_PATHS.BUILD.ESM,
+      format: 'esm',
+      preserveModules: true,
+      preserveModulesRoot: SERVER_SRC_ROOT_ABS,
+      entryFileNames: (chunk) => {
+        if (!chunk.facadeModuleId) return `server/${chunk.name}.js`;
+        return preservedModuleOut({
+          facadeModuleId: chunk.facadeModuleId,
+          rootAbs: SERVER_SRC_ROOT_ABS,
+          prefix: 'server',
+        });
+      },
+      chunkFileNames: (chunk) => {
+        if (!chunk.facadeModuleId) return `server/${chunk.name}.js`;
+        return preservedModuleOut({
+          facadeModuleId: chunk.facadeModuleId,
+          rootAbs: SERVER_SRC_ROOT_ABS,
+          prefix: 'server',
+        });
+      },
+      sourcemap: true,
+    },
+    external,
+    resolve: {
+      alias: aliasConfig,
+    },
+  },
+  // Plugins: headers helper ESM
   {
     input: '../client/src/plugins/headers.ts',
     output: {
-      dir: `${BUILD_PATHS.BUILD.CJS}/plugins`,
-      format: 'cjs',
-      entryFileNames: 'headers.js',
+      dir: BUILD_PATHS.BUILD.ESM,
+      format: 'esm',
+      entryFileNames: 'plugins/headers.js',
       sourcemap: true,
-      exports: 'named',
     },
     external,
     resolve: {
@@ -431,25 +444,10 @@ const configs = [
   {
     input: '../client/src/plugins/next.ts',
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/plugins`,
+      dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',
-      entryFileNames: 'next.js',
+      entryFileNames: 'plugins/next.js',
       sourcemap: true,
-    },
-    external,
-    resolve: {
-      alias: aliasConfig,
-    },
-  },
-  // Plugins: Next helper CJS
-  {
-    input: '../client/src/plugins/next.ts',
-    output: {
-      dir: `${BUILD_PATHS.BUILD.CJS}/plugins`,
-      format: 'cjs',
-      entryFileNames: 'next.js',
-      sourcemap: true,
-      exports: 'named',
     },
     external,
     resolve: {
@@ -460,25 +458,10 @@ const configs = [
   {
     input: '../server/src/server/router/express-adaptor.ts',
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/server/router`,
+      dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',
-      entryFileNames: 'express.js',
+      entryFileNames: 'server/router/express.js',
       sourcemap: true,
-    },
-    external,
-    resolve: {
-      alias: aliasConfig,
-    },
-  },
-  // Express router helper CJS bundle
-  {
-    input: '../server/src/server/router/express-adaptor.ts',
-    output: {
-      dir: `${BUILD_PATHS.BUILD.CJS}/server/router`,
-      format: 'cjs',
-      entryFileNames: 'express.js',
-      sourcemap: true,
-      exports: 'named',
     },
     external,
     resolve: {
@@ -489,25 +472,10 @@ const configs = [
   {
     input: '../server/src/server/router/cloudflare-adaptor.ts',
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/server/router`,
+      dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',
-      entryFileNames: 'cloudflare.js',
+      entryFileNames: 'server/router/cloudflare.js',
       sourcemap: true,
-    },
-    external,
-    resolve: {
-      alias: aliasConfig,
-    },
-  },
-  // Cloudflare Workers router adaptor CJS bundle
-  {
-    input: '../server/src/server/router/cloudflare-adaptor.ts',
-    output: {
-      dir: `${BUILD_PATHS.BUILD.CJS}/server/router`,
-      format: 'cjs',
-      entryFileNames: 'cloudflare.js',
-      sourcemap: true,
-      exports: 'named',
     },
     external,
     resolve: {
@@ -518,25 +486,10 @@ const configs = [
   {
     input: '../server/src/server/wasm/signer.ts',
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/server/wasm`,
+      dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',
-      entryFileNames: 'signer.js',
+      entryFileNames: 'server/wasm/signer.js',
       sourcemap: true,
-    },
-    external,
-    resolve: {
-      alias: aliasConfig,
-    },
-  },
-  // WASM signer re-export CJS
-  {
-    input: '../server/src/server/wasm/signer.ts',
-    output: {
-      dir: `${BUILD_PATHS.BUILD.CJS}/server/wasm`,
-      format: 'cjs',
-      entryFileNames: 'signer.js',
-      sourcemap: true,
-      exports: 'named',
     },
     external,
     resolve: {
@@ -556,50 +509,26 @@ const configs = [
       '../client/src/react/components/PasskeyAuthMenu/client.tsx',
     ],
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/react`,
+      dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',
       preserveModules: true,
       preserveModulesRoot: CLIENT_REACT_ROOT_ABS,
-      sourcemap: true
-    },
-    external,
-    resolve: {
-      alias: aliasConfig
-    },
-  },
-  // React CJS build
-  {
-    input: [
-      '../client/src/react/index.ts',
-      // Ensure public subpath entrypoints exist in dist even when re-exports are flattened.
-      '../client/src/react/components/PasskeyAuthMenu/passkeyAuthMenuCompat.ts',
-      // Public subpath entrypoints (avoid treeshaking away default exports).
-      '../client/src/react/components/PasskeyAuthMenu/preload.ts',
-      '../client/src/react/components/PasskeyAuthMenu/shell.tsx',
-      '../client/src/react/components/PasskeyAuthMenu/skeleton.tsx',
-      '../client/src/react/components/PasskeyAuthMenu/client.tsx',
-    ],
-    output: {
-      dir: `${BUILD_PATHS.BUILD.CJS}/react`,
-      format: 'cjs',
-      preserveModules: true,
-      preserveModulesRoot: CLIENT_REACT_ROOT_ABS,
-      sourcemap: true,
-      exports: 'named'
-    },
-    external,
-    resolve: {
-      alias: aliasConfig
-    },
-  },
-  // Chainsigs helper ESM build
-  {
-    input: '../client/src/chainsigs/index.ts',
-    output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/chainsigs`,
-      format: 'esm',
-      preserveModules: true,
-      preserveModulesRoot: CLIENT_CHAINSIGS_ROOT_ABS,
+      entryFileNames: (chunk) => {
+        if (!chunk.facadeModuleId) return `react/${chunk.name}.js`;
+        return preservedModuleOut({
+          facadeModuleId: chunk.facadeModuleId,
+          rootAbs: CLIENT_REACT_ROOT_ABS,
+          prefix: 'react',
+        });
+      },
+      chunkFileNames: (chunk) => {
+        if (!chunk.facadeModuleId) return `react/${chunk.name}.js`;
+        return preservedModuleOut({
+          facadeModuleId: chunk.facadeModuleId,
+          rootAbs: CLIENT_REACT_ROOT_ABS,
+          prefix: 'react',
+        });
+      },
       sourcemap: true,
     },
     external,
@@ -607,16 +536,31 @@ const configs = [
       alias: aliasConfig,
     },
   },
-  // Chainsigs helper CJS build
+  // Chainsigs helper ESM build
   {
     input: '../client/src/chainsigs/index.ts',
     output: {
-      dir: `${BUILD_PATHS.BUILD.CJS}/chainsigs`,
-      format: 'cjs',
+      dir: BUILD_PATHS.BUILD.ESM,
+      format: 'esm',
       preserveModules: true,
       preserveModulesRoot: CLIENT_CHAINSIGS_ROOT_ABS,
+      entryFileNames: 'chainsigs/[name].js',
+      chunkFileNames: 'chainsigs/[name].js',
       sourcemap: true,
-      exports: 'named',
+    },
+    external,
+    resolve: {
+      alias: aliasConfig,
+    },
+  },
+  // Shared utils needed in-browser by some test harnesses (served under `/sdk/esm/*`).
+  {
+    input: '../shared/src/utils/base64.ts',
+    output: {
+      dir: BUILD_PATHS.BUILD.ESM,
+      format: 'esm',
+      entryFileNames: 'utils/base64.js',
+      sourcemap: true,
     },
     external,
     resolve: {
@@ -629,47 +573,52 @@ const configs = [
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/styles`,
       format: 'esm',
-      assetFileNames: 'styles.css'
+      assetFileNames: 'styles.css',
     },
   },
   // WASM Signer Worker build for server usage - includes WASM binary
   {
     input: '../wasm/near_signer/pkg/wasm_signer_worker.js',
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/wasm/near_signer/pkg`,
+      dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',
-      assetFileNames: '[name][extname]'
+      entryFileNames: 'wasm/near_signer/pkg/wasm_signer_worker.js',
     },
     plugins: [
       {
-        name: 'copy-wasm-signer',
+        name: 'emit-near-signer-wasm',
         generateBundle() {
           try {
-            copyWasmAsset(
-              path.join(process.cwd(), '../wasm/near_signer/pkg/wasm_signer_worker_bg.wasm'),
-              path.join(process.cwd(), `${BUILD_PATHS.BUILD.ESM}/wasm/near_signer/pkg/wasm_signer_worker_bg.wasm`),
-              '✅ WASM file copied to dist/esm/wasm/near_signer/pkg/'
+            const source = fs.readFileSync(
+              path.join(SDK_ROOT_ABS, '../wasm/near_signer/pkg/wasm_signer_worker_bg.wasm'),
             );
+            (this as any).emitFile({
+              type: 'asset',
+              fileName: 'wasm/near_signer/pkg/wasm_signer_worker_bg.wasm',
+              source,
+            });
+            console.log('✅ Emitted dist/esm/wasm/near_signer/pkg/wasm_signer_worker_bg.wasm');
           } catch (error) {
             console.error('❌ Failed to copy signer WASM asset:', error);
             throw error;
           }
-        }
-      }
-    ]
+        },
+      },
+    ],
   },
   // Confirm UI helpers and elements bundle for iframe usage
   // Build from confirm-ui.ts (container-agnostic); keep output filename stable
   {
     input: '../client/src/core/WebAuthnManager/LitComponents/confirm-ui.ts',
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/sdk`,
+      dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',
-      entryFileNames: 'tx-confirm-ui.js'
+      entryFileNames: 'sdk/tx-confirm-ui.js',
+      chunkFileNames: 'sdk/[name]-[hash].js',
     },
     external: embeddedExternal,
     resolve: {
-      alias: aliasConfig
+      alias: aliasConfig,
     },
     // Minification is controlled via CLI flags; no config option in current Rolldown types
     plugins: prodPlugins,
@@ -678,34 +627,35 @@ const configs = [
   {
     input: {
       // Tx Confirmer component
-      'w3a-tx-confirmer': '../client/src/core/WebAuthnManager/LitComponents/IframeTxConfirmer/tx-confirmer-wrapper.ts',
+      'w3a-tx-confirmer':
+        '../client/src/core/WebAuthnManager/LitComponents/IframeTxConfirmer/tx-confirmer-wrapper.ts',
       // Wallet service host (headless)
       'wallet-iframe-host-runtime': '../client/src/core/WalletIframe/host/index.ts',
       // Export viewer host + bootstrap
-      'iframe-export-bootstrap': '../client/src/core/WebAuthnManager/LitComponents/ExportPrivateKey/iframe-export-bootstrap-script.ts',
+      'iframe-export-bootstrap':
+        '../client/src/core/WebAuthnManager/LitComponents/ExportPrivateKey/iframe-export-bootstrap-script.ts',
     },
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/sdk`,
+      dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',
-      entryFileNames: '[name].js'
+      entryFileNames: 'sdk/[name].js',
+      chunkFileNames: 'sdk/[name]-[hash].js',
     },
     external: embeddedExternal,
     resolve: {
-      alias: aliasConfig
+      alias: aliasConfig,
     },
     // Minification is controlled via CLI flags; no config option in current Rolldown types
-    plugins: [
-      ...prodPlugins,
-      emitWalletServiceStaticPlugin,
-    ]
+    plugins: [...prodPlugins, emitWalletServiceStaticPlugin],
   },
   // Export Private Key viewer bundle (Lit element rendered inside iframe)
   {
     input: '../client/src/core/WebAuthnManager/LitComponents/ExportPrivateKey/viewer.ts',
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/sdk`,
+      dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',
-      entryFileNames: 'export-private-key-viewer.js',
+      entryFileNames: 'sdk/export-private-key-viewer.js',
+      chunkFileNames: 'sdk/[name]-[hash].js',
     },
     external: embeddedExternal,
     resolve: {
@@ -718,12 +668,14 @@ const configs = [
   {
     input: {
       'halo-border': '../client/src/core/WebAuthnManager/LitComponents/HaloBorder/index.ts',
-      'passkey-halo-loading': '../client/src/core/WebAuthnManager/LitComponents/PasskeyHaloLoading/index.ts',
+      'passkey-halo-loading':
+        '../client/src/core/WebAuthnManager/LitComponents/PasskeyHaloLoading/index.ts',
     },
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/sdk`,
+      dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',
-      entryFileNames: '[name].js',
+      entryFileNames: 'sdk/[name].js',
+      chunkFileNames: 'sdk/[name]-[hash].js',
     },
     external: embeddedExternal,
     resolve: {
@@ -731,39 +683,24 @@ const configs = [
     },
     // Minification is controlled via CLI flags; no config option in current Rolldown types
     plugins: prodPlugins,
-  }
-  ,
+  },
   // Vite plugin ESM build (source moved to src/plugins)
   {
     input: '../client/src/plugins/vite.ts',
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/plugins`,
+      dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',
       preserveModules: true,
       preserveModulesRoot: CLIENT_PLUGINS_ROOT_ABS,
-      sourcemap: true
-    },
-    external,
-    resolve: {
-      alias: aliasConfig
-    }
-  },
-  // Vite plugin CJS build (source moved to src/plugins)
-  {
-    input: '../client/src/plugins/vite.ts',
-    output: {
-      dir: `${BUILD_PATHS.BUILD.CJS}/plugins`,
-      format: 'cjs',
-      preserveModules: true,
-      preserveModulesRoot: CLIENT_PLUGINS_ROOT_ABS,
+      entryFileNames: 'plugins/[name].js',
+      chunkFileNames: 'plugins/[name].js',
       sourcemap: true,
-      exports: 'named'
     },
     external,
     resolve: {
-      alias: aliasConfig
-    }
-  }
+      alias: aliasConfig,
+    },
+  },
 ] satisfies import('rolldown').RolldownOptions[];
 
 export default configs;

@@ -1,6 +1,6 @@
-import { ThresholdSigningService } from '../../server/core/ThresholdService/ThresholdSigningService';
-import { createThresholdEd25519SessionStore } from '../../server/core/ThresholdService/stores/SessionStore';
-import type { ThresholdEd25519KeyStoreConfigInput } from '../../server/core/types';
+import { ThresholdSigningService } from '@server/core/ThresholdService/ThresholdSigningService';
+import { createThresholdEd25519SessionStore } from '@server/core/ThresholdService/stores/SessionStore';
+import type { ThresholdEd25519KeyStoreConfigInput } from '@server/core/types';
 
 export function silentLogger() {
   return { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };

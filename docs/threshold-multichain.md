@@ -49,7 +49,7 @@ The router chooses a `SchemeModule` by `schemeId` (either implied by the route f
 
 ### 2) Common request pipeline (scheme-agnostic)
 All schemes share the same high-level pipeline:
-1. **Key lifecycle**: keygen (or import) → store relay share + public verification material
+1. **Key lifecycle**: keygen → store relay share + public verification material
 2. **Authorization**:
    - `session` (mint JWT/cookie after WebAuthn verification)
    - `authorize` (per-intent digest authorization; optional if policy allows session-only)
@@ -62,7 +62,7 @@ All schemes share the same high-level pipeline:
 ### 3) `SchemeModule` → `ProtocolDriver`
 Each `SchemeModule` owns scheme-specific orchestration:
 - key material resolution/storage (keystore) and record shapes/prefixes
-- key lifecycle entrypoints (`keygen` and/or `import`)
+- key lifecycle entrypoints (`keygen` and optional `export` UX/API surfaces)
 - session/auth flows (`session`, optional `authorize`)
 
 It delegates MPC round logic to a `ProtocolDriver`, which is responsible for:
@@ -175,8 +175,8 @@ Use a stable, versioned scheme identifier (algorithm + protocol + version) to se
 Each scheme module is responsible for scheme-scoped orchestration and returns/owns the protocol driver:
 - `schemeId`
 - `healthz()`
-- `keygen(request)` (optional; or import-only)
-- `importKey(request)` (optional)
+- `keygen(request)` (optional)
+- `exportKey(request)` (optional; wallet-origin mediated)
 - `session(request)` (mint threshold session token; step-up required)
 - `authorize(request, claims)` (optional per-intent gating)
 - `signInit(request)` → delegates to `ProtocolDriver`
@@ -341,9 +341,9 @@ Output contract mapping:
   - consistent recovery id rules
 
 ### Phase 3: key establishment for ECDSA
-Support one or both:
+Product decision: keygen-only (no private-key import path).
 - **Keygen**: create a new threshold ECDSA key (DKG-like or dealer-split)
-- **Import**: convert an existing ECDSA private key into threshold shares (see `docs/import_threshold_private_keys.md`)
+- **Export (optional)**: wallet-origin backup/export flow for key material metadata or recovery package.
 
 For v1, “deterministic 2-share keygen” is the simplest and matches the ed25519 mental model:
 - Client share is derived deterministically from passkey `PRF.first` (wallet-origin only).
@@ -422,17 +422,20 @@ Add a top-level “enabled schemes” config concept:
 
 ### Phase 3 — Implement threshold ECDSA signing
 - [x] Choose protocol: NEAR `threshold-signatures` (OT-based ECDSA; Cait-Sith-derived).
-- [ ] Implement relayer signer state machine.
+- [x] Implement relayer signer state machine.
 - [x] Client share derivation: derive secp256k1 client share deterministically from PRF.first (HKDF domain-separated by `schemeId` + key path).
-- [ ] Implement `/threshold-ecdsa/sign/init` and `/threshold-ecdsa/sign/finalize`.
-- [ ] Implement presignature pool management (refill, reserve, consume) and wire it into `/threshold-ecdsa/sign/*`.
-- [ ] Add digest-binding invariants + replay protections.
+- [x] Implement `/threshold-ecdsa/presign/init` and `/threshold-ecdsa/presign/step` (relay-side; interactive with wallet-origin).
+- [x] Implement `/threshold-ecdsa/sign/init` and `/threshold-ecdsa/sign/finalize`.
+- [x] Implement relay-side presignature pool management (reserve, consume, discard) and wire it into `/threshold-ecdsa/sign/*` (v1: in-memory).
+- [x] Add digest-binding invariants + replay protections (mpc session + signing session scoping + single-use “take” semantics).
+- [x] Implement wallet-origin presignature share pool coordinator (refill, reserve, consume; handles `pool_empty` backpressure).
 
 #### Next steps (Phase 2/3)
-- Fix `wasm/eth_signer` WASM toolchain build on macOS (the `blst`/clang wasm target issue).
-- Decide whether ECDSA presignature pool must be durable (Redis/Postgres) and implement it.
-- Implement transcript/digest binding invariants + replay protections for `/threshold-ecdsa/*`.
-- Add end-to-end tests for threshold-ecdsa signing flows (pool empty/refill, replay, expiry).
+- [x] Add high-level SDK wrappers for key lifecycle/session bootstrap (`keygenThresholdEcdsaLite` + `connectThresholdEcdsaSessionLite`) so apps can avoid manual helper wiring.
+- [x] Expand multichain signer abstractions so `threshold-ecdsa-secp256k1` can be selected as a first-class engine where needed.
+- [x] Make the relay presignature pool + signing-session store durable for production (Redis/Postgres/DO) with atomic reserve/consume semantics.
+- Add end-to-end tests for threshold-ecdsa signing flows (pool empty/refill, replay, expiry, wrong-scope failures).
+- Add CI guardrails for `wasm/eth_signer` builds (C toolchain for `blst` on wasm32) and verify server runtime WASM loading works in both Node and Workers.
 
 #### Keygen/share format alignment (for `near/threshold-signatures`)
 `near/threshold-signatures` is built around Shamir-style threshold shares: each participant holds a scalar share and the protocol “linearizes” shares using Lagrange coefficients computed from participant identifiers (see `participants.lagrange(..)` usage in `src/ecdsa/ot_based_ecdsa/*` and `src/ecdsa/robust_ecdsa/sign.rs`).
@@ -498,14 +501,16 @@ Pool semantics (v1):
 
 NEAR’s `mpc` docs explicitly call out background triple generation and presignature consumption patterns (see the `near/mpc` `AGENTS.md` reference above).
 
-### Phase 4 — Key lifecycle (keygen + import)
+### Phase 4 — Key lifecycle (keygen + export)
 - [x] Add `keygen` for ECDSA (`POST /threshold-ecdsa/keygen`, deterministic derived shares).
-- [ ] Add `keys/import` for ECDSA (optional; wallet-origin only).
-- [ ] Add key import for Ed25519 if needed by product (optional; see import doc).
+- [ ] Add key export flow for ECDSA (optional; wallet-origin only).
+- [ ] Add key export flow for Ed25519 if needed by product (optional).
 
 ### Phase 5 — End-to-end integration tests
-- [ ] Ed25519: existing tests remain; add scheme registry + dispatch coverage.
-- [ ] ECDSA: add harness tests that sign a known digest and verify signature.
+- [x] Ed25519: existing tests remain; add scheme registry + dispatch coverage.
+- [x] ECDSA: add harness tests that sign a known digest and verify signature.
+- [x] ECDSA: add high-level API flow tests for secp256k1 happy path, missing/expired session failure, `pool_empty` refill/retry, and PRF/key mismatch failure.
+- [x] ECDSA: add one e2e flow covering keygen -> connect session -> Tempo threshold signing.
 
 ---
 
@@ -517,7 +522,9 @@ NEAR’s `mpc` docs explicitly call out background triple generation and presign
 - [x] Add an `authorize` helper (`POST /threshold-ecdsa/authorize`) and integrate it into client-side chain adapters.
 
 ### Phase B — ECDSA signing integration
-- [ ] Implement the client coordinator for `/threshold-ecdsa/sign/*` rounds once the server protocol is chosen.
+- [x] Implement the wallet-origin coordinator for `/threshold-ecdsa/presign/*` + `/threshold-ecdsa/sign/*` (client presign-share pool + finalize).
+- [x] Expose a dedicated high-level API entrypoint for Tempo threshold-ECDSA signing (`signTempoWithThresholdEcdsa`).
+- [x] Add first-class threshold-ECDSA session bootstrap API on `TatchiPasskey` (`bootstrapThresholdEcdsaSession`: keygen + connect + keyRef return).
 
 ---
 
@@ -535,7 +542,7 @@ NEAR’s `mpc` docs explicitly call out background triple generation and presign
 ## Risks and edge cases
 - Threshold ECDSA protocol complexity and implementation maturity (largest risk).
 - Correct handling of ECDSA low-s normalization and recovery id across the MPC protocol.
-- Key import security (clipboard/logging/exfil) must remain wallet-origin only.
+- Key export security (clipboard/logging/exfil) must remain wallet-origin only.
 - Maintaining parity across both express and cloudflare deployments.
 - Token confusion: enforce `kind`-based checks so app-session tokens can’t access `/threshold-*/session|authorize|sign/*`, and threshold-session tokens can’t be treated as app sessions; preserve claims on refresh and use `appSessionVersion` checks for server-side revocation.
 - Session transport: JWT is the default; if using HttpOnly cookies, require CSRF defenses + `Secure`/`SameSite` correctness for any state-changing endpoints.

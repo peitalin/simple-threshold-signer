@@ -1,12 +1,12 @@
 import type { Page, Route } from '@playwright/test';
 import bs58 from 'bs58';
-import { setupBasicPasskeyTest } from '../setup';
+import { setupBasicPasskeyTest, SDK_ESM_PATHS } from '../setup';
 import { DEFAULT_TEST_CONFIG } from '../setup/config';
-import { AuthService } from '../../server/core/AuthService';
-import { createThresholdSigningService } from '../../server/core/ThresholdService';
-import type { ThresholdEd25519KeyStoreConfigInput } from '../../server/core/types';
+import { AuthService } from '@server/core/AuthService';
+import { createThresholdSigningService } from '@server/core/ThresholdService';
+import type { ThresholdEd25519KeyStoreConfigInput } from '@server/core/types';
 import { makeSessionAdapter } from '../relayer/helpers';
-import { base64UrlDecode, base64UrlEncode } from '../../utils/encoders';
+import { base64UrlDecode, base64UrlEncode } from '@shared/utils/encoders';
 
 export async function setupThresholdE2ePage(page: Page): Promise<void> {
   const blankPageUrl = new URL('/__test_blank.html', DEFAULT_TEST_CONFIG.frontendUrl).toString();
@@ -15,11 +15,11 @@ export async function setupThresholdE2ePage(page: Page): Promise<void> {
     skipPasskeyManagerInit: true,
   });
 
-  await page.evaluate(async () => {
-    const { base64UrlEncode, base64UrlDecode } = await import('/sdk/esm/utils/base64.js');
+  await page.evaluate(async (base64Path) => {
+    const { base64UrlEncode, base64UrlDecode } = await import(base64Path);
     (window as any).base64UrlEncode = base64UrlEncode;
     (window as any).base64UrlDecode = base64UrlDecode;
-  });
+  }, SDK_ESM_PATHS.base64);
 }
 
 const DEFAULT_ACCOUNTS_ON_CHAIN = new Set<string>(

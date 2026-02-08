@@ -223,7 +223,7 @@ class PostgresThresholdEd25519AuthSessionStore implements ThresholdEd25519AuthSe
     const pool = await this.poolPromise;
     await pool.query(
       `
-        INSERT INTO tatchi_threshold_ed25519_sessions (namespace, kind, session_id, record_json, expires_at_ms, remaining_uses)
+        INSERT INTO threshold_ed25519_sessions (namespace, kind, session_id, record_json, expires_at_ms, remaining_uses)
         VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT (namespace, kind, session_id)
         DO UPDATE SET record_json = EXCLUDED.record_json, expires_at_ms = EXCLUDED.expires_at_ms, remaining_uses = EXCLUDED.remaining_uses
@@ -238,7 +238,7 @@ class PostgresThresholdEd25519AuthSessionStore implements ThresholdEd25519AuthSe
     const { rows } = await pool.query(
       `
         SELECT record_json
-        FROM tatchi_threshold_ed25519_sessions
+        FROM threshold_ed25519_sessions
         WHERE namespace = $1 AND kind = $2 AND session_id = $3 AND expires_at_ms > $4
         LIMIT 1
       `,
@@ -252,7 +252,7 @@ class PostgresThresholdEd25519AuthSessionStore implements ThresholdEd25519AuthSe
     const { rows } = await pool.query(
       `
         SELECT expires_at_ms, remaining_uses
-        FROM tatchi_threshold_ed25519_sessions
+        FROM threshold_ed25519_sessions
         WHERE namespace = $1 AND kind = $2 AND session_id = $3
         LIMIT 1
       `,
@@ -273,7 +273,7 @@ class PostgresThresholdEd25519AuthSessionStore implements ThresholdEd25519AuthSe
       const nowMs = Date.now();
       const { rows } = await pool.query(
         `
-          UPDATE tatchi_threshold_ed25519_sessions
+          UPDATE threshold_ed25519_sessions
           SET remaining_uses = remaining_uses - 1
           WHERE namespace = $1 AND kind = $2 AND session_id = $3 AND expires_at_ms > $4 AND remaining_uses > 0
           RETURNING remaining_uses

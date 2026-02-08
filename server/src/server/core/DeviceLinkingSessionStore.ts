@@ -133,7 +133,7 @@ class PostgresDeviceLinkingSessionStore implements DeviceLinkingSessionStore {
     const { rows } = await pool.query(
       `
         SELECT record_json
-        FROM tatchi_device_linking_sessions
+        FROM device_linking_sessions
         WHERE namespace = $1 AND session_id = $2 AND expires_at_ms > $3
       `,
       [this.namespace, id, nowMs],
@@ -150,7 +150,7 @@ class PostgresDeviceLinkingSessionStore implements DeviceLinkingSessionStore {
     const pool = await this.poolPromise;
     await pool.query(
       `
-        INSERT INTO tatchi_device_linking_sessions (namespace, session_id, record_json, expires_at_ms)
+        INSERT INTO device_linking_sessions (namespace, session_id, record_json, expires_at_ms)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (namespace, session_id)
         DO UPDATE SET record_json = EXCLUDED.record_json, expires_at_ms = EXCLUDED.expires_at_ms
@@ -164,7 +164,7 @@ class PostgresDeviceLinkingSessionStore implements DeviceLinkingSessionStore {
     if (!id) return;
     const pool = await this.poolPromise;
     await pool.query(
-      'DELETE FROM tatchi_device_linking_sessions WHERE namespace = $1 AND session_id = $2',
+      'DELETE FROM device_linking_sessions WHERE namespace = $1 AND session_id = $2',
       [this.namespace, id],
     );
   }

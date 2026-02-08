@@ -4,6 +4,7 @@ import type { Logger } from '../logger';
 import { coerceLogger } from '../logger';
 import { ThresholdSigningService } from './ThresholdSigningService';
 import { createThresholdEcdsaAuthSessionStore, createThresholdEd25519AuthSessionStore } from './stores/AuthSessionStore';
+import { createThresholdEcdsaSigningStores } from './stores/EcdsaSigningStore';
 import { createThresholdEcdsaKeyStore, createThresholdEd25519KeyStore } from './stores/KeyStore';
 import { createThresholdEcdsaSessionStore, createThresholdEd25519SessionStore } from './stores/SessionStore';
 import { isObject } from '@shared/utils/validation';
@@ -40,6 +41,8 @@ export function createThresholdSigningService(input: {
       THRESHOLD_ECDSA_KEYSTORE_PREFIX: env.THRESHOLD_ECDSA_KEYSTORE_PREFIX,
       THRESHOLD_ECDSA_SESSION_PREFIX: env.THRESHOLD_ECDSA_SESSION_PREFIX,
       THRESHOLD_ECDSA_AUTH_PREFIX: env.THRESHOLD_ECDSA_AUTH_PREFIX,
+      THRESHOLD_ECDSA_PRESIGN_PREFIX: env.THRESHOLD_ECDSA_PRESIGN_PREFIX,
+      THRESHOLD_ECDSA_SIGNING_PREFIX: env.THRESHOLD_ECDSA_SIGNING_PREFIX,
       THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID: env.THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID,
       THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID: env.THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID,
       THRESHOLD_ED25519_MASTER_SECRET_B64U: env.THRESHOLD_ED25519_MASTER_SECRET_B64U,
@@ -98,6 +101,7 @@ export function createThresholdSigningService(input: {
   const ecdsaKeyStore = createThresholdEcdsaKeyStore({ config, logger, isNode });
   const ecdsaSessionStore = createThresholdEcdsaSessionStore({ config, logger, isNode });
   const ecdsaAuthSessionStore = createThresholdEcdsaAuthSessionStore({ config, logger, isNode });
+  const ecdsaSigningStores = createThresholdEcdsaSigningStores({ config, logger, isNode });
 
   const ensureReady = async (): Promise<void> => {
     await input.authService.getRelayerAccount();
@@ -111,6 +115,8 @@ export function createThresholdSigningService(input: {
     ecdsaKeyStore,
     ecdsaSessionStore,
     ecdsaAuthSessionStore,
+    ecdsaSigningSessionStore: ecdsaSigningStores.signingSessionStore,
+    ecdsaPresignaturePool: ecdsaSigningStores.presignaturePool,
     config,
     ensureReady,
     ensureSignerWasm: ensureReady,

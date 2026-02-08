@@ -1,9 +1,9 @@
 import type { Server } from 'node:http';
 import http from 'node:http';
 import expressImport from 'express';
-import type { AuthService } from '../../server/core/AuthService';
-import type { SessionAdapter } from '../../server/router/express-adaptor';
-import type { CfEnv, CfExecutionContext } from '../../server/router/cloudflare-adaptor';
+import type { AuthService } from '@server/core/AuthService';
+import type { SessionAdapter } from '@server/router/express-adaptor';
+import type { CfEnv, CfExecutionContext } from '@server/router/cloudflare-adaptor';
 
 type ExpressMiddleware = (req: unknown, res: unknown, next: (err?: unknown) => void) => unknown;
 type ExpressAppLike = ((req: unknown, res: unknown) => unknown) & {

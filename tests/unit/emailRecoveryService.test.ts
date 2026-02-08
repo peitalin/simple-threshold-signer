@@ -1,14 +1,17 @@
 import { test, expect } from '@playwright/test';
 import { injectImportMap } from '../setup/bootstrap';
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { sha256 } from '@noble/hashes/sha2.js';
 
 const IMPORT_PATHS = {
   server: '/sdk/esm/server/index.js',
 } as const;
 
+const REPO_ROOT = process.env.W3A_REPO_ROOT || process.cwd();
+
 const GMAIL_RESET_EMAIL_BLOB = readFileSync(
-  'tests/unit/emails/gmail_reset_full.eml',
+  path.join(REPO_ROOT, 'tests/unit/emails/gmail_reset_full.eml'),
   'utf8'
 );
 

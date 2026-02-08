@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["../client/src/*"],
+      "@shared/*": ["../shared/src/*"],
+      "@server": ["../server/src/server/index.ts"],
+      "@server/*": ["../server/src/server/*"],
+      "@build-paths": ["./build-paths.ts"]
+    }
+  }
+}

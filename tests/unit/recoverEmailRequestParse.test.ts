@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { parseRecoverEmailRequest } from '../../server/email-recovery/emailParsers';
+import { parseRecoverEmailRequest } from '@server/email-recovery/emailParsers';
 
 test.describe('parseRecoverEmailRequest', () => {
   test('parses accountId from Subject header and explicitMode from headers', async () => {

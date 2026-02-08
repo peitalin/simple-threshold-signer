@@ -7,7 +7,7 @@
 
 import { test, expect } from '@playwright/test';
 import { DEFAULT_TEST_CONFIG } from '../setup/config';
-import { createRelayRouter } from '../../server/router/express-adaptor';
+import { createRelayRouter } from '@server/router/express-adaptor';
 import { startExpressRouter } from '../relayer/helpers';
 import {
   corsHeadersForRoute,

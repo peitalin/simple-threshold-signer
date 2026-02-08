@@ -290,7 +290,7 @@ class PostgresThresholdEd25519SessionStore implements ThresholdEd25519SessionSto
     const pool = await this.poolPromise;
     await pool.query(
       `
-        INSERT INTO tatchi_threshold_ed25519_sessions (namespace, kind, session_id, record_json, expires_at_ms)
+        INSERT INTO threshold_ed25519_sessions (namespace, kind, session_id, record_json, expires_at_ms)
         VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (namespace, kind, session_id)
         DO UPDATE SET record_json = EXCLUDED.record_json, expires_at_ms = EXCLUDED.expires_at_ms
@@ -304,7 +304,7 @@ class PostgresThresholdEd25519SessionStore implements ThresholdEd25519SessionSto
     const nowMs = Date.now();
     const { rows } = await pool.query(
       `
-        DELETE FROM tatchi_threshold_ed25519_sessions
+        DELETE FROM threshold_ed25519_sessions
         WHERE namespace = $1 AND kind = $2 AND session_id = $3 AND expires_at_ms > $4
         RETURNING record_json
       `,

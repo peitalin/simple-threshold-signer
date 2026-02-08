@@ -7,7 +7,6 @@ import type {
   ThresholdEd25519SessionStore,
 } from './stores/SessionStore';
 import type { ThresholdEcdsaPresignaturePool, ThresholdEcdsaSigningSessionStore } from './stores/EcdsaSigningStore';
-import { InMemoryThresholdEcdsaPresignaturePool, InMemoryThresholdEcdsaSigningSessionStore } from './stores/EcdsaSigningStore';
 import type {
   ThresholdEd25519AuthSessionStore,
   ThresholdEd25519AuthSessionRecord,
@@ -413,6 +412,8 @@ export class ThresholdSigningService {
     ecdsaKeyStore: ThresholdEd25519KeyStore;
     ecdsaSessionStore: ThresholdEd25519SessionStore;
     ecdsaAuthSessionStore: ThresholdEd25519AuthSessionStore;
+    ecdsaSigningSessionStore: ThresholdEcdsaSigningSessionStore;
+    ecdsaPresignaturePool: ThresholdEcdsaPresignaturePool;
     config?: ThresholdEd25519KeyStoreConfigInput | null;
     ensureReady: () => Promise<void>;
     ensureSignerWasm: () => Promise<void>;
@@ -431,6 +432,8 @@ export class ThresholdSigningService {
     this.ecdsaKeyStore = input.ecdsaKeyStore;
     this.ecdsaSessionStore = input.ecdsaSessionStore;
     this.ecdsaAuthSessionStore = input.ecdsaAuthSessionStore;
+    this.ecdsaSigningSessionStore = input.ecdsaSigningSessionStore;
+    this.ecdsaPresignaturePool = input.ecdsaPresignaturePool;
     const cfg = (isObject(input.config) ? input.config : {}) as Record<string, unknown>;
 
     const nodeRole = coerceThresholdNodeRole(cfg.THRESHOLD_NODE_ROLE);
@@ -492,8 +495,6 @@ export class ThresholdSigningService {
       resolveRelayerKeyMaterial: (args) => this.resolveRelayerKeyMaterial(args),
     });
 
-    this.ecdsaSigningSessionStore = new InMemoryThresholdEcdsaSigningSessionStore();
-    this.ecdsaPresignaturePool = new InMemoryThresholdEcdsaPresignaturePool();
 	    this.ecdsaSigningHandlers = new ThresholdEcdsaSigningHandlers({
 	      logger: this.logger,
 	      nodeRole,

@@ -23,7 +23,9 @@ type DoReq =
   | { op: 'set'; key: string; value: unknown; ttlMs?: number }
   | { op: 'del'; key: string }
   | { op: 'getdel'; key: string }
-  | { op: 'authConsumeUseCount'; key: string };
+  | { op: 'authConsumeUseCount'; key: string }
+  | { op: 'ecdsaPresignPut'; listKey: string; value: unknown }
+  | { op: 'ecdsaPresignReserve'; listKey: string; reservedKeyPrefix: string; ttlMs?: number };
 
 type AuthEntry = {
   record: { expiresAtMs: number; relayerKeyId: string; userId: string; rpId: string; participantIds: number[] };
@@ -114,26 +116,26 @@ export class ThresholdEd25519StoreDurableObject {
 
     const req = body as DoReq;
     if (op === 'get') {
-      const key = toKey(req.key);
+      const key = toKey((req as { key?: unknown }).key);
       if (!key) return json(err('invalid_body', 'Missing key'));
       const value = await this.state.storage.get(key);
       return json(ok(value ?? null));
     }
     if (op === 'set') {
-      const key = toKey(req.key);
+      const key = toKey((req as { key?: unknown }).key);
       if (!key) return json(err('invalid_body', 'Missing key'));
       const ttl = toTtlSeconds((req as { ttlMs?: unknown }).ttlMs);
       await this.state.storage.put(key, (req as { value?: unknown }).value, ttl ? { expirationTtl: ttl } : undefined);
       return json(ok(true));
     }
     if (op === 'del') {
-      const key = toKey(req.key);
+      const key = toKey((req as { key?: unknown }).key);
       if (!key) return json(err('invalid_body', 'Missing key'));
       await this.state.storage.delete(key);
       return json(ok(true));
     }
     if (op === 'getdel') {
-      const key = toKey(req.key);
+      const key = toKey((req as { key?: unknown }).key);
       if (!key) return json(err('invalid_body', 'Missing key'));
       const value = await withTxn(this.state, async (store) => {
         const v = await store.get(key);
@@ -143,7 +145,7 @@ export class ThresholdEd25519StoreDurableObject {
       return json(ok(value));
     }
     if (op === 'authConsumeUseCount') {
-      const key = toKey(req.key);
+      const key = toKey((req as { key?: unknown }).key);
       if (!key) return json(err('invalid_body', 'Missing key'));
 
       const res: DoResp<unknown> = await withTxn(this.state, async (store) => {
@@ -165,6 +167,43 @@ export class ThresholdEd25519StoreDurableObject {
       });
 
       return json(res);
+    }
+
+    if (op === 'ecdsaPresignPut') {
+      const listKey = toKey((req as { listKey?: unknown }).listKey);
+      if (!listKey) return json(err('invalid_body', 'Missing listKey'));
+      const value = (req as { value?: unknown }).value;
+      await withTxn(this.state, async (store) => {
+        const raw = await store.get(listKey);
+        const list = Array.isArray(raw) ? [...raw] : [];
+        list.push(value);
+        await store.put(listKey, list);
+      });
+      return json(ok(true));
+    }
+
+    if (op === 'ecdsaPresignReserve') {
+      const listKey = toKey((req as { listKey?: unknown }).listKey);
+      const reservedKeyPrefix = toKey((req as { reservedKeyPrefix?: unknown }).reservedKeyPrefix);
+      const ttlSeconds = toTtlSeconds((req as { ttlMs?: unknown }).ttlMs) || 120;
+      if (!listKey) return json(err('invalid_body', 'Missing listKey'));
+      if (!reservedKeyPrefix) return json(err('invalid_body', 'Missing reservedKeyPrefix'));
+
+      const value = await withTxn(this.state, async (store) => {
+        const raw = await store.get(listKey);
+        const list = Array.isArray(raw) ? [...raw] : [];
+        if (!list.length) return null;
+        const item = list.shift();
+        await store.put(listKey, list);
+
+        const presignatureId = isObject(item) ? toKey((item as { presignatureId?: unknown }).presignatureId) : '';
+        if (presignatureId) {
+          await store.put(`${reservedKeyPrefix}${presignatureId}`, item, { expirationTtl: ttlSeconds });
+        }
+        return item ?? null;
+      });
+
+      return json(ok(value));
     }
 
     return json(err('invalid_body', `Unknown op: ${op}`));

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupBasicPasskeyTest, handleInfrastructureErrors } from '../setup';
+import { setupBasicPasskeyTest, handleInfrastructureErrors, SDK_ESM_PATHS } from '../setup';
 import { buildWalletServiceHtml, registerWalletServiceRoute, waitFor, captureOverlay } from './harness';
 
 const WALLET_ORIGIN = 'https://wallet.example.localhost';
@@ -76,12 +76,13 @@ test.describe('WalletIframeRouter – sticky overlay lifecycle', () => {
   });
 
   test('sticky requests keep overlay visible until explicit cancel', async ({ page }) => {
-    const result = await page.evaluate(async ({ walletOrigin, waitForSource, captureOverlaySource }) => {
+    const routerPath = SDK_ESM_PATHS.walletIframeRouter;
+    const result = await page.evaluate(async ({ walletOrigin, waitForSource, captureOverlaySource, routerPath }) => {
       const waitFor = eval(waitForSource) as typeof import('./harness').waitFor;
       const capture = eval(captureOverlaySource) as typeof import('./harness').captureOverlay;
       try {
-        const mod = await import('/sdk/esm/core/WalletIframe/client/router.js');
-        const { WalletIframeRouter } = mod as typeof import('../../core/WalletIframe/client/router');
+        const mod = await import(routerPath);
+        const { WalletIframeRouter } = mod as typeof import('@/core/WalletIframe/client/router');
 
         const router = new WalletIframeRouter({
           walletOrigin,
@@ -122,7 +123,7 @@ test.describe('WalletIframeRouter – sticky overlay lifecycle', () => {
       } catch (error: any) {
         return { success: false, error: error?.message || String(error) } as const;
       }
-    }, { walletOrigin: WALLET_ORIGIN, waitForSource: WAIT_FOR_SOURCE, captureOverlaySource: CAPTURE_OVERLAY_SOURCE });
+    }, { walletOrigin: WALLET_ORIGIN, waitForSource: WAIT_FOR_SOURCE, captureOverlaySource: CAPTURE_OVERLAY_SOURCE, routerPath });
 
     if (!result.success) {
       if (handleInfrastructureErrors(result)) return;

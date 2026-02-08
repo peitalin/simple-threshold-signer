@@ -1,6 +1,7 @@
 {
   "name": "web3authn-passkey-monorepo",
   "private": true,
+  "type": "module",
   "scripts": {
     "install-all": "pnpm -r install",
     "build:sdk": "pnpm -C sdk build",

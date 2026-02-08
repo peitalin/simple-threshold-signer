@@ -8,7 +8,7 @@ import { promises as fs } from 'node:fs';
 import {
   AuthService,
   createThresholdSigningService,
-} from '../../../dist/esm/server/index.js';
+} from '../../sdk/dist/esm/server/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,11 +59,10 @@ async function main() {
   ].filter(Boolean);
 
   const setCors = (req, res) => {
-    const requestOrigin = String(req.headers?.origin || '');
-    const allowOrigin =
-      requestOrigin && allowedOrigins.includes(requestOrigin)
-        ? requestOrigin
-        : (allowedOrigins[0] || '*');
+    // Test harness: be permissive in dev (ports can vary, e.g. 5174 vs 5175).
+    // If an Origin is present, echo it so browsers accept the response.
+    const requestOrigin = String(req.headers?.origin || '').trim();
+    const allowOrigin = requestOrigin || (allowedOrigins[0] || '*');
 
     res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     res.setHeader('Vary', 'Origin');

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { AuthService } from '../../server/core/AuthService';
+import { AuthService } from '@server/core/AuthService';
 
 function makeAuthServiceForRor(): AuthService {
   return new AuthService({

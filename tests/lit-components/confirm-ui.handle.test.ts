@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
-import { setupBasicPasskeyTest } from '../setup';
+import { setupBasicPasskeyTest, SDK_ESM_PATHS } from '../setup';
 
 const IMPORT_PATHS = {
-  confirmUi: '/sdk/esm/core/WebAuthnManager/LitComponents/confirm-ui.js'
+  confirmUi: SDK_ESM_PATHS.confirmUi
 } as const;
 
 test.describe('confirm-ui mountConfirmUI handle', () => {
@@ -13,7 +13,7 @@ test.describe('confirm-ui mountConfirmUI handle', () => {
   test('host modal: handle.update and handle.close work', async ({ page }) => {
     const result = await page.evaluate(async ({ paths }) => {
       const mod = await import(paths.confirmUi);
-      const { mountConfirmUI } = mod as typeof import('../../core/WebAuthnManager/LitComponents/confirm-ui');
+      const { mountConfirmUI } = mod as typeof import('@/core/WebAuthnManager/LitComponents/confirm-ui');
 
       const ctx: any = {
         userPreferencesManager: {
@@ -73,7 +73,7 @@ test.describe('confirm-ui mountConfirmUI handle', () => {
   test('host drawer: mount + update theme and loading', async ({ page }) => {
     const result = await page.evaluate(async ({ paths }) => {
       const mod = await import(paths.confirmUi);
-      const { mountConfirmUI } = mod as typeof import('../../core/WebAuthnManager/LitComponents/confirm-ui');
+      const { mountConfirmUI } = mod as typeof import('@/core/WebAuthnManager/LitComponents/confirm-ui');
 
       const ctx: any = {
         userPreferencesManager: {
@@ -120,7 +120,7 @@ test.describe('confirm-ui mountConfirmUI handle', () => {
   test('inline drawer: handle.update reflects loading, theme, error message', async ({ page }) => {
     const result = await page.evaluate(async ({ paths }) => {
       const mod = await import(paths.confirmUi);
-      const { mountConfirmUI } = mod as typeof import('../../core/WebAuthnManager/LitComponents/confirm-ui');
+      const { mountConfirmUI } = mod as typeof import('@/core/WebAuthnManager/LitComponents/confirm-ui');
 
       const ctx: any = {
         userPreferencesManager: {

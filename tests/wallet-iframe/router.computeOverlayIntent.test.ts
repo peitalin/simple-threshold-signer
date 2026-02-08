@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupBasicPasskeyTest } from '../setup';
+import { setupBasicPasskeyTest, SDK_ESM_PATHS } from '../setup';
 
 const WALLET_ORIGIN = 'https://wallet.example.localhost';
 
@@ -9,11 +9,10 @@ test.describe('WalletIframeRouter.computeOverlayIntent', () => {
   });
 
   test('preflight fullscreen intent for activation-required requests', async ({ page }) => {
-    const result = await page.evaluate(async ({ walletOrigin }) => {
-      const mod = await import('/sdk/esm/core/WalletIframe/client/router.js');
-      const { WalletIframeRouter } = mod as typeof import(
-        '../../core/WalletIframe/client/router'
-      );
+    const routerPath = SDK_ESM_PATHS.walletIframeRouter;
+    const result = await page.evaluate(async ({ walletOrigin, routerPath }) => {
+      const mod = await import(routerPath);
+      const { WalletIframeRouter } = mod as typeof import('@/core/WalletIframe/client/router');
       const router = new WalletIframeRouter({
         walletOrigin,
         servicePath: '/wallet-service',
@@ -45,7 +44,7 @@ test.describe('WalletIframeRouter.computeOverlayIntent', () => {
       for (const t of fullscreenTypes) calls.push({ type: t, mode: compute(t).mode });
       for (const t of hiddenTypes) calls.push({ type: t, mode: compute(t).mode });
       return { calls };
-    }, { walletOrigin: WALLET_ORIGIN });
+    }, { walletOrigin: WALLET_ORIGIN, routerPath });
 
     const byType = Object.fromEntries(result.calls.map(c => [c.type, c.mode]));
     // Fullscreen intents

@@ -56,8 +56,49 @@ export async function ensurePostgresSchema(input: {
     // Legacy / unused bookkeeping table (safe to drop).
     await pool.query('DROP TABLE IF EXISTS tatchi_sdk_migrations');
 
+    // One-time: drop the historical `tatchi_` prefix from table names.
+    // Keep index names stable (they may still contain `tatchi_`) to avoid accidental duplicate indexes.
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS tatchi_webauthn_authenticators (
+      DO $$
+      BEGIN
+        IF to_regclass('tatchi_webauthn_authenticators') IS NOT NULL AND to_regclass('webauthn_authenticators') IS NULL THEN
+          ALTER TABLE tatchi_webauthn_authenticators RENAME TO webauthn_authenticators;
+        END IF;
+        IF to_regclass('tatchi_webauthn_credential_bindings') IS NOT NULL AND to_regclass('webauthn_credential_bindings') IS NULL THEN
+          ALTER TABLE tatchi_webauthn_credential_bindings RENAME TO webauthn_credential_bindings;
+        END IF;
+        IF to_regclass('tatchi_webauthn_challenges') IS NOT NULL AND to_regclass('webauthn_challenges') IS NULL THEN
+          ALTER TABLE tatchi_webauthn_challenges RENAME TO webauthn_challenges;
+        END IF;
+        IF to_regclass('tatchi_threshold_ed25519_keys') IS NOT NULL AND to_regclass('threshold_ed25519_keys') IS NULL THEN
+          ALTER TABLE tatchi_threshold_ed25519_keys RENAME TO threshold_ed25519_keys;
+        END IF;
+        IF to_regclass('tatchi_threshold_ed25519_sessions') IS NOT NULL AND to_regclass('threshold_ed25519_sessions') IS NULL THEN
+          ALTER TABLE tatchi_threshold_ed25519_sessions RENAME TO threshold_ed25519_sessions;
+        END IF;
+        IF to_regclass('tatchi_threshold_ecdsa_signing_sessions') IS NOT NULL AND to_regclass('threshold_ecdsa_signing_sessions') IS NULL THEN
+          ALTER TABLE tatchi_threshold_ecdsa_signing_sessions RENAME TO threshold_ecdsa_signing_sessions;
+        END IF;
+        IF to_regclass('tatchi_threshold_ecdsa_presignatures') IS NOT NULL AND to_regclass('threshold_ecdsa_presignatures') IS NULL THEN
+          ALTER TABLE tatchi_threshold_ecdsa_presignatures RENAME TO threshold_ecdsa_presignatures;
+        END IF;
+        IF to_regclass('tatchi_device_linking_sessions') IS NOT NULL AND to_regclass('device_linking_sessions') IS NULL THEN
+          ALTER TABLE tatchi_device_linking_sessions RENAME TO device_linking_sessions;
+        END IF;
+        IF to_regclass('tatchi_near_public_keys') IS NOT NULL AND to_regclass('near_public_keys') IS NULL THEN
+          ALTER TABLE tatchi_near_public_keys RENAME TO near_public_keys;
+        END IF;
+        IF to_regclass('tatchi_identity_links') IS NOT NULL AND to_regclass('identity_links') IS NULL THEN
+          ALTER TABLE tatchi_identity_links RENAME TO identity_links;
+        END IF;
+        IF to_regclass('tatchi_app_session_versions') IS NOT NULL AND to_regclass('app_session_versions') IS NULL THEN
+          ALTER TABLE tatchi_app_session_versions RENAME TO app_session_versions;
+        END IF;
+      END $$;
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS webauthn_authenticators (
         namespace TEXT NOT NULL,
         user_id TEXT NOT NULL,
         credential_id_b64u TEXT NOT NULL,
@@ -70,7 +111,7 @@ export async function ensurePostgresSchema(input: {
     `);
 
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS tatchi_webauthn_credential_bindings (
+      CREATE TABLE IF NOT EXISTS webauthn_credential_bindings (
         namespace TEXT NOT NULL,
         rp_id TEXT NOT NULL,
         credential_id_b64u TEXT NOT NULL,
@@ -82,7 +123,7 @@ export async function ensurePostgresSchema(input: {
     `);
 
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS tatchi_webauthn_challenges (
+      CREATE TABLE IF NOT EXISTS webauthn_challenges (
         namespace TEXT NOT NULL,
         challenge_id TEXT NOT NULL,
         record_json JSONB NOT NULL,
@@ -92,11 +133,11 @@ export async function ensurePostgresSchema(input: {
     `);
     await pool.query(`
       CREATE INDEX IF NOT EXISTS tatchi_webauthn_challenges_expires_idx
-      ON tatchi_webauthn_challenges (expires_at_ms)
+      ON webauthn_challenges (expires_at_ms)
     `);
 
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS tatchi_threshold_ed25519_keys (
+      CREATE TABLE IF NOT EXISTS threshold_ed25519_keys (
         namespace TEXT NOT NULL,
         relayer_key_id TEXT NOT NULL,
         record_json JSONB NOT NULL,
@@ -105,7 +146,7 @@ export async function ensurePostgresSchema(input: {
     `);
 
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS tatchi_threshold_ed25519_sessions (
+      CREATE TABLE IF NOT EXISTS threshold_ed25519_sessions (
         namespace TEXT NOT NULL,
         kind TEXT NOT NULL,
         session_id TEXT NOT NULL,
@@ -118,11 +159,48 @@ export async function ensurePostgresSchema(input: {
     `);
     await pool.query(`
       CREATE INDEX IF NOT EXISTS tatchi_threshold_ed25519_sessions_expires_idx
-      ON tatchi_threshold_ed25519_sessions (expires_at_ms)
+      ON threshold_ed25519_sessions (expires_at_ms)
     `);
 
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS tatchi_device_linking_sessions (
+      CREATE TABLE IF NOT EXISTS threshold_ecdsa_signing_sessions (
+        namespace TEXT NOT NULL,
+        signing_session_id TEXT NOT NULL,
+        record_json JSONB NOT NULL,
+        expires_at_ms BIGINT NOT NULL,
+        PRIMARY KEY (namespace, signing_session_id)
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS tatchi_threshold_ecdsa_signing_sessions_expires_idx
+      ON threshold_ecdsa_signing_sessions (expires_at_ms)
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS threshold_ecdsa_presignatures (
+        namespace TEXT NOT NULL,
+        relayer_key_id TEXT NOT NULL,
+        presignature_id TEXT NOT NULL,
+        state TEXT NOT NULL,
+        record_json JSONB NOT NULL,
+        created_at_ms BIGINT NOT NULL,
+        reserved_at_ms BIGINT,
+        reserve_expires_at_ms BIGINT,
+        PRIMARY KEY (namespace, relayer_key_id, presignature_id),
+        CHECK (state IN ('available', 'reserved'))
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS tatchi_threshold_ecdsa_presignatures_state_idx
+      ON threshold_ecdsa_presignatures (namespace, relayer_key_id, state, created_at_ms)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS tatchi_threshold_ecdsa_presignatures_reserved_expires_idx
+      ON threshold_ecdsa_presignatures (reserve_expires_at_ms)
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS device_linking_sessions (
         namespace TEXT NOT NULL,
         session_id TEXT NOT NULL,
         record_json JSONB NOT NULL,
@@ -132,11 +210,11 @@ export async function ensurePostgresSchema(input: {
     `);
     await pool.query(`
       CREATE INDEX IF NOT EXISTS tatchi_device_linking_sessions_expires_idx
-      ON tatchi_device_linking_sessions (expires_at_ms)
+      ON device_linking_sessions (expires_at_ms)
     `);
 
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS tatchi_near_public_keys (
+      CREATE TABLE IF NOT EXISTS near_public_keys (
         namespace TEXT NOT NULL,
         user_id TEXT NOT NULL,
         public_key TEXT NOT NULL,
@@ -148,11 +226,11 @@ export async function ensurePostgresSchema(input: {
     `);
     await pool.query(`
       CREATE INDEX IF NOT EXISTS tatchi_near_public_keys_user_idx
-      ON tatchi_near_public_keys (namespace, user_id)
+      ON near_public_keys (namespace, user_id)
     `);
 
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS tatchi_identity_links (
+      CREATE TABLE IF NOT EXISTS identity_links (
         namespace TEXT NOT NULL,
         subject TEXT NOT NULL,
         user_id TEXT NOT NULL,
@@ -164,11 +242,11 @@ export async function ensurePostgresSchema(input: {
     `);
     await pool.query(`
       CREATE INDEX IF NOT EXISTS tatchi_identity_links_user_idx
-      ON tatchi_identity_links (namespace, user_id)
+      ON identity_links (namespace, user_id)
     `);
 
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS tatchi_app_session_versions (
+      CREATE TABLE IF NOT EXISTS app_session_versions (
         namespace TEXT NOT NULL,
         user_id TEXT NOT NULL,
         session_version TEXT NOT NULL,
@@ -188,7 +266,7 @@ export async function ensurePostgresSchema(input: {
       DO $$
       BEGIN
         IF to_regclass('tatchi_webauthn_login_challenges') IS NOT NULL THEN
-          INSERT INTO tatchi_webauthn_challenges (namespace, challenge_id, record_json, expires_at_ms)
+          INSERT INTO webauthn_challenges (namespace, challenge_id, record_json, expires_at_ms)
           SELECT namespace, challenge_id, record_json, expires_at_ms
           FROM tatchi_webauthn_login_challenges
           ON CONFLICT (namespace, challenge_id) DO NOTHING;
@@ -200,7 +278,7 @@ export async function ensurePostgresSchema(input: {
       DO $$
       BEGIN
         IF to_regclass('tatchi_webauthn_sync_challenges') IS NOT NULL THEN
-          INSERT INTO tatchi_webauthn_challenges (namespace, challenge_id, record_json, expires_at_ms)
+          INSERT INTO webauthn_challenges (namespace, challenge_id, record_json, expires_at_ms)
           SELECT namespace, challenge_id, record_json, expires_at_ms
           FROM tatchi_webauthn_sync_challenges
           ON CONFLICT (namespace, challenge_id) DO NOTHING;
@@ -214,7 +292,7 @@ export async function ensurePostgresSchema(input: {
       DO $$
       BEGIN
         IF to_regclass('tatchi_threshold_ed25519_mpc_sessions') IS NOT NULL THEN
-          INSERT INTO tatchi_threshold_ed25519_sessions (namespace, kind, session_id, record_json, expires_at_ms)
+          INSERT INTO threshold_ed25519_sessions (namespace, kind, session_id, record_json, expires_at_ms)
           SELECT namespace, 'mpc', session_id, record_json, expires_at_ms
           FROM tatchi_threshold_ed25519_mpc_sessions
           ON CONFLICT (namespace, kind, session_id) DO NOTHING;
@@ -226,7 +304,7 @@ export async function ensurePostgresSchema(input: {
       DO $$
       BEGIN
         IF to_regclass('tatchi_threshold_ed25519_signing_sessions') IS NOT NULL THEN
-          INSERT INTO tatchi_threshold_ed25519_sessions (namespace, kind, session_id, record_json, expires_at_ms)
+          INSERT INTO threshold_ed25519_sessions (namespace, kind, session_id, record_json, expires_at_ms)
           SELECT namespace, 'signing', session_id, record_json, expires_at_ms
           FROM tatchi_threshold_ed25519_signing_sessions
           ON CONFLICT (namespace, kind, session_id) DO NOTHING;
@@ -238,7 +316,7 @@ export async function ensurePostgresSchema(input: {
       DO $$
       BEGIN
         IF to_regclass('tatchi_threshold_ed25519_coordinator_sessions') IS NOT NULL THEN
-          INSERT INTO tatchi_threshold_ed25519_sessions (namespace, kind, session_id, record_json, expires_at_ms)
+          INSERT INTO threshold_ed25519_sessions (namespace, kind, session_id, record_json, expires_at_ms)
           SELECT namespace, 'coordinator', session_id, record_json, expires_at_ms
           FROM tatchi_threshold_ed25519_coordinator_sessions
           ON CONFLICT (namespace, kind, session_id) DO NOTHING;
@@ -250,7 +328,7 @@ export async function ensurePostgresSchema(input: {
       DO $$
       BEGIN
         IF to_regclass('tatchi_threshold_ed25519_auth_sessions') IS NOT NULL THEN
-          INSERT INTO tatchi_threshold_ed25519_sessions (namespace, kind, session_id, record_json, expires_at_ms, remaining_uses)
+          INSERT INTO threshold_ed25519_sessions (namespace, kind, session_id, record_json, expires_at_ms, remaining_uses)
           SELECT namespace, 'auth', session_id, record_json, expires_at_ms, remaining_uses
           FROM tatchi_threshold_ed25519_auth_sessions
           ON CONFLICT (namespace, kind, session_id) DO NOTHING;

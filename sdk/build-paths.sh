@@ -7,7 +7,6 @@
 BUILD_ROOT="dist"
 BUILD_WORKERS="dist/workers"
 BUILD_ESM="dist/esm"
-BUILD_CJS="dist/cjs"
 BUILD_TYPES="dist/types"
 
 # Source directories

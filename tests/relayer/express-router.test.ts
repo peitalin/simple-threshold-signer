@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createRelayRouter } from '../../server/router/express-adaptor';
+import { createRelayRouter } from '@server/router/express-adaptor';
 import { fetchJson, getPath, makeFakeAuthService, makeSessionAdapter, startExpressRouter } from './helpers';
 
 function validLoginOptionsBody(overrides?: Partial<any>): any {

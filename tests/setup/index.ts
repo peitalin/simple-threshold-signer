@@ -37,12 +37,13 @@
 // - type TatchiPasskey: TypeScript type only, no runtime code
 // - encoders: Utility functions used in Node.js context, not browser
 import { Page, test } from '@playwright/test';
-import type { TatchiPasskey } from '../../index';
+import type { TatchiPasskey } from '@/core/TatchiPasskey';
 import { executeSequentialSetup } from './bootstrap';
 import { DEFAULT_TEST_CONFIG } from './config';
 import { setupWebAuthnMocks } from './webauthn-mocks';
 import { setupTestUtilities } from './test-utils';
 import type { PasskeyTestConfig, PasskeyTestSetupOptions } from './types';
+export { SDK_ESM_BASE_PATH, SDK_ESM_PATHS, sdkEsmPath } from './sdkEsmPaths';
 
 // =============================================================================
 // MAIN SETUP FUNCTION

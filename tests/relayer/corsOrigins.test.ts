@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { buildCorsOrigins, parseCsvList } from '../../server/core/SessionService';
+import { buildCorsOrigins, parseCsvList } from '@server/core/SessionService';
 
 test.describe('CORS origin helpers (server)', () => {
   test('parseCsvList normalizes URLs and dedupes', async () => {

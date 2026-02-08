@@ -146,6 +146,19 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       respondOkResult(req.requestId, result);
     },
 
+    PM_BOOTSTRAP_THRESHOLD_ECDSA_SESSION: async (req: Req<'PM_BOOTSTRAP_THRESHOLD_ECDSA_SESSION'>) => {
+      const pm = getTatchiPasskey();
+      const { nearAccountId, options } = req.payload!;
+      if (respondIfCancelled(req.requestId)) return;
+
+      const result = await pm.bootstrapThresholdEcdsaSession({
+        nearAccountId,
+        options: options || {},
+      });
+      if (respondIfCancelled(req.requestId)) return;
+      respondOkResult(req.requestId, result);
+    },
+
     PM_SIGN_TXS_WITH_ACTIONS: async (req: Req<'PM_SIGN_TXS_WITH_ACTIONS'>) => {
       const pm = getTatchiPasskey();
       const { nearAccountId, transactions, options } = req.payload!;
@@ -250,6 +263,7 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
         request,
         options: {
           confirmationConfig: options?.confirmationConfig,
+          thresholdEcdsaKeyRef: options?.thresholdEcdsaKeyRef,
         },
       });
       postProgress(req.requestId, {
