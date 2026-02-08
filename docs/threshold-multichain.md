@@ -517,21 +517,27 @@ Add a top-level “enabled schemes” config concept:
 - [x] Expand multichain signer abstractions so `threshold-ecdsa-secp256k1` can be selected as a first-class engine where needed.
 - [x] Make the relay presignature pool + signing-session store durable for production (Redis/Postgres/DO) with atomic reserve/consume semantics.
 - [x] Add end-to-end tests for threshold-ecdsa signing flows (pool empty/refill, replay, expiry, wrong-scope failures).
-- Add CI guardrails for `wasm/eth_signer` builds (C toolchain for `blst` on wasm32) and verify server runtime WASM loading works in both Node and Workers.
+- [x] Add CI guardrails for `wasm/eth_signer` builds (C toolchain for `blst` on wasm32) and verify server runtime WASM loading works in both Node and Workers.
 
 #### Next action backlog (concrete)
 
 Now:
 
-- [ ] Add CI guardrails for `wasm/eth_signer`:
-  - build check in CI (`wasm-pack` + toolchain availability)
-  - runtime loading smoke checks for both Node and Cloudflare Workers paths
-- [ ] Add a dedicated CI target for threshold-ECDSA regression coverage:
+- [x] Add CI guardrails for `wasm/eth_signer`:
+  - [x] build check in CI (`wasm-pack` + toolchain availability)
+  - [x] runtime loading smoke checks for both Node and Cloudflare Workers paths
+- [x] Add a dedicated CI target for threshold-ECDSA regression coverage:
   - relayer harness verification (`tests/relayer/threshold-ecdsa.signature-harness.test.ts`)
   - durable-store semantics (`tests/relayer/threshold-ecdsa.durable-stores.test.ts`)
   - high-level Tempo API flow (`tests/unit/thresholdEcdsa.tempoHighLevel.unit.test.ts`)
 - [ ] Add/confirm an integration validation that a Tempo/EVM raw tx signed via threshold-ECDSA is accepted by an EVM client.
 - [ ] Harden `/threshold-ecdsa/presign/*` multi-instance behavior (coordinator affinity/sticky routing for `presignSessionId`, or a distributed presign-session state strategy).
+
+#### New TODOs (recent)
+
+- [x] Add explicit Node + Workers runtime smoke tests for `eth_signer` WASM loading in CI (separate from compile/build checks).
+- [x] Upload threshold-core test artifacts on CI failure (`playwright-report` + relevant logs) to improve triage speed.
+- [ ] Add an integration test that submits/verifies a threshold-ECDSA signed Tempo/EVM raw transaction against an EVM client/RPC.
 
 Next:
 
@@ -646,6 +652,30 @@ NEAR’s `mpc` docs explicitly call out background triple generation and presign
 - [x] Implement the wallet-origin coordinator for `/threshold-ecdsa/presign/*` + `/threshold-ecdsa/sign/*` (client presign-share pool + finalize).
 - [x] Expose a dedicated high-level API entrypoint for Tempo threshold-ECDSA signing (`signTempoWithThresholdEcdsa`).
 - [x] Add first-class threshold-ECDSA session bootstrap API on `TatchiPasskey` (`bootstrapThresholdEcdsaSession`: keygen + connect + keyRef return).
+
+### Phase C — NEAR multichain seam migration
+
+- [x] Replace the `NearAdapter` stub with a concrete adapter that:
+  - validates and normalizes NEAR transaction payloads
+  - produces a stable `uiModel` for SecureConfirm
+  - preserves per-transaction action ordering and nonce semantics used by current signing flows
+- [ ] Introduce a wallet-origin NEAR multichain orchestration entrypoint (`signNearWithSecureConfirm`) that:
+  - runs adapter build/normalize before confirmation
+  - keeps existing threshold session mint/warm-session behavior unchanged
+  - routes final signing through the existing signer worker (`WorkerRequestType.SignTransactionsWithActions`) for parity
+- [x] Route `WebAuthnManager.signTransactionsWithActions` through the NEAR multichain seam (adapter build/normalize runs before SecureConfirm and signer-worker execution; no caller-facing behavior change).
+- [ ] Keep current threshold fallback behavior (`strict` vs `fallback`) and relayer-share-missing downgrade behavior intact during migration.
+
+### Phase D — NEAR parity hardening
+
+- [x] Add unit tests for `NearAdapter` normalization invariants:
+  - same request -> same normalized payload
+  - malformed actions/fields are rejected early
+- [ ] Add regression coverage for NEAR signing parity across local + threshold signer modes:
+  - secure confirm intent digest stability for identical inputs
+  - threshold warm-session reuse and expiry/re-mint paths
+  - fallback downgrade behavior when relayer threshold share is unavailable
+- [ ] Add one e2e wallet-iframe flow that exercises NEAR signing through the multichain seam and verifies signed transaction artifacts remain unchanged.
 
 ---
 
