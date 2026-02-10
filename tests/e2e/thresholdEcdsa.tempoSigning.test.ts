@@ -21,8 +21,11 @@ test.describe('threshold-ecdsa tempo signing', () => {
       expect(result.session?.sessionId).toBeTruthy();
       expect(result.signed?.chain).toBe('tempo');
       expect(result.signed?.kind).toBe('tempoTransaction');
-      expect(result.signed?.senderHashHex?.startsWith('0x')).toBeTruthy();
-      expect(result.signed?.rawTxHex?.startsWith('0x')).toBeTruthy();
+      if (!result.signed || result.signed.kind !== 'tempoTransaction') {
+        throw new Error('Expected tempoTransaction signed result');
+      }
+      expect(result.signed.senderHashHex.startsWith('0x')).toBeTruthy();
+      expect(result.signed.rawTxHex.startsWith('0x')).toBeTruthy();
     } finally {
       await harness.close();
     }

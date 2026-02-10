@@ -1,0 +1,21 @@
+{
+  "name": "@tatchi-xyz/tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "pnpm -C ../sdk run build:check:fresh || pnpm -C ../sdk run build && USE_RELAY_SERVER=1 playwright test --reporter=line",
+    "test:lite": "pnpm -C ../sdk run build:check:fresh || pnpm -C ../sdk run build && USE_RELAY_SERVER=1 playwright test -c playwright.lite.config.ts --reporter=line",
+    "test:inline": "pnpm -C ../sdk run build:check:fresh || pnpm -C ../sdk run build && USE_RELAY_SERVER=1 playwright test --reporter=line",
+    "test:e2e": "playwright test ./e2e --reporter=line",
+    "test:unit": "pnpm -C ../sdk run build:check:fresh || pnpm -C ../sdk run build && playwright test ./unit --reporter=line",
+    "test:threshold-core": "playwright test -c playwright.relayer.config.ts ./relayer/threshold-ecdsa.signature-harness.test.ts ./relayer/threshold-ecdsa.durable-stores.test.ts --reporter=line && playwright test ./unit/thresholdEcdsa.tempoHighLevel.unit.test.ts --reporter=line",
+    "test:wallet-iframe": "USE_RELAY_SERVER=0 playwright test ./wallet-iframe --reporter=line",
+    "test:lit-components": "USE_RELAY_SERVER=0 playwright test ./lit-components --reporter=line",
+    "test:relayer": "playwright test -c playwright.relayer.config.ts --reporter=line",
+    "test:relay-email-recovery-zk": "node ./scripts/test-relay-email-recovery-zk.mjs",
+    "show-report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  }
+}

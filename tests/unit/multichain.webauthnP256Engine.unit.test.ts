@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 const IMPORT_PATHS = {
-  engine: '/sdk/esm/core/multichain/engines/webauthn-p256.js',
+  engine: '/sdk/esm/core/multichain/engines/webauthnP256.js',
 } as const;
 
 test.describe('WebAuthnP256Engine', () => {
@@ -57,8 +57,8 @@ test.describe('WebAuthnP256Engine', () => {
 
       const engine = new WebAuthnP256Engine();
       const out = await engine.sign(
-        { kind: 'webauthn', algorithm: 'webauthn-p256', challenge32, credential },
-        { type: 'webauthn-p256', credentialId, pubKeyX, pubKeyY },
+        { kind: 'webauthn', algorithm: 'webauthnP256', challenge32, credential },
+        { type: 'webauthnP256', credentialId, pubKeyX, pubKeyY },
       );
 
       const tail = out.slice(out.length - 128);
@@ -87,4 +87,3 @@ test.describe('WebAuthnP256Engine', () => {
     expect(res.yOk).toBeTruthy();
   });
 });
-

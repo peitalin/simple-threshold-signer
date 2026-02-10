@@ -369,7 +369,7 @@ test.describe('threshold-ecdsa harness signature verification', () => {
       expect(verified).toBe(true);
 
       const recovered = secp256k1.Signature
-        .fromCompact(signature64)
+        .fromBytes(signature64, 'compact')
         .addRecoveryBit(recId & 1)
         .recoverPublicKey(digest32)
         .toBytes(true);

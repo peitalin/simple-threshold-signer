@@ -37,4 +37,3 @@ test.describe('COSE P-256 public key parsing', () => {
     expect(res.y).toEqual(new Array(32).fill(0x22));
   });
 });
-

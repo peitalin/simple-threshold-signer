@@ -14,6 +14,7 @@ const DEFAULT_ECDSA_MASTER_SECRET_B64U = Buffer.from(new Uint8Array(32).fill(9))
 
 export type ThresholdEcdsaTempoFlowOptions = {
   relayerUrl: string;
+  signingKind?: 'tempoTransaction' | 'eip1559';
   accountId?: string;
   connectSession?: boolean;
   useBootstrapApi?: boolean;
@@ -51,6 +52,11 @@ export type ThresholdEcdsaTempoFlowResult = {
     chain: 'tempo';
     kind: 'tempoTransaction';
     senderHashHex: string;
+    rawTxHex: string;
+  } | {
+    chain: 'tempo';
+    kind: 'eip1559';
+    txHashHex: string;
     rawTxHex: string;
   };
   error?: string;
@@ -103,13 +109,15 @@ export async function runThresholdEcdsaTempoFlow(
   options: ThresholdEcdsaTempoFlowOptions,
 ): Promise<ThresholdEcdsaTempoFlowResult> {
   return await page.evaluate(async (input) => {
-    const tatchiMod = await import('/sdk/esm/core/TatchiPasskey/index.js');
+    const sdkMod = await import('/sdk/esm/index.js');
     const indexedDbMod = await import('/sdk/esm/core/IndexedDBManager/index.js');
-    const liteMod = await import('/sdk/esm/lite/index.js');
 
-    const { TatchiPasskey } = tatchiMod as any;
+    const {
+      TatchiPasskey,
+      keygenThresholdEcdsaLite,
+      connectThresholdEcdsaSessionLite,
+    } = sdkMod as any;
     const { IndexedDBManager } = indexedDbMod as any;
-    const { keygenThresholdEcdsaLite, connectThresholdEcdsaSessionLite } = liteMod as any;
 
     const accountId =
       (typeof input.accountId === 'string' && input.accountId.trim())
@@ -235,8 +243,9 @@ export async function runThresholdEcdsaTempoFlow(
         }
       }
 
-      if (typeof input.waitBeforeSignMs === 'number' && input.waitBeforeSignMs > 0) {
-        await new Promise((resolve) => setTimeout(resolve, Math.floor(input.waitBeforeSignMs)));
+      const waitBeforeSignMs = input.waitBeforeSignMs;
+      if (typeof waitBeforeSignMs === 'number' && waitBeforeSignMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, Math.floor(waitBeforeSignMs)));
       }
 
       if (typeof input.keyRefUserId === 'string') {
@@ -251,30 +260,47 @@ export async function runThresholdEcdsaTempoFlow(
 
       if (input.clearCachedThresholdSessionBeforeSign) {
         try {
-          const authSessionMod = await import('/sdk/esm/core/threshold/thresholdEcdsaAuthSession.js');
+          const authSessionMod = await import('/sdk/esm/core/threshold/session/thresholdEcdsaAuthSession.js');
           authSessionMod.clearAllCachedThresholdEcdsaAuthSessions?.();
         } catch {}
       }
 
-      const request = {
-        chain: 'tempo' as const,
-        kind: 'tempoTransaction' as const,
-        senderSignatureAlgorithm: 'secp256k1' as const,
-        tx: {
-          chainId: 42431n,
-          maxPriorityFeePerGas: 1n,
-          maxFeePerGas: 2n,
-          gasLimit: 21_000n,
-          calls: [{ to: '0x' + '11'.repeat(20), value: 0n, input: '0x' }],
-          accessList: [],
-          nonceKey: 0n,
-          nonce: 1n,
-          validBefore: null,
-          validAfter: null,
-          feePayerSignature: { kind: 'none' as const },
-          aaAuthorizationList: [],
-        },
-      };
+      const request = input.signingKind === 'eip1559'
+        ? {
+            chain: 'tempo' as const,
+            kind: 'eip1559' as const,
+            senderSignatureAlgorithm: 'secp256k1' as const,
+            tx: {
+              chainId: 11155111n,
+              nonce: 7n,
+              maxPriorityFeePerGas: 1_500_000_000n,
+              maxFeePerGas: 3_000_000_000n,
+              gasLimit: 21_000n,
+              to: '0x' + '22'.repeat(20),
+              value: 12_345n,
+              data: '0x',
+              accessList: [],
+            },
+          }
+        : {
+            chain: 'tempo' as const,
+            kind: 'tempoTransaction' as const,
+            senderSignatureAlgorithm: 'secp256k1' as const,
+            tx: {
+              chainId: 42431n,
+              maxPriorityFeePerGas: 1n,
+              maxFeePerGas: 2n,
+              gasLimit: 21_000n,
+              calls: [{ to: '0x' + '11'.repeat(20), value: 0n, input: '0x' }],
+              accessList: [],
+              nonceKey: 0n,
+              nonce: 1n,
+              validBefore: null,
+              validAfter: null,
+              feePayerSignature: { kind: 'none' as const },
+              aaAuthorizationList: [],
+            },
+          };
 
       try {
         const signed = await pm.signTempoWithThresholdEcdsa({

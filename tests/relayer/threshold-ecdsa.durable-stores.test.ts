@@ -32,6 +32,24 @@ function makePresignRecord(args: { relayerKeyId: string; presignatureId: string;
   };
 }
 
+function makePresignSessionRecord(args?: { version?: number; stage?: 'triples' | 'triples_done' | 'presign' | 'done' }) {
+  const version = args?.version ?? 1;
+  return {
+    expiresAtMs: Date.now() + 60_000,
+    userId: 'user-1',
+    rpId: 'example.localhost',
+    relayerKeyId: 'rk-presign',
+    participantIds: [1, 2],
+    clientParticipantId: 1,
+    relayerParticipantId: 2,
+    stage: args?.stage ?? 'triples',
+    version,
+    wasmSessionStateB64u: 'cHJlc2lnbi1zZXNzaW9uLXN0YXRl',
+    createdAtMs: Date.now(),
+    updatedAtMs: Date.now(),
+  };
+}
+
 test.describe('threshold-ecdsa durable presign pool + signing sessions', () => {
   test.describe('Postgres', () => {
     const postgresUrl = String(process.env.POSTGRES_URL || '').trim();
@@ -49,6 +67,7 @@ test.describe('threshold-ecdsa durable presign pool + signing sessions', () => {
       const pool = await getPostgresPool(postgresUrl);
       await pool.query('DELETE FROM threshold_ecdsa_signing_sessions WHERE namespace = $1', [signingPrefix]);
       await pool.query('DELETE FROM threshold_ecdsa_presignatures WHERE namespace = $1', [presignPrefix]);
+      await pool.query('DELETE FROM threshold_ecdsa_presign_sessions WHERE namespace = $1', [presignPrefix]);
     });
 
     test('signingSessionStore take is atomic', async () => {
@@ -128,6 +147,65 @@ test.describe('threshold-ecdsa durable presign pool + signing sessions', () => {
       const consumed = await presignaturePool.consume(relayerKeyId, 'ps-x');
       expect(consumed).toBeNull();
     });
+
+    test('presignSessionStore CAS transitions are atomic', async () => {
+      test.skip(!enabled, 'POSTGRES_URL not set');
+      const { presignSessionStore } = createThresholdEcdsaSigningStores({
+        config: {
+          kind: 'postgres',
+          POSTGRES_URL: postgresUrl,
+          THRESHOLD_ECDSA_SIGNING_PREFIX: signingPrefix,
+          THRESHOLD_ECDSA_PRESIGN_PREFIX: presignPrefix,
+        } as any,
+        logger: console as any,
+        isNode: true,
+      });
+
+      const created = await presignSessionStore.createSession(
+        'psess-1',
+        makePresignSessionRecord({ version: 1, stage: 'triples' }) as any,
+        10_000,
+      );
+      expect(created.ok).toBe(true);
+
+      const stale = await presignSessionStore.advanceSessionCas({
+        id: 'psess-1',
+        expectedVersion: 99,
+        nextRecord: makePresignSessionRecord({ version: 100, stage: 'triples' }) as any,
+        ttlMs: 10_000,
+      });
+      expect(stale.ok).toBe(false);
+      if (!stale.ok) expect(stale.code).toBe('version_mismatch');
+
+      const [a, b] = await Promise.all([
+        presignSessionStore.advanceSessionCas({
+          id: 'psess-1',
+          expectedVersion: 1,
+          nextRecord: makePresignSessionRecord({ version: 2, stage: 'triples_done' }) as any,
+          ttlMs: 10_000,
+        }),
+        presignSessionStore.advanceSessionCas({
+          id: 'psess-1',
+          expectedVersion: 1,
+          nextRecord: makePresignSessionRecord({ version: 2, stage: 'triples_done' }) as any,
+          ttlMs: 10_000,
+        }),
+      ]);
+
+      const oks = [a, b].filter((r) => r.ok);
+      const errs = [a, b].filter((r) => !r.ok);
+      expect(oks.length).toBe(1);
+      expect(errs.length).toBe(1);
+      if (!errs[0].ok) expect(errs[0].code).toBe('version_mismatch');
+
+      const got = await presignSessionStore.getSession('psess-1');
+      expect(got?.version).toBe(2);
+      expect(got?.stage).toBe('triples_done');
+
+      await presignSessionStore.deleteSession('psess-1');
+      const afterDelete = await presignSessionStore.getSession('psess-1');
+      expect(afterDelete).toBeNull();
+    });
   });
 
   test.describe('Redis (tcp)', () => {
@@ -189,6 +267,65 @@ test.describe('threshold-ecdsa durable presign pool + signing sessions', () => {
       const b2 = await presignaturePool.consume(relayerKeyId, b!.presignatureId);
       expect(b1?.presignatureId).toBe(b!.presignatureId);
       expect(b2).toBeNull();
+    });
+
+    test('presignSessionStore CAS transitions are atomic', async () => {
+      test.skip(!enabled, 'REDIS_URL not set');
+      const { presignSessionStore } = createThresholdEcdsaSigningStores({
+        config: {
+          kind: 'redis-tcp',
+          REDIS_URL: redisUrl,
+          THRESHOLD_ECDSA_SIGNING_PREFIX: signingPrefix,
+          THRESHOLD_ECDSA_PRESIGN_PREFIX: presignPrefix,
+        } as any,
+        logger: console as any,
+        isNode: true,
+      });
+
+      const created = await presignSessionStore.createSession(
+        'psess-r1',
+        makePresignSessionRecord({ version: 1, stage: 'triples' }) as any,
+        10_000,
+      );
+      expect(created.ok).toBe(true);
+
+      const stale = await presignSessionStore.advanceSessionCas({
+        id: 'psess-r1',
+        expectedVersion: 99,
+        nextRecord: makePresignSessionRecord({ version: 100, stage: 'triples' }) as any,
+        ttlMs: 10_000,
+      });
+      expect(stale.ok).toBe(false);
+      if (!stale.ok) expect(stale.code).toBe('version_mismatch');
+
+      const [a, b] = await Promise.all([
+        presignSessionStore.advanceSessionCas({
+          id: 'psess-r1',
+          expectedVersion: 1,
+          nextRecord: makePresignSessionRecord({ version: 2, stage: 'triples_done' }) as any,
+          ttlMs: 10_000,
+        }),
+        presignSessionStore.advanceSessionCas({
+          id: 'psess-r1',
+          expectedVersion: 1,
+          nextRecord: makePresignSessionRecord({ version: 2, stage: 'triples_done' }) as any,
+          ttlMs: 10_000,
+        }),
+      ]);
+
+      const oks = [a, b].filter((r) => r.ok);
+      const errs = [a, b].filter((r) => !r.ok);
+      expect(oks.length).toBe(1);
+      expect(errs.length).toBe(1);
+      if (!errs[0].ok) expect(errs[0].code).toBe('version_mismatch');
+
+      const got = await presignSessionStore.getSession('psess-r1');
+      expect(got?.version).toBe(2);
+      expect(got?.stage).toBe('triples_done');
+
+      await presignSessionStore.deleteSession('psess-r1');
+      const afterDelete = await presignSessionStore.getSession('psess-r1');
+      expect(afterDelete).toBeNull();
     });
   });
 
@@ -254,6 +391,66 @@ test.describe('threshold-ecdsa durable presign pool + signing sessions', () => {
       const b2 = await presignaturePool.consume(relayerKeyId, b!.presignatureId);
       expect(b1?.presignatureId).toBe(b!.presignatureId);
       expect(b2).toBeNull();
+    });
+
+    test('presignSessionStore CAS transitions are atomic', async () => {
+      test.skip(!enabled, 'UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN not set');
+      const { presignSessionStore } = createThresholdEcdsaSigningStores({
+        config: {
+          kind: 'upstash-redis-rest',
+          UPSTASH_REDIS_REST_URL: upstashUrl,
+          UPSTASH_REDIS_REST_TOKEN: upstashToken,
+          THRESHOLD_ECDSA_SIGNING_PREFIX: signingPrefix,
+          THRESHOLD_ECDSA_PRESIGN_PREFIX: presignPrefix,
+        } as any,
+        logger: console as any,
+        isNode: true,
+      });
+
+      const created = await presignSessionStore.createSession(
+        'psess-u1',
+        makePresignSessionRecord({ version: 1, stage: 'triples' }) as any,
+        10_000,
+      );
+      expect(created.ok).toBe(true);
+
+      const stale = await presignSessionStore.advanceSessionCas({
+        id: 'psess-u1',
+        expectedVersion: 99,
+        nextRecord: makePresignSessionRecord({ version: 100, stage: 'triples' }) as any,
+        ttlMs: 10_000,
+      });
+      expect(stale.ok).toBe(false);
+      if (!stale.ok) expect(stale.code).toBe('version_mismatch');
+
+      const [a, b] = await Promise.all([
+        presignSessionStore.advanceSessionCas({
+          id: 'psess-u1',
+          expectedVersion: 1,
+          nextRecord: makePresignSessionRecord({ version: 2, stage: 'triples_done' }) as any,
+          ttlMs: 10_000,
+        }),
+        presignSessionStore.advanceSessionCas({
+          id: 'psess-u1',
+          expectedVersion: 1,
+          nextRecord: makePresignSessionRecord({ version: 2, stage: 'triples_done' }) as any,
+          ttlMs: 10_000,
+        }),
+      ]);
+
+      const oks = [a, b].filter((r) => r.ok);
+      const errs = [a, b].filter((r) => !r.ok);
+      expect(oks.length).toBe(1);
+      expect(errs.length).toBe(1);
+      if (!errs[0].ok) expect(errs[0].code).toBe('version_mismatch');
+
+      const got = await presignSessionStore.getSession('psess-u1');
+      expect(got?.version).toBe(2);
+      expect(got?.stage).toBe('triples_done');
+
+      await presignSessionStore.deleteSession('psess-u1');
+      const afterDelete = await presignSessionStore.getSession('psess-u1');
+      expect(afterDelete).toBeNull();
     });
   });
 });

@@ -10,11 +10,14 @@ import { createCloudflareRouter } from '@server/router/cloudflare-adaptor';
 import { threshold_ed25519_compute_near_tx_signing_digests } from '../../wasm/near_signer/pkg/wasm_signer_worker.js';
 import { callCf, fetchJson, makeCfCtx, makeSessionAdapter, startExpressRouter } from './helpers';
 import type {
-  ThresholdEd25519AuthConsumeResult,
   ThresholdEd25519AuthConsumeUsesResult,
   ThresholdEd25519AuthSessionRecord,
   ThresholdEd25519AuthSessionStore,
 } from '@server/core/ThresholdService/stores/AuthSessionStore';
+
+type ThresholdEd25519AuthConsumeResult =
+  | { ok: true; record: ThresholdEd25519AuthSessionRecord; remainingUses: number }
+  | { ok: false; code: string; message: string };
 
 function makeAuthServiceForThreshold(): { service: AuthService; threshold: ReturnType<typeof createThresholdSigningService> } {
   const svc = new AuthService({

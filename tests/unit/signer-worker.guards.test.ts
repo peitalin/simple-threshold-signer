@@ -52,7 +52,7 @@ test.describe('signer worker JS guards – PRF rejection', () => {
     const res = await page.evaluate(async () => {
       try {
         const workerUrl = new URL('/sdk/workers/web3authn-signer.worker.js', window.location.origin).toString();
-        const worker = new Worker(workerUrl, { type: 'module', name: 'GuardTestSignerWorkerVRF' });
+        const worker = new Worker(workerUrl, { type: 'module', name: 'GuardTestSignerWorkerSecureConfirm' });
 
         const messages: any[] = [];
         const errors: any[] = [];

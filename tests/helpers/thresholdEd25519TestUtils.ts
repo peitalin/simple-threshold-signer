@@ -1,5 +1,9 @@
 import { ThresholdSigningService } from '@server/core/ThresholdService/ThresholdSigningService';
 import { createThresholdEd25519SessionStore } from '@server/core/ThresholdService/stores/SessionStore';
+import { createThresholdEcdsaSessionStore } from '@server/core/ThresholdService/stores/SessionStore';
+import { createThresholdEcdsaAuthSessionStore } from '@server/core/ThresholdService/stores/AuthSessionStore';
+import { createThresholdEcdsaKeyStore } from '@server/core/ThresholdService/stores/KeyStore';
+import { createThresholdEcdsaSigningStores } from '@server/core/ThresholdService/stores/EcdsaSigningStore';
 import type { ThresholdEd25519KeyStoreConfigInput } from '@server/core/types';
 
 export function silentLogger() {
@@ -17,6 +21,30 @@ export function createThresholdSigningServiceForUnitTests(input: {
     logger,
     isNode: true,
   });
+  const ecdsaKeyStore = createThresholdEcdsaKeyStore({
+    config: { kind: 'in-memory' },
+    logger,
+    isNode: true,
+  });
+  const ecdsaSessionStore = createThresholdEcdsaSessionStore({
+    config: { kind: 'in-memory' },
+    logger,
+    isNode: true,
+  });
+  const ecdsaAuthSessionStore = createThresholdEcdsaAuthSessionStore({
+    config: { kind: 'in-memory' },
+    logger,
+    isNode: true,
+  });
+  const {
+    signingSessionStore: ecdsaSigningSessionStore,
+    presignSessionStore: ecdsaPresignSessionStore,
+    presignaturePool: ecdsaPresignaturePool,
+  } = createThresholdEcdsaSigningStores({
+    config: { kind: 'in-memory' },
+    logger,
+    isNode: true,
+  });
 
   const keyRecord = input.keyRecord ?? null;
   const accessKeysOnChain = input.accessKeysOnChain ?? null;
@@ -24,16 +52,21 @@ export function createThresholdSigningServiceForUnitTests(input: {
   const svc = new ThresholdSigningService({
     logger,
     keyStore: { get: async () => keyRecord, put: async () => {}, del: async () => {} },
-	    sessionStore,
-	    authSessionStore: {
-	      putSession: async () => {},
-	      getSession: async () => null,
-	      consumeUse: async () => ({ ok: false, code: 'unauthorized', message: 'unused' }),
-	      consumeUseCount: async () => ({ ok: false, code: 'unauthorized', message: 'unused' }),
-	    },
-	    config: input.config,
-	    ensureReady: async () => {},
-	    ensureSignerWasm: async () => {},
+    sessionStore,
+    authSessionStore: {
+      putSession: async () => {},
+      getSession: async () => null,
+      consumeUseCount: async () => ({ ok: false, code: 'unauthorized', message: 'unused' }),
+    },
+    ecdsaKeyStore,
+    ecdsaSessionStore,
+    ecdsaAuthSessionStore,
+    ecdsaSigningSessionStore,
+    ecdsaPresignSessionStore,
+    ecdsaPresignaturePool,
+    config: input.config,
+    ensureReady: async () => {},
+    ensureSignerWasm: async () => {},
     verifyWebAuthnAuthenticationLite: async () => ({ success: true, verified: true }),
     viewAccessKeyList: async () => ({
       keys: (accessKeysOnChain || []).map((publicKey) => ({

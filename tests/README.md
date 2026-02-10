@@ -95,16 +95,16 @@ test('register → login', async ({ passkey }) => {
 ## Running
 
 - Root scripts:
-  - `pnpm test` → `pnpm -C sdk test` (full suite)
-  - `pnpm test:lite` → `pnpm -C sdk test:lite` (lite suite; excludes local-signer)
+  - `pnpm test` → `pnpm -C tests test` (full suite)
+  - `pnpm test:lite` → `pnpm -C tests test:lite` (lite suite; excludes local-signer)
   - `pnpm test:inline` → line reporter
   - `pnpm test:unit`, `pnpm test:wallet-iframe`, `pnpm test:lit-components`
   - `pnpm show-report` to open Playwright HTML report
 
 - Direct Playwright subset examples:
 ```bash
-pnpm -C sdk exec playwright test **/e2e/**/*.test.ts
-pnpm -C sdk exec playwright test **/unit/**/*.test.ts
+pnpm -C tests exec playwright test **/e2e/**/*.test.ts
+pnpm -C tests exec playwright test **/unit/**/*.test.ts
 ```
 
 Chromium only; `workers=1` to avoid relay/faucet rate limits.

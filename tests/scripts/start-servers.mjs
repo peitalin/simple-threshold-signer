@@ -18,8 +18,8 @@ const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(path.join(__dirname, '../..'));
 const RELAY_DIR = path.join(ROOT, 'examples', 'relay-server');
 const DEFAULT_CACHE_PATH = path.join(RELAY_DIR, '.provision-cache.json');
-// Store relay cache and generated artifacts under the SDK's Playwright report
-const REPORT_DIR = path.join(ROOT, 'sdk', 'playwright-report');
+// Store relay cache and generated artifacts under the tests Playwright report
+const REPORT_DIR = path.join(ROOT, 'tests', 'playwright-report');
 const CACHE_PATH = process.env.RELAY_PROVISION_CACHE_PATH || path.join(REPORT_DIR, 'relay-provision-cache.json');
 
 function resolveFrontendDirRel() {
