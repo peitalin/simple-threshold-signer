@@ -1,4 +1,4 @@
-import { stripTrailingSlashes, toTrimmedString } from '../../../../shared/src/utils/validation';
+import { stripTrailingSlashes, toTrimmedString } from '../../../../../shared/src/utils/validation';
 
 function toDigest32Bytes(input: Uint8Array | number[]): Uint8Array | null {
   if (input instanceof Uint8Array) {
@@ -115,4 +115,3 @@ export async function authorizeThresholdEcdsaWithSession(args: {
     return { ok: false, code: 'network_error', message: msg };
   }
 }
-

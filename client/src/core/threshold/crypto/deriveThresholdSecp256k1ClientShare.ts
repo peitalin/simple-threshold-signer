@@ -2,8 +2,8 @@ import { hkdf } from '@noble/hashes/hkdf.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToNumberBE, numberToBytesBE } from '@noble/curves/utils.js';
 import { secp256k1 } from '@noble/curves/secp256k1.js';
-import { base64UrlDecode, base64UrlEncode } from '../../../../shared/src/utils/encoders';
-import { SECP256K1_ORDER } from '../../../../shared/src/threshold/secp256k1';
+import { base64UrlDecode, base64UrlEncode } from '../../../../../shared/src/utils/encoders';
+import { SECP256K1_ORDER } from '../../../../../shared/src/threshold/secp256k1';
 
 const HKDF_SALT_V1 = new TextEncoder().encode('tatchi/lite/threshold-secp256k1-ecdsa/client-share:v1');
 

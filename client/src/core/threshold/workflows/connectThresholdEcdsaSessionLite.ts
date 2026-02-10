@@ -1,26 +1,20 @@
-import type { UnifiedIndexedDBManager } from '../IndexedDBManager';
-import type { TouchIdPrompt } from '../WebAuthnManager/touchIdPrompt';
-import type { SignerWorkerManager } from '../WebAuthnManager/SignerWorkerManager';
-import { collectAuthenticationCredentialForChallengeB64u } from '../WebAuthnManager/collectAuthenticationCredentialForChallengeB64u';
-import { buildThresholdEcdsaSessionPolicy } from './thresholdSessionPolicy';
-import { deriveThresholdSecp256k1ClientShare } from './deriveThresholdSecp256k1ClientShare';
+import {
+  collectAuthenticationCredentialForChallengeB64u,
+  getPrfFirstB64uFromCredential,
+  getThresholdPrfFirstCachePortFromSignerWorker,
+  type ThresholdIndexedDbPort,
+  type ThresholdPrfFirstCachePort,
+  type ThresholdSignerWorkerPort,
+  type ThresholdWebAuthnPromptPort,
+} from '../ports/webauthn';
+import { deriveThresholdSecp256k1ClientShare } from '../crypto/deriveThresholdSecp256k1ClientShare';
+import { buildThresholdEcdsaSessionPolicy } from '../session/thresholdSessionPolicy';
 import {
   makeThresholdEcdsaAuthSessionCacheKey,
   mintThresholdEcdsaAuthSessionLite,
   putCachedThresholdEcdsaAuthSession,
-} from './thresholdEcdsaAuthSession';
-import type { ThresholdEcdsaSessionKind } from './thresholdEcdsaAuthSession';
-
-function getPrfFirstB64uFromCredential(credential: unknown): string | null {
-  try {
-    const b64u = (credential as any)?.clientExtensionResults?.prf?.results?.first;
-    if (typeof b64u !== 'string') return null;
-    const trimmed = b64u.trim();
-    return trimmed ? trimmed : null;
-  } catch {
-    return null;
-  }
-}
+} from '../session/thresholdEcdsaAuthSession';
+import type { ThresholdEcdsaSessionKind } from '../session/thresholdEcdsaAuthSession';
 
 /**
  * Wallet-origin helper:
@@ -34,9 +28,10 @@ function getPrfFirstB64uFromCredential(credential: unknown): string | null {
  * - The WebAuthn credential sent to the relay is PRF-redacted in `mintThresholdEcdsaAuthSessionLite`.
  */
 export async function connectThresholdEcdsaSessionLite(args: {
-  indexedDB: UnifiedIndexedDBManager;
-  touchIdPrompt: TouchIdPrompt;
-  signerWorkerManager: SignerWorkerManager;
+  indexedDB: ThresholdIndexedDbPort;
+  touchIdPrompt: ThresholdWebAuthnPromptPort;
+  signerWorkerManager?: ThresholdSignerWorkerPort;
+  prfFirstCache?: ThresholdPrfFirstCachePort;
   relayerUrl: string;
   relayerKeyId: string;
   userId: string;
@@ -119,9 +114,10 @@ export async function connectThresholdEcdsaSessionLite(args: {
   const sessionId = policy.sessionId;
   const expiresAtMs = minted.expiresAtMs ?? (Date.now() + policy.ttlMs);
   const remainingUses = minted.remainingUses ?? policy.remainingUses;
-  const secureConfirmWorkerManager = args.signerWorkerManager.getContext().secureConfirmWorkerManager;
-  if (secureConfirmWorkerManager) {
-    await secureConfirmWorkerManager.putPrfFirstForThresholdSession({
+  const prfFirstCache =
+    args.prfFirstCache || getThresholdPrfFirstCachePortFromSignerWorker(args.signerWorkerManager);
+  if (prfFirstCache) {
+    await prfFirstCache.putPrfFirstForThresholdSession({
       sessionId,
       prfFirstB64u,
       expiresAtMs,
@@ -155,4 +151,3 @@ export async function connectThresholdEcdsaSessionLite(args: {
     clientVerifyingShareB64u,
   };
 }
-

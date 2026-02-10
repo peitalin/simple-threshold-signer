@@ -1,8 +1,8 @@
-import { stripTrailingSlashes, toTrimmedString } from '../../../../shared/src/utils/validation';
-import { removePrfOutputGuard } from '../WebAuthnManager/credentialsHelpers';
+import { stripTrailingSlashes, toTrimmedString } from '../../../../../shared/src/utils/validation';
 import type { ThresholdEd25519SessionPolicy } from './thresholdSessionPolicy';
-import type { WebAuthnAuthenticationCredential } from '../types/webauthn';
-import { normalizeThresholdEd25519ParticipantIds } from '../../../../shared/src/threshold/participants';
+import type { WebAuthnAuthenticationCredential } from '../../types/webauthn';
+import { normalizeThresholdEd25519ParticipantIds } from '../../../../../shared/src/threshold/participants';
+import { redactCredentialExtensionOutputs } from '../ports/webauthn';
 
 export type ThresholdEd25519SessionKind = 'jwt' | 'cookie';
 
@@ -108,7 +108,7 @@ export async function mintThresholdEd25519AuthSessionLite(args: {
   }
 
   // Never send PRF outputs to the relay.
-  const webauthn_authentication = removePrfOutputGuard(args.webauthnAuthentication);
+  const webauthn_authentication = redactCredentialExtensionOutputs(args.webauthnAuthentication);
 
   type ThresholdEd25519SessionMintResponseBody = Partial<{
     ok: boolean;

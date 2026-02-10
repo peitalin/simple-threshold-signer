@@ -1,6 +1,6 @@
-import { alphabetizeStringify, sha256BytesUtf8 } from '../../../../shared/src/utils/digests';
-import { base64UrlEncode } from '../../../../shared/src/utils/encoders';
-import { normalizeThresholdEd25519ParticipantIds } from '../../../../shared/src/threshold/participants';
+import { alphabetizeStringify, sha256BytesUtf8 } from '../../../../../shared/src/utils/digests';
+import { base64UrlEncode } from '../../../../../shared/src/utils/encoders';
+import { normalizeThresholdEd25519ParticipantIds } from '../../../../../shared/src/threshold/participants';
 
 export const THRESHOLD_SESSION_POLICY_VERSION = 'threshold_session_v1' as const;
 

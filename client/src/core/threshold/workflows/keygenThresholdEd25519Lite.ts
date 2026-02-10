@@ -1,22 +1,14 @@
-import type { UnifiedIndexedDBManager } from '../IndexedDBManager';
-import type { TouchIdPrompt } from '../WebAuthnManager/touchIdPrompt';
-import type { SignerWorkerManager } from '../WebAuthnManager/SignerWorkerManager';
-import { collectAuthenticationCredentialForChallengeB64u } from '../WebAuthnManager/collectAuthenticationCredentialForChallengeB64u';
-import { base64UrlEncode } from '../../../../shared/src/utils/encoders';
-import { computeThresholdEd25519KeygenIntentDigest } from '../digests/intentDigest';
-import { thresholdEd25519Keygen } from '../rpcCalls';
-import { toAccountId } from '../types/accountIds';
-
-function getPrfFirstB64uFromCredential(credential: unknown): string | null {
-  try {
-    const b64u = (credential as any)?.clientExtensionResults?.prf?.results?.first;
-    if (typeof b64u !== 'string') return null;
-    const trimmed = b64u.trim();
-    return trimmed ? trimmed : null;
-  } catch {
-    return null;
-  }
-}
+import { base64UrlEncode } from '../../../../../shared/src/utils/encoders';
+import { computeThresholdEd25519KeygenIntentDigest } from '../../../utils/intentDigest';
+import { thresholdEd25519Keygen } from '../../rpcCalls';
+import { toAccountId } from '../../types/accountIds';
+import {
+  collectAuthenticationCredentialForChallengeB64u,
+  getPrfFirstB64uFromCredential,
+  type ThresholdEd25519ClientShareDeriverPort,
+  type ThresholdIndexedDbPort,
+  type ThresholdWebAuthnPromptPort,
+} from '../ports/webauthn';
 
 const DUMMY_WRAP_KEY_SALT_B64U = base64UrlEncode(new Uint8Array(32));
 
@@ -39,9 +31,9 @@ function generateKeygenSessionId(): string {
  * - The derived client share stays inside the signer worker; only public material is returned.
  */
 export async function keygenThresholdEd25519Lite(args: {
-  indexedDB: UnifiedIndexedDBManager;
-  touchIdPrompt: TouchIdPrompt;
-  signerWorkerManager: SignerWorkerManager;
+  indexedDB: ThresholdIndexedDbPort;
+  touchIdPrompt: ThresholdWebAuthnPromptPort;
+  signerWorkerManager: ThresholdEd25519ClientShareDeriverPort;
   relayerUrl: string;
   nearAccountId: string;
 }): Promise<{

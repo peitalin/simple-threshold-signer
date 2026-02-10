@@ -17,8 +17,18 @@ import UserPreferencesInstance from './userPreferences';
 import { NonceManager } from '../nonceManager';
 import NonceManagerInstance from '../nonceManager';
 import { ActionType, type ActionArgsWasm, type TransactionInputWasm } from '../types/actions';
-import type { RegistrationEventStep3, RegistrationHooksOptions, RegistrationSSEEvent, onProgressEvents } from '../types/sdkSentEvents';
-import type { SignTransactionResult, SigningSessionStatus, TatchiConfigs, ThemeName } from '../types/tatchi';
+import type {
+  RegistrationEventStep3,
+  RegistrationHooksOptions,
+  RegistrationSSEEvent,
+  onProgressEvents,
+} from '../types/sdkSentEvents';
+import type {
+  SignTransactionResult,
+  SigningSessionStatus,
+  TatchiConfigs,
+  ThemeName,
+} from '../types/tatchi';
 import type { AccountId } from '../types/accountIds';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
 import type { DelegateActionInput } from '../types/delegate';
@@ -32,33 +42,32 @@ import {
   type WasmSignedDelegate,
 } from '../types/signer-worker';
 import { WebAuthnRegistrationCredential, WebAuthnAuthenticationCredential } from '../types';
-import { RegistrationCredentialConfirmationPayload } from './SignerWorkerManager/handlers/validation';
+import { RegistrationCredentialConfirmationPayload } from './SignerWorkerManager/internal/validation';
 import { resolveWorkerBaseOrigin, onEmbeddedBaseChange } from '../sdkPaths';
 import { DEFAULT_WAIT_STATUS, type TransactionContext } from '../types/rpc';
 import { getLastLoggedInDeviceNumber } from './SignerWorkerManager/getDeviceNumber';
 import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
 import { hasAccessKey } from '../rpcCalls';
 import { ensureEd25519Prefix } from '../../../../shared/src/utils/validation';
-import { enrollThresholdEd25519KeyHandler } from './threshold/enrollThresholdEd25519Key';
-import { rotateThresholdEd25519KeyPostRegistrationHandler } from './threshold/rotateThresholdEd25519KeyPostRegistration';
-import { connectThresholdEd25519SessionLite } from '../threshold/connectThresholdEd25519SessionLite';
-import { keygenThresholdEcdsaLite } from '../threshold/keygenThresholdEcdsaLite';
-import { connectThresholdEcdsaSessionLite } from '../threshold/connectThresholdEcdsaSessionLite';
+import { enrollThresholdEd25519KeyHandler } from '../threshold/workflows/enrollThresholdEd25519Key';
+import { rotateThresholdEd25519KeyPostRegistrationHandler } from '../threshold/workflows/rotateThresholdEd25519KeyPostRegistration';
+import { connectThresholdEd25519SessionLite } from '../threshold/workflows/connectThresholdEd25519SessionLite';
+import { keygenThresholdEcdsaLite } from '../threshold/workflows/keygenThresholdEcdsaLite';
+import { connectThresholdEcdsaSessionLite } from '../threshold/workflows/connectThresholdEcdsaSessionLite';
 import { collectAuthenticationCredentialForChallengeB64u } from './collectAuthenticationCredentialForChallengeB64u';
-import { computeThresholdEd25519KeygenIntentDigest } from '../digests/intentDigest';
+import { computeThresholdEd25519KeygenIntentDigest } from '../../utils/intentDigest';
 import { deriveNearKeypairFromPrfSecondB64u } from '../nearCrypto';
-import { deriveSecp256k1KeypairFromPrfSecondB64u } from '../multichain/evm/deriveSecp256k1KeypairFromPrfSecond';
 import { runSecureConfirm } from './SecureConfirmWorkerManager/secureConfirmBridge';
 import {
   SecureConfirmationType,
   type SecureConfirmRequest,
   type ExportPrivateKeyDisplayEntry,
 } from './SecureConfirmWorkerManager/confirmTxFlow/types';
-import type { TempoSecp256k1SigningRequest, TempoSigningRequest } from '../multichain/tempo/types';
-import type { TempoSignedResult } from '../multichain/tempo/tempoAdapter';
-import { WebAuthnP256Engine } from '../multichain/engines/webauthn-p256';
-import { Secp256k1Engine } from '../multichain/engines/secp256k1';
-import { signTempoWithSecureConfirm } from '../multichain/walletOrigin/tempo';
+import type {
+  TempoSecp256k1SigningRequest,
+  TempoSigningRequest,
+} from './SignerWorkerManager/MultichainAdapter/tempo/types';
+import type { TempoSignedResult } from './SignerWorkerManager/MultichainAdapter/tempo/tempoAdapter';
 import type { ThresholdEcdsaSecp256k1KeyRef } from '../multichain/types';
 
 type ThresholdEcdsaKeygenLiteResult = Awaited<ReturnType<typeof keygenThresholdEcdsaLite>>;
@@ -101,10 +110,7 @@ export class WebAuthnManager {
     this.tatchiPasskeyConfigs = tatchiPasskeyConfigs;
     this.nearClient = nearClient;
     // Respect rpIdOverride. Safari get() bridge fallback is always enabled.
-    this.touchIdPrompt = new TouchIdPrompt(
-      tatchiPasskeyConfigs.iframeWallet?.rpIdOverride,
-      true,
-    );
+    this.touchIdPrompt = new TouchIdPrompt(tatchiPasskeyConfigs.iframeWallet?.rpIdOverride, true);
     this.userPreferencesManager = UserPreferencesInstance;
     // Apply integrator-provided default signer mode (in-memory only; user preferences may override later).
     this.userPreferencesManager.configureDefaultSignerMode?.(tatchiPasskeyConfigs.signerMode);
@@ -121,7 +127,7 @@ export class WebAuthnManager {
         rpIdOverride: this.touchIdPrompt.getRpId(),
         nearExplorerUrl: tatchiPasskeyConfigs.nearExplorerUrl,
         getTheme: () => this.theme,
-      }
+      },
     );
     this.signerWorkerManager = new SignerWorkerManager(
       this.secureConfirmWorkerManager,
@@ -136,7 +142,8 @@ export class WebAuthnManager {
     );
 
     // Compute initial worker base origin once
-    this.workerBaseOrigin = resolveWorkerBaseOrigin() || (typeof window !== 'undefined' ? window.location.origin : '');
+    this.workerBaseOrigin =
+      resolveWorkerBaseOrigin() || (typeof window !== 'undefined' ? window.location.origin : '');
     this.signerWorkerManager.setWorkerBaseOrigin(this.workerBaseOrigin);
     this.secureConfirmWorkerManager.setWorkerBaseOrigin?.(this.workerBaseOrigin as any);
 
@@ -169,7 +176,7 @@ export class WebAuthnManager {
     if (typeof window === 'undefined' || typeof (window as any).Worker === 'undefined') return;
     // Avoid noisy SecurityError in cross‑origin dev: only prewarm when same‑origin
     if (this.workerBaseOrigin && this.workerBaseOrigin !== window.location.origin) return;
-    this.signerWorkerManager.preWarmWorkerPool().catch(() => { });
+    this.signerWorkerManager.preWarmWorkerPool().catch(() => {});
   }
 
   /**
@@ -182,7 +189,9 @@ export class WebAuthnManager {
   async warmCriticalResources(nearAccountId?: string): Promise<void> {
     // Initialize current user first (best-effort)
     if (nearAccountId) {
-      await this.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient).catch(() => null);
+      await this.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient).catch(
+        () => null,
+      );
     }
     // Prefetch latest block/nonce context (best-effort)
     await this.nonceManager.prefetchBlockheight(this.nearClient).catch(() => null);
@@ -212,7 +221,7 @@ export class WebAuthnManager {
    * Session ids also key the wallet-origin warm PRF cache.
    */
   private generateSessionId(prefix: string): string {
-    return (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+    return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
       : `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
@@ -222,17 +231,15 @@ export class WebAuthnManager {
     return Math.floor(value);
   }
 
-  private resolveSigningSessionPolicy(args: {
-    ttlMs?: number;
-    remainingUses?: number;
-  }): {
+  private resolveSigningSessionPolicy(args: { ttlMs?: number; remainingUses?: number }): {
     ttlMs: number;
     remainingUses: number;
   } {
-    const ttlMs = this.toNonNegativeInt(args.ttlMs)
-      ?? this.tatchiPasskeyConfigs.signingSessionDefaults.ttlMs;
-    const remainingUses = this.toNonNegativeInt(args.remainingUses)
-      ?? this.tatchiPasskeyConfigs.signingSessionDefaults.remainingUses;
+    const ttlMs =
+      this.toNonNegativeInt(args.ttlMs) ?? this.tatchiPasskeyConfigs.signingSessionDefaults.ttlMs;
+    const remainingUses =
+      this.toNonNegativeInt(args.remainingUses) ??
+      this.tatchiPasskeyConfigs.signingSessionDefaults.remainingUses;
     return { ttlMs, remainingUses };
   }
 
@@ -365,7 +372,10 @@ export class WebAuthnManager {
     return await IndexedDBManager.clientDB.getAllUsers();
   }
 
-  async getUserByDevice(nearAccountId: AccountId, deviceNumber: number): Promise<ClientUserData | null> {
+  async getUserByDevice(
+    nearAccountId: AccountId,
+    deviceNumber: number,
+  ): Promise<ClientUserData | null> {
     return await IndexedDBManager.clientDB.getUserByDevice(nearAccountId, deviceNumber);
   }
 
@@ -390,7 +400,6 @@ export class WebAuthnManager {
     return await IndexedDBManager.clientDB.setLastUser(nearAccountId, deviceNumber);
   }
 
-
   /**
    * Initialize current user authentication state
    * This should be called after the user is authenticated (e.g. after login)
@@ -399,10 +408,7 @@ export class WebAuthnManager {
    * @param nearAccountId - The NEAR account ID to initialize
    * @param nearClient - The NEAR client for nonce prefetching
    */
-  async initializeCurrentUser(
-    nearAccountId: AccountId,
-    nearClient?: NearClient,
-  ): Promise<void> {
+  async initializeCurrentUser(nearAccountId: AccountId, nearClient?: NearClient): Promise<void> {
     const accountId = toAccountId(nearAccountId);
 
     // Set as last user for future sessions, preserving the current deviceNumber
@@ -449,7 +455,12 @@ export class WebAuthnManager {
     if (nearClient) {
       await this.nonceManager
         .prefetchBlockheight(nearClient)
-        .catch((prefetchErr) => console.debug('Nonce prefetch after authentication state initialization failed (non-fatal):', prefetchErr));
+        .catch((prefetchErr) =>
+          console.debug(
+            'Nonce prefetch after authentication state initialization failed (non-fatal):',
+            prefetchErr,
+          ),
+        );
     }
   }
 
@@ -468,7 +479,8 @@ export class WebAuthnManager {
     deviceNumber?: number;
   }): Promise<void> {
     const deviceNumber = Number(authenticatorData.deviceNumber);
-    const normalizedDeviceNumber = Number.isSafeInteger(deviceNumber) && deviceNumber >= 1 ? deviceNumber : 1;
+    const normalizedDeviceNumber =
+      Number.isSafeInteger(deviceNumber) && deviceNumber >= 1 ? deviceNumber : 1;
     const authData = {
       ...authenticatorData,
       nearAccountId: toAccountId(authenticatorData.nearAccountId),
@@ -529,7 +541,7 @@ export class WebAuthnManager {
         lastUpdated: Date.now(),
         passkeyCredential: {
           id: credential.id,
-          rawId: credentialId
+          rawId: credentialId,
         },
         version: 2,
       });
@@ -571,22 +583,30 @@ export class WebAuthnManager {
     onEvent,
     sessionId,
   }: {
-    transactions: TransactionInputWasm[],
-    rpcCall: RpcCallPayload,
+    transactions: TransactionInputWasm[];
+    rpcCall: RpcCallPayload;
     deviceNumber?: number;
     signerMode: SignerMode;
     // Accept partial override; merging happens in handlers layer
-    confirmationConfigOverride?: Partial<ConfirmationConfig>,
+    confirmationConfigOverride?: Partial<ConfirmationConfig>;
     title?: string;
     body?: string;
-    onEvent?: (update: onProgressEvents) => void,
+    onEvent?: (update: onProgressEvents) => void;
     sessionId?: string;
   }): Promise<SignTransactionResult[]> {
+    const { signNearWithSecureConfirm } = await import('./SignerWorkerManager/MultichainAdapter/near/walletOrigin');
     const signingSessionPolicy = this.resolveSigningSessionPolicy({});
-    const resolvedSessionId = String(sessionId || '').trim()
-      || this.getOrCreateActiveSigningSessionId(toAccountId(rpcCall.nearAccountId));
-    return this.signerWorkerManager.signTransactionsWithActions({
-      transactions,
+    const resolvedSessionId =
+      String(sessionId || '').trim() ||
+      this.getOrCreateActiveSigningSessionId(toAccountId(rpcCall.nearAccountId));
+    return await signNearWithSecureConfirm({
+      signerWorkerManager: this.signerWorkerManager,
+      request: {
+        chain: 'near',
+        kind: 'transactionsWithActions',
+        nearAccountId: rpcCall.nearAccountId,
+        transactions,
+      },
       rpcCall,
       deviceNumber,
       signerMode,
@@ -622,24 +642,33 @@ export class WebAuthnManager {
     const nearAccountId = toAccountId(args.nearAccountId);
     const wrapKeySalt = args.wrapKeySalt;
     if (!wrapKeySalt) throw new Error('Missing wrapKeySalt for AddKey(thresholdPublicKey) signing');
-    if (!args.credential) throw new Error('Missing credential for AddKey(thresholdPublicKey) signing');
-    if (!args.transactionContext) throw new Error('Missing transactionContext for no-prompt signing');
+    if (!args.credential)
+      throw new Error('Missing credential for AddKey(thresholdPublicKey) signing');
+    if (!args.transactionContext)
+      throw new Error('Missing transactionContext for no-prompt signing');
     const thresholdPublicKey = ensureEd25519Prefix(args.thresholdPublicKey);
-    if (!thresholdPublicKey) throw new Error('Missing thresholdPublicKey for AddKey(thresholdPublicKey) signing');
+    if (!thresholdPublicKey)
+      throw new Error('Missing thresholdPublicKey for AddKey(thresholdPublicKey) signing');
     const relayerVerifyingShareB64u = args.relayerVerifyingShareB64u;
-    if (!relayerVerifyingShareB64u) throw new Error('Missing relayerVerifyingShareB64u for AddKey(thresholdPublicKey) signing');
+    if (!relayerVerifyingShareB64u)
+      throw new Error('Missing relayerVerifyingShareB64u for AddKey(thresholdPublicKey) signing');
 
     const deviceNumber = Number(args.deviceNumber);
-    const resolvedDeviceNumber = Number.isSafeInteger(deviceNumber) && deviceNumber >= 1
-      ? deviceNumber
-      : await getLastLoggedInDeviceNumber(nearAccountId, IndexedDBManager.clientDB).catch(() => 1);
+    const resolvedDeviceNumber =
+      Number.isSafeInteger(deviceNumber) && deviceNumber >= 1
+        ? deviceNumber
+        : await getLastLoggedInDeviceNumber(nearAccountId, IndexedDBManager.clientDB).catch(
+            () => 1,
+          );
 
     const localKeyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(
       nearAccountId,
       resolvedDeviceNumber,
     );
     if (!localKeyMaterial) {
-      throw new Error(`No local key material found for account ${nearAccountId} device ${resolvedDeviceNumber}`);
+      throw new Error(
+        `No local key material found for account ${nearAccountId} device ${resolvedDeviceNumber}`,
+      );
     }
 
     if (localKeyMaterial.wrapKeySalt !== wrapKeySalt) {
@@ -663,8 +692,10 @@ export class WebAuthnManager {
           nearAccountId,
           thresholdPublicKey,
           relayerVerifyingShareB64u,
-          clientParticipantId: typeof args.clientParticipantId === 'number' ? args.clientParticipantId : undefined,
-          relayerParticipantId: typeof args.relayerParticipantId === 'number' ? args.relayerParticipantId : undefined,
+          clientParticipantId:
+            typeof args.clientParticipantId === 'number' ? args.clientParticipantId : undefined,
+          relayerParticipantId:
+            typeof args.relayerParticipantId === 'number' ? args.relayerParticipantId : undefined,
           prfFirstB64u,
           wrapKeySalt,
         },
@@ -778,7 +809,8 @@ export class WebAuthnManager {
       const activeSessionId = this.getOrCreateActiveSigningSessionId(payload.accountId);
       const signingSessionPolicy = this.resolveSigningSessionPolicy({});
       const contractId = this.tatchiPasskeyConfigs.contractId;
-      const nearRpcUrl = (this.tatchiPasskeyConfigs.nearRpcUrl.split(',')[0] || this.tatchiPasskeyConfigs.nearRpcUrl);
+      const nearRpcUrl =
+        this.tatchiPasskeyConfigs.nearRpcUrl.split(',')[0] || this.tatchiPasskeyConfigs.nearRpcUrl;
       const result = await this.signerWorkerManager.signNep413Message({
         ...payload,
         sessionId: activeSessionId,
@@ -799,7 +831,7 @@ export class WebAuthnManager {
         accountId: '',
         publicKey: '',
         signature: '',
-        error: error.message || 'Unknown error'
+        error: error.message || 'Unknown error',
       };
     }
   }
@@ -817,6 +849,13 @@ export class WebAuthnManager {
       throw new Error('[WebAuthnManager] Tempo secp256k1 signing requires thresholdEcdsaKeyRef');
     }
 
+    const [{ signTempoWithSecureConfirm }, { Secp256k1Engine }, { WebAuthnP256Engine }] =
+      await Promise.all([
+        import('./SignerWorkerManager/MultichainAdapter/tempo/handlers/signTempoWithSecureConfirm'),
+        import('../multichain/engines/secp256k1'),
+        import('../multichain/engines/webauthnP256'),
+      ]);
+
     const ctx = this.secureConfirmWorkerManager.getContext();
     return await signTempoWithSecureConfirm({
       ctx,
@@ -828,7 +867,7 @@ export class WebAuthnManager {
           dispenseThresholdEcdsaPrfFirstForSession: (payload) =>
             this.secureConfirmWorkerManager.dispensePrfFirstForThresholdSession(payload),
         }),
-        'webauthn-p256': new WebAuthnP256Engine(),
+        webauthnP256: new WebAuthnP256Engine(),
       },
       ...(args.thresholdEcdsaKeyRef
         ? { keyRefsByAlgorithm: { secp256k1: args.thresholdEcdsaKeyRef } }
@@ -844,7 +883,9 @@ export class WebAuthnManager {
     confirmationConfigOverride?: Partial<ConfirmationConfig>;
   }): Promise<TempoSignedResult> {
     if (args.request.senderSignatureAlgorithm !== 'secp256k1') {
-      throw new Error('[WebAuthnManager] signTempoWithThresholdEcdsa requires senderSignatureAlgorithm=secp256k1');
+      throw new Error(
+        '[WebAuthnManager] signTempoWithThresholdEcdsa requires senderSignatureAlgorithm=secp256k1',
+      );
     }
     return await this.signTempo({
       nearAccountId: args.nearAccountId,
@@ -870,7 +911,7 @@ export class WebAuthnManager {
   /** Worker-driven export: two-phase V2 (collect PRF → decrypt → show UI) */
   async exportNearKeypairWithUIWorkerDriven(
     nearAccountId: AccountId,
-    options?: { variant?: 'drawer' | 'modal', theme?: 'dark' | 'light' }
+    options?: { variant?: 'drawer' | 'modal'; theme?: 'dark' | 'light' },
   ): Promise<void> {
     const resolvedTheme = options?.theme ?? this.theme;
 
@@ -879,11 +920,11 @@ export class WebAuthnManager {
       IndexedDBManager.clientDB.getLastUser().catch(() => null),
       IndexedDBManager.clientDB.getLastDBUpdatedUser(accountId).catch(() => null),
     ]);
-    const userForAccount = (last && last.nearAccountId === accountId) ? last : latest;
+    const userForAccount = last && last.nearAccountId === accountId ? last : latest;
     const deviceNumber =
-      (last && last.nearAccountId === accountId && typeof last.deviceNumber === 'number')
+      last && last.nearAccountId === accountId && typeof last.deviceNumber === 'number'
         ? last.deviceNumber
-        : (latest && typeof latest.deviceNumber === 'number')
+        : latest && typeof latest.deviceNumber === 'number'
           ? latest.deviceNumber
           : null;
     if (deviceNumber === null) {
@@ -892,7 +933,9 @@ export class WebAuthnManager {
 
     const [keyMaterial, thresholdKeyMaterial] = await Promise.all([
       IndexedDBManager.nearKeysDB.getLocalKeyMaterial(accountId, deviceNumber).catch(() => null),
-      IndexedDBManager.nearKeysDB.getThresholdKeyMaterial(accountId, deviceNumber).catch(() => null),
+      IndexedDBManager.nearKeysDB
+        .getThresholdKeyMaterial(accountId, deviceNumber)
+        .catch(() => null),
     ]);
 
     // === Local-signer export: decrypt stored key material via PRF.first and show UI ===
@@ -903,9 +946,10 @@ export class WebAuthnManager {
         throw new Error(`Missing public key for account ${accountId}; please login again.`);
       }
 
-      const requestId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
-        ? crypto.randomUUID()
-        : `decrypt-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const requestId =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `decrypt-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
       // Prompt user + collect a WebAuthn assertion (with PRF outputs) via SecureConfirm.
       const decision = await runSecureConfirm(this.secureConfirmWorkerManager.getContext(), {
@@ -931,7 +975,9 @@ export class WebAuthnManager {
         throw new Error('Missing WebAuthn credential for decrypt request');
       }
 
-      const prfFirstB64u = this.extractPrfFirstB64u(decision.credential as WebAuthnAuthenticationCredential);
+      const prfFirstB64u = this.extractPrfFirstB64u(
+        decision.credential as WebAuthnAuthenticationCredential,
+      );
       const sessionId = requestId;
 
       // Phase 2 + 3: decrypt in signer worker using direct PRF, then show UI.
@@ -948,11 +994,14 @@ export class WebAuthnManager {
 
     // === Threshold-signer export: derive the backup/escape-hatch key from PRF.second and show UI ===
     if (thresholdKeyMaterial) {
-      const publicKeyHint = String(userForAccount?.clientNearPublicKey || thresholdKeyMaterial.publicKey || '').trim();
+      const publicKeyHint = String(
+        userForAccount?.clientNearPublicKey || thresholdKeyMaterial.publicKey || '',
+      ).trim();
 
-      const requestId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
-        ? crypto.randomUUID()
-        : `export-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const requestId =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `export-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
       const decision = await runSecureConfirm(this.secureConfirmWorkerManager.getContext(), {
         requestId,
@@ -977,12 +1026,19 @@ export class WebAuthnManager {
         throw new Error('Missing WebAuthn credential for export request');
       }
 
-      const prfSecondB64u = String((decision.credential as any)?.clientExtensionResults?.prf?.results?.second || '').trim();
+      const prfSecondB64u = String(
+        (decision.credential as any)?.clientExtensionResults?.prf?.results?.second || '',
+      ).trim();
       if (!prfSecondB64u) {
-        throw new Error('Missing PRF.second output from credential (requires a PRF-enabled passkey)');
+        throw new Error(
+          'Missing PRF.second output from credential (requires a PRF-enabled passkey)',
+        );
       }
 
-      const derived = await deriveNearKeypairFromPrfSecondB64u({ prfSecondB64u, nearAccountId: String(accountId) });
+      const derived = await deriveNearKeypairFromPrfSecondB64u({
+        prfSecondB64u,
+        nearAccountId: String(accountId),
+      });
       await runSecureConfirm(this.secureConfirmWorkerManager.getContext(), {
         requestId: `${requestId}-show`,
         type: SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI,
@@ -1011,8 +1067,8 @@ export class WebAuthnManager {
     nearAccountId: AccountId,
     options?: {
       variant?: 'drawer' | 'modal';
-      theme?: 'dark' | 'light'
-    }
+      theme?: 'dark' | 'light';
+    },
   ): Promise<{ accountId: string; publicKey: string; privateKey: string }> {
     // Route to worker-driven two-phase flow. UI is shown inside the wallet host; no secrets are returned.
     await this.exportNearKeypairWithUIWorkerDriven(nearAccountId, options);
@@ -1045,11 +1101,13 @@ export class WebAuthnManager {
     },
   ): Promise<void> {
     const resolvedTheme = options?.theme ?? this.theme;
-    const requestedSchemes = Array.isArray(options?.schemes) && options?.schemes.length
-      ? options.schemes
-      : (['ed25519', 'secp256k1'] as const);
-    const schemes = Array.from(new Set(requestedSchemes))
-      .filter((scheme): scheme is 'ed25519' | 'secp256k1' => scheme === 'ed25519' || scheme === 'secp256k1');
+    const requestedSchemes =
+      Array.isArray(options?.schemes) && options?.schemes.length
+        ? options.schemes
+        : (['ed25519', 'secp256k1'] as const);
+    const schemes = Array.from(new Set(requestedSchemes)).filter(
+      (scheme): scheme is 'ed25519' | 'secp256k1' => scheme === 'ed25519' || scheme === 'secp256k1',
+    );
     if (!schemes.length) throw new Error('No export schemes requested');
 
     const accountId = toAccountId(nearAccountId);
@@ -1057,11 +1115,11 @@ export class WebAuthnManager {
       IndexedDBManager.clientDB.getLastUser().catch(() => null),
       IndexedDBManager.clientDB.getLastDBUpdatedUser(accountId).catch(() => null),
     ]);
-    const userForAccount = (last && last.nearAccountId === accountId) ? last : latest;
+    const userForAccount = last && last.nearAccountId === accountId ? last : latest;
     const deviceNumber =
-      (last && last.nearAccountId === accountId && typeof last.deviceNumber === 'number')
+      last && last.nearAccountId === accountId && typeof last.deviceNumber === 'number'
         ? last.deviceNumber
-        : (latest && typeof latest.deviceNumber === 'number')
+        : latest && typeof latest.deviceNumber === 'number'
           ? latest.deviceNumber
           : null;
     if (deviceNumber === null) {
@@ -1070,22 +1128,25 @@ export class WebAuthnManager {
 
     const [keyMaterial, thresholdKeyMaterial] = await Promise.all([
       IndexedDBManager.nearKeysDB.getLocalKeyMaterial(accountId, deviceNumber).catch(() => null),
-      IndexedDBManager.nearKeysDB.getThresholdKeyMaterial(accountId, deviceNumber).catch(() => null),
+      IndexedDBManager.nearKeysDB
+        .getThresholdKeyMaterial(accountId, deviceNumber)
+        .catch(() => null),
     ]);
     if (!keyMaterial && !thresholdKeyMaterial) {
       throw new Error(`No key material found for account ${accountId} device ${deviceNumber}`);
     }
 
     const publicKeyHint = String(
-      userForAccount?.clientNearPublicKey
-      || keyMaterial?.publicKey
-      || thresholdKeyMaterial?.publicKey
-      || '',
+      userForAccount?.clientNearPublicKey ||
+        keyMaterial?.publicKey ||
+        thresholdKeyMaterial?.publicKey ||
+        '',
     ).trim();
 
-    const requestId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
-      ? crypto.randomUUID()
-      : `export-keys-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const requestId =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `export-keys-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
     const decision = await runSecureConfirm(this.secureConfirmWorkerManager.getContext(), {
       requestId,
@@ -1147,6 +1208,9 @@ export class WebAuthnManager {
 
     if (schemes.includes('secp256k1')) {
       const prfSecondB64u = this.extractPrfSecondB64u(credential);
+      const { deriveSecp256k1KeypairFromPrfSecondB64u } = await import(
+        '../multichain/evm/deriveSecp256k1KeypairFromPrfSecond'
+      );
       const derived = deriveSecp256k1KeypairFromPrfSecondB64u({
         prfSecondB64u,
         nearAccountId: String(accountId),
@@ -1194,11 +1258,13 @@ export class WebAuthnManager {
       theme?: 'dark' | 'light';
     },
   ): Promise<{ accountId: string; exportedSchemes: Array<'ed25519' | 'secp256k1'> }> {
-    const requestedSchemes = Array.isArray(options?.schemes) && options?.schemes.length
-      ? options.schemes
-      : (['ed25519', 'secp256k1'] as const);
-    const exportedSchemes = Array.from(new Set(requestedSchemes))
-      .filter((scheme): scheme is 'ed25519' | 'secp256k1' => scheme === 'ed25519' || scheme === 'secp256k1');
+    const requestedSchemes =
+      Array.isArray(options?.schemes) && options?.schemes.length
+        ? options.schemes
+        : (['ed25519', 'secp256k1'] as const);
+    const exportedSchemes = Array.from(new Set(requestedSchemes)).filter(
+      (scheme): scheme is 'ed25519' | 'secp256k1' => scheme === 'ed25519' || scheme === 'secp256k1',
+    );
     await this.exportPrivateKeysWithUIWorkerDriven(nearAccountId, options);
     return {
       accountId: String(nearAccountId),
@@ -1241,14 +1307,16 @@ export class WebAuthnManager {
       if (!authenticationCredential) {
         throw new Error(
           'Authentication credential required for account recovery. ' +
-          'Use an existing credential with dual PRF outputs to re-derive the same NEAR keypair.'
+            'Use an existing credential with dual PRF outputs to re-derive the same NEAR keypair.',
         );
       }
 
       // Verify dual PRF outputs are available
       const prfResults = authenticationCredential.clientExtensionResults?.prf?.results;
       if (!prfResults?.first || !prfResults?.second) {
-        throw new Error('Dual PRF outputs required for account recovery - both AES and Ed25519 PRF outputs must be available');
+        throw new Error(
+          'Dual PRF outputs required for account recovery - both AES and Ed25519 PRF outputs must be available',
+        );
       }
 
       // Extract PRF.first for WrapKeySeed derivation
@@ -1261,7 +1329,6 @@ export class WebAuthnManager {
         sessionId,
       });
       return result;
-
     } catch (error: any) {
       console.error('WebAuthnManager: Deterministic keypair derivation error:', error);
       throw new Error(`Deterministic keypair derivation failed: ${error.message}`);
@@ -1281,10 +1348,10 @@ export class WebAuthnManager {
     return this.touchIdPrompt.getAuthenticationCredentialsSerializedForChallengeB64u({
       nearAccountId,
       challengeB64u,
-      allowCredentials: credentialIds.map(id => ({
+      allowCredentials: credentialIds.map((id) => ({
         id: id,
         type: 'public-key',
-        transports: ['internal', 'hybrid', 'usb', 'ble'] as AuthenticatorTransport[]
+        transports: ['internal', 'hybrid', 'usb', 'ble'] as AuthenticatorTransport[],
       })),
       includeSecondPrfOutput: true,
     });
@@ -1301,7 +1368,7 @@ export class WebAuthnManager {
     receiverId,
     nonce,
     blockHash,
-    actions
+    actions,
   }: {
     nearPrivateKey: string;
     signerAccountId: string;
@@ -1319,7 +1386,7 @@ export class WebAuthnManager {
       receiverId,
       nonce,
       blockHash,
-      actions
+      actions,
     });
   }
 
@@ -1345,7 +1412,9 @@ export class WebAuthnManager {
     ttlMs?: number;
     remainingUses?: number;
   }): Promise<Awaited<ReturnType<typeof connectThresholdEd25519SessionLite>>> {
-    const relayerUrl = String(args.relayerUrl || this.tatchiPasskeyConfigs.relayer?.url || '').trim();
+    const relayerUrl = String(
+      args.relayerUrl || this.tatchiPasskeyConfigs.relayer?.url || '',
+    ).trim();
     if (!relayerUrl) {
       throw new Error('Missing relayer url (configs.relayer.url)');
     }
@@ -1381,7 +1450,9 @@ export class WebAuthnManager {
     remainingUses?: number;
   }): Promise<ThresholdEcdsaSessionBootstrapResult> {
     const nearAccountId = toAccountId(args.nearAccountId);
-    const relayerUrl = String(args.relayerUrl || this.tatchiPasskeyConfigs.relayer?.url || '').trim();
+    const relayerUrl = String(
+      args.relayerUrl || this.tatchiPasskeyConfigs.relayer?.url || '',
+    ).trim();
     if (!relayerUrl) {
       throw new Error('Missing relayer url (configs.relayer.url)');
     }
@@ -1431,11 +1502,14 @@ export class WebAuthnManager {
       clientVerifyingShareB64u,
       ...(Array.isArray(args.participantIds)
         ? { participantIds: args.participantIds }
-        : (Array.isArray(keygen.participantIds) ? { participantIds: keygen.participantIds } : {})),
+        : Array.isArray(keygen.participantIds)
+          ? { participantIds: keygen.participantIds }
+          : {}),
       ...(typeof keygen.groupPublicKeyB64u === 'string' && keygen.groupPublicKeyB64u.trim()
         ? { groupPublicKeyB64u: keygen.groupPublicKeyB64u.trim() }
         : {}),
-      ...(typeof keygen.relayerVerifyingShareB64u === 'string' && keygen.relayerVerifyingShareB64u.trim()
+      ...(typeof keygen.relayerVerifyingShareB64u === 'string' &&
+      keygen.relayerVerifyingShareB64u.trim()
         ? { relayerVerifyingShareB64u: keygen.relayerVerifyingShareB64u.trim() }
         : {}),
       thresholdSessionKind: args.sessionKind || 'jwt',
@@ -1461,13 +1535,17 @@ export class WebAuthnManager {
    * - This is a best-effort introspection helper; it never prompts.
    * - When no active signing session id exists for the account, returns null.
    */
-  async getWarmSigningSessionStatus(nearAccountId: AccountId | string): Promise<SigningSessionStatus | null> {
+  async getWarmSigningSessionStatus(
+    nearAccountId: AccountId | string,
+  ): Promise<SigningSessionStatus | null> {
     try {
       const key = String(toAccountId(nearAccountId));
       const sessionId = this.activeSigningSessionIds.get(key);
       if (!sessionId) return null;
 
-      const peek = await this.secureConfirmWorkerManager.peekPrfFirstForThresholdSession({ sessionId });
+      const peek = await this.secureConfirmWorkerManager.peekPrfFirstForThresholdSession({
+        sessionId,
+      });
       if (peek.ok) {
         return {
           sessionId,
@@ -1478,11 +1556,7 @@ export class WebAuthnManager {
       }
 
       const status =
-        peek.code === 'expired'
-          ? 'expired'
-          : peek.code === 'exhausted'
-            ? 'exhausted'
-            : 'not_found';
+        peek.code === 'expired' ? 'expired' : peek.code === 'exhausted' ? 'exhausted' : 'not_found';
 
       return { sessionId, status };
     } catch {
@@ -1605,11 +1679,17 @@ export class WebAuthnManager {
 
     try {
       const deviceNumber = Number(args.deviceNumber);
-      const resolvedDeviceNumber = Number.isSafeInteger(deviceNumber) && deviceNumber >= 1
-        ? deviceNumber
-        : await getLastLoggedInDeviceNumber(nearAccountId, IndexedDBManager.clientDB).catch(() => 1);
+      const resolvedDeviceNumber =
+        Number.isSafeInteger(deviceNumber) && deviceNumber >= 1
+          ? deviceNumber
+          : await getLastLoggedInDeviceNumber(nearAccountId, IndexedDBManager.clientDB).catch(
+              () => 1,
+            );
 
-      const existing = await IndexedDBManager.nearKeysDB.getThresholdKeyMaterial(nearAccountId, resolvedDeviceNumber);
+      const existing = await IndexedDBManager.nearKeysDB.getThresholdKeyMaterial(
+        nearAccountId,
+        resolvedDeviceNumber,
+      );
       if (!existing) {
         throw new Error(
           `No threshold key material found for account ${nearAccountId} device ${resolvedDeviceNumber}. Call enrollThresholdEd25519Key() first.`,
@@ -1631,7 +1711,14 @@ export class WebAuthnManager {
           nearClient: this.nearClient,
           contractId: this.tatchiPasskeyConfigs.contractId,
           nearRpcUrl: this.tatchiPasskeyConfigs.nearRpcUrl,
-          signTransactionsWithActions: (params) => this.signTransactionsWithActions(params),
+          signTransactionsWithActions: (params: {
+            transactions: TransactionInputWasm[];
+            rpcCall: RpcCallPayload;
+            signerMode: SignerMode;
+            confirmationConfigOverride?: Partial<ConfirmationConfig>;
+            title?: string;
+            body?: string;
+          }) => this.signTransactionsWithActions(params),
         },
         {
           nearAccountId,
@@ -1687,9 +1774,12 @@ export class WebAuthnManager {
       if (!args.credential) throw new Error('Missing credential');
 
       const deviceNumber = Number(args.deviceNumber);
-      const resolvedDeviceNumber = Number.isSafeInteger(deviceNumber) && deviceNumber >= 1
-        ? deviceNumber
-        : await getLastLoggedInDeviceNumber(nearAccountId, IndexedDBManager.clientDB).catch(() => 1);
+      const resolvedDeviceNumber =
+        Number.isSafeInteger(deviceNumber) && deviceNumber >= 1
+          ? deviceNumber
+          : await getLastLoggedInDeviceNumber(nearAccountId, IndexedDBManager.clientDB).catch(
+              () => 1,
+            );
 
       const keygenSessionId = String(args.keygenSessionId || '').trim() || undefined;
       const sessionId = keygenSessionId || this.generateSessionId('threshold-keygen');
@@ -1724,20 +1814,31 @@ export class WebAuthnManager {
       const clientVerifyingShareB64u = keygen.clientVerifyingShareB64u;
       const relayerKeyId = keygen.relayerKeyId;
       const relayerVerifyingShareB64u = keygen.relayerVerifyingShareB64u;
-      if (!clientVerifyingShareB64u) throw new Error('Threshold keygen returned empty clientVerifyingShareB64u');
+      if (!clientVerifyingShareB64u)
+        throw new Error('Threshold keygen returned empty clientVerifyingShareB64u');
 
       // If the key is already present (e.g. relay-created threshold-signer accounts), skip AddKey
       // and just persist local threshold metadata.
-      const alreadyActive = await hasAccessKey(this.nearClient, nearAccountId, publicKey, { attempts: 1, delayMs: 0 });
+      const alreadyActive = await hasAccessKey(this.nearClient, nearAccountId, publicKey, {
+        attempts: 1,
+        delayMs: 0,
+      });
       if (!alreadyActive) {
         // Activate threshold enrollment on-chain by submitting AddKey(publicKey) signed with the local key.
-        const localKeyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(nearAccountId, resolvedDeviceNumber);
+        const localKeyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(
+          nearAccountId,
+          resolvedDeviceNumber,
+        );
         if (!localKeyMaterial) {
-          throw new Error(`No local key material found for account ${nearAccountId} device ${resolvedDeviceNumber}`);
+          throw new Error(
+            `No local key material found for account ${nearAccountId} device ${resolvedDeviceNumber}`,
+          );
         }
 
         this.nonceManager.initializeUser(nearAccountId, localKeyMaterial.publicKey);
-        const txContext = await this.nonceManager.getNonceBlockHashAndHeight(this.nearClient, { force: true });
+        const txContext = await this.nonceManager.getNonceBlockHashAndHeight(this.nearClient, {
+          force: true,
+        });
 
         const signed = await this.signAddKeyThresholdPublicKeyNoPrompt({
           nearAccountId,
@@ -1810,5 +1911,4 @@ export class WebAuthnManager {
     }
     this.activeSigningSessionIds.clear();
   }
-
 }

@@ -1,20 +1,12 @@
-import type { UnifiedIndexedDBManager } from '../IndexedDBManager';
-import type { TouchIdPrompt } from '../WebAuthnManager/touchIdPrompt';
-import { collectAuthenticationCredentialForChallengeB64u } from '../WebAuthnManager/collectAuthenticationCredentialForChallengeB64u';
-import { computeThresholdEcdsaKeygenIntentDigest } from '../digests/intentDigest';
-import { thresholdEcdsaKeygen } from '../rpcCalls';
-import { deriveThresholdSecp256k1ClientShare } from './deriveThresholdSecp256k1ClientShare';
-
-function getPrfFirstB64uFromCredential(credential: unknown): string | null {
-  try {
-    const b64u = (credential as any)?.clientExtensionResults?.prf?.results?.first;
-    if (typeof b64u !== 'string') return null;
-    const trimmed = b64u.trim();
-    return trimmed ? trimmed : null;
-  } catch {
-    return null;
-  }
-}
+import { computeThresholdEcdsaKeygenIntentDigest } from '../../../utils/intentDigest';
+import { thresholdEcdsaKeygen } from '../../rpcCalls';
+import { deriveThresholdSecp256k1ClientShare } from '../crypto/deriveThresholdSecp256k1ClientShare';
+import {
+  collectAuthenticationCredentialForChallengeB64u,
+  getPrfFirstB64uFromCredential,
+  type ThresholdIndexedDbPort,
+  type ThresholdWebAuthnPromptPort,
+} from '../ports/webauthn';
 
 function generateKeygenSessionId(): string {
   const id = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
@@ -34,8 +26,8 @@ function generateKeygenSessionId(): string {
  * - PRF outputs are never sent to the relay.
  */
 export async function keygenThresholdEcdsaLite(args: {
-  indexedDB: UnifiedIndexedDBManager;
-  touchIdPrompt: TouchIdPrompt;
+  indexedDB: ThresholdIndexedDbPort;
+  touchIdPrompt: ThresholdWebAuthnPromptPort;
   relayerUrl: string;
   userId: string;
 }): Promise<{
@@ -118,4 +110,3 @@ export async function keygenThresholdEcdsaLite(args: {
     return { ok: false, code: 'internal', message: msg };
   }
 }
-

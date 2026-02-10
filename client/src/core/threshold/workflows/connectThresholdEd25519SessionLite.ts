@@ -1,27 +1,21 @@
-import type { UnifiedIndexedDBManager } from '../IndexedDBManager';
-import type { TouchIdPrompt } from '../WebAuthnManager/touchIdPrompt';
-import type { SignerWorkerManager } from '../WebAuthnManager/SignerWorkerManager';
-import { collectAuthenticationCredentialForChallengeB64u } from '../WebAuthnManager/collectAuthenticationCredentialForChallengeB64u';
-import { deriveThresholdEd25519ClientVerifyingShare } from '../WebAuthnManager/SignerWorkerManager/handlers/deriveThresholdEd25519ClientVerifyingShare';
-import { base64UrlEncode } from '../../../../shared/src/utils/encoders';
-import { buildThresholdSessionPolicy } from './thresholdSessionPolicy';
+import { base64UrlEncode } from '../../../../../shared/src/utils/encoders';
+import { toAccountId } from '../../types/accountIds';
+import {
+  collectAuthenticationCredentialForChallengeB64u,
+  getPrfFirstB64uFromCredential,
+  getThresholdPrfFirstCachePortFromSignerWorker,
+  type ThresholdIndexedDbPort,
+  type ThresholdPrfFirstCachePort,
+  type ThresholdSignerWorkerPort,
+  type ThresholdWebAuthnPromptPort,
+} from '../ports/webauthn';
+import { buildThresholdSessionPolicy } from '../session/thresholdSessionPolicy';
 import {
   makeThresholdEd25519AuthSessionCacheKey,
   mintThresholdEd25519AuthSessionLite,
   putCachedThresholdEd25519AuthSession,
-} from './thresholdEd25519AuthSession';
-import type { ThresholdEd25519SessionKind } from './thresholdEd25519AuthSession';
-
-function getPrfFirstB64uFromCredential(credential: unknown): string | null {
-  try {
-    const b64u = (credential as any)?.clientExtensionResults?.prf?.results?.first;
-    if (typeof b64u !== 'string') return null;
-    const trimmed = b64u.trim();
-    return trimmed ? trimmed : null;
-  } catch {
-    return null;
-  }
-}
+} from '../session/thresholdEd25519AuthSession';
+import type { ThresholdEd25519SessionKind } from '../session/thresholdEd25519AuthSession';
 
 const DUMMY_WRAP_KEY_SALT_B64U = base64UrlEncode(new Uint8Array(32));
 
@@ -37,9 +31,10 @@ const DUMMY_WRAP_KEY_SALT_B64U = base64UrlEncode(new Uint8Array(32));
  * - The WebAuthn credential sent to the relay is PRF-redacted in `mintThresholdEd25519AuthSessionLite`.
  */
 export async function connectThresholdEd25519SessionLite(args: {
-  indexedDB: UnifiedIndexedDBManager;
-  touchIdPrompt: TouchIdPrompt;
-  signerWorkerManager: SignerWorkerManager;
+  indexedDB: ThresholdIndexedDbPort;
+  touchIdPrompt: ThresholdWebAuthnPromptPort;
+  signerWorkerManager: ThresholdSignerWorkerPort;
+  prfFirstCache?: ThresholdPrfFirstCachePort;
   relayerUrl: string;
   relayerKeyId: string;
   nearAccountId: string;
@@ -89,10 +84,9 @@ export async function connectThresholdEd25519SessionLite(args: {
 
   // 2) Derive client verifying share using the signer worker (share stays inside the worker).
   const sessionId = policy.sessionId;
-  const derive = await deriveThresholdEd25519ClientVerifyingShare({
-    ctx: args.signerWorkerManager.getContext(),
+  const derive = await args.signerWorkerManager.deriveThresholdEd25519ClientVerifyingShare({
     sessionId,
-    nearAccountId: args.nearAccountId,
+    nearAccountId: toAccountId(args.nearAccountId),
     prfFirstB64u,
     wrapKeySalt: DUMMY_WRAP_KEY_SALT_B64U,
   });
@@ -118,9 +112,10 @@ export async function connectThresholdEd25519SessionLite(args: {
   // dispense the client share seed without prompting again (wallet-origin only).
   const expiresAtMs = minted.expiresAtMs ?? (Date.now() + policy.ttlMs);
   const remainingUses = minted.remainingUses ?? policy.remainingUses;
-  const secureConfirmWorkerManager = args.signerWorkerManager.getContext().secureConfirmWorkerManager;
-  if (secureConfirmWorkerManager) {
-    await secureConfirmWorkerManager.putPrfFirstForThresholdSession({
+  const prfFirstCache =
+    args.prfFirstCache || getThresholdPrfFirstCachePortFromSignerWorker(args.signerWorkerManager);
+  if (prfFirstCache) {
+    await prfFirstCache.putPrfFirstForThresholdSession({
       sessionId,
       prfFirstB64u,
       expiresAtMs,

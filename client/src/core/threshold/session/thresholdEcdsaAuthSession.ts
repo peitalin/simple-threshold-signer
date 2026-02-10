@@ -1,8 +1,8 @@
-import { stripTrailingSlashes, toTrimmedString } from '../../../../shared/src/utils/validation';
-import { removePrfOutputGuard } from '../WebAuthnManager/credentialsHelpers';
+import { stripTrailingSlashes, toTrimmedString } from '../../../../../shared/src/utils/validation';
 import type { ThresholdEcdsaSessionPolicy } from './thresholdSessionPolicy';
-import type { WebAuthnAuthenticationCredential } from '../types/webauthn';
-import { normalizeThresholdEd25519ParticipantIds } from '../../../../shared/src/threshold/participants';
+import type { WebAuthnAuthenticationCredential } from '../../types/webauthn';
+import { normalizeThresholdEd25519ParticipantIds } from '../../../../../shared/src/threshold/participants';
+import { redactCredentialExtensionOutputs } from '../ports/webauthn';
 
 export type ThresholdEcdsaSessionKind = 'jwt' | 'cookie';
 
@@ -121,7 +121,7 @@ export async function mintThresholdEcdsaAuthSessionLite(args: {
   }
 
   // Never send PRF outputs to the relay.
-  const webauthn_authentication = removePrfOutputGuard(args.webauthnAuthentication);
+  const webauthn_authentication = redactCredentialExtensionOutputs(args.webauthnAuthentication);
 
   type ThresholdEcdsaSessionMintResponseBody = Partial<{
     ok: boolean;
@@ -172,4 +172,3 @@ export async function mintThresholdEcdsaAuthSessionLite(args: {
     return { ok: false, code: 'network_error', message: msg };
   }
 }
-

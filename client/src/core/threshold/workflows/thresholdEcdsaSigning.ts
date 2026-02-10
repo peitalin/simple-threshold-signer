@@ -1,5 +1,5 @@
-import { base64UrlEncode } from '../../../../shared/src/utils/encoders';
-import { stripTrailingSlashes, toTrimmedString } from '../../../../shared/src/utils/validation';
+import { base64UrlEncode } from '../../../../../shared/src/utils/encoders';
+import { stripTrailingSlashes, toTrimmedString } from '../../../../../shared/src/utils/validation';
 
 type ThresholdEcdsaSessionKind = 'jwt' | 'cookie';
 
