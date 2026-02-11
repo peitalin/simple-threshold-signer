@@ -4,7 +4,7 @@ import {
 } from '../../../types/signer-worker';
 import type { WebAuthnAuthenticationCredential } from '../../../types/webauthn';
 import { SignerWorkerManagerContext } from '..';
-import { withSessionId } from './session';
+import { withSessionId } from '../internal/session';
 import { base64UrlEncode } from '../../../../../../shared/src/utils/encoders';
 
 /**

@@ -1,6 +1,6 @@
 import type { FinalExecutionOutcome } from '@near-js/types';
 import type { AccountId } from './accountIds';
-import type { SignedTransaction } from '../NearClient';
+import type { SignedTransaction } from '../near/NearClient';
 import type { AuthenticatorOptions } from './authenticatorOptions';
 import type { ClientUserData } from '../IndexedDBManager/passkeyClientDB';
 import type { SignerMode, WasmSignedDelegate } from './signer-worker';

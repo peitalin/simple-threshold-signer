@@ -10,8 +10,8 @@ Web3Authn architecture, design goals, and security model are outlined here.
 - [Architecture](./architecture)
 - [Security Model](./security-model)
 - [Passkey Scope](./passkey-scope)
-- [VRF WebAuthn](./vrf-webauthn)
-- [VRF Sessions](./vrf-sessions)
+- [SecureConfirm WebAuthn](./secureconfirm-webauthn)
+- [SecureConfirm Sessions](./secureconfirm-sessions)
 - [Threshold Signing](./threshold-signing)
 - [Nonce Manager](./nonce-manager)
 
@@ -19,7 +19,7 @@ Web3Authn architecture, design goals, and security model are outlined here.
 
 ### Minimal Reliance on Servers or Intermediaries
 
-The Passkey authenticates with the onchain [Web3Authn contract](./vrf-webauthn#webauthn-contract-verification), instead of requiring developers to host servers. If the app's server goes down, you still have access to the wallet.
+The Passkey authenticates with the onchain [Web3Authn contract](./secureconfirm-webauthn#webauthn-contract-verification), instead of requiring developers to host servers. If the app's server goes down, you still have access to the wallet.
 
 - **Trustless account recovery**: since wallet keys are deterministically derived from passkeys, and passkey authenticators are stored on chain, you can recover your account with just your passkey.
 
@@ -30,7 +30,7 @@ The Passkey authenticates with the onchain [Web3Authn contract](./vrf-webauthn#w
 
 Wallet keys are derived from passkeys using WebAuthn outputs, so there are no seed phrases to manage.
 
-- **Onchain authenticator persistence**: WebAuthn authenticators and VRF public keys stored immutably onchain by the [Web3Authn contract](./vrf-webauthn#webauthn-contract-verification). This lets you recover your wallet from any device with your passkey via Passkey sync (e.g iCloud, Google Password Manager, Bitwarden, 1Password).
+- **Onchain authenticator persistence**: WebAuthn authenticators and SecureConfirm public keys stored immutably onchain by the [Web3Authn contract](./secureconfirm-webauthn#webauthn-contract-verification). This lets you recover your wallet from any device with your passkey via Passkey sync (e.g iCloud, Google Password Manager, Bitwarden, 1Password).
 
 - **Multi-device linking**: if you dislike potential lockin with Apple/Google managing passkeys, you can link different passkeys from different devices to the same account. The passkeys are now disposable, and you can have multiple passkeys stored on different systems (iCloud, Yubikey, etc) all controlling the same wallet account.
 

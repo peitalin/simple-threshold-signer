@@ -44,7 +44,7 @@ yarn add @tatchi-xyz/sdk
 
 
 ### Wallet Isolation by Default
-  - Sensitive flows (WebAuthn/PRF/VRF, key handling, signing) run inside a cross‑origin iframe with strict headers and isolated WASM workers. Even if the developer's app is compromised, Tatchi passkey wallet remains safe.
+  - Sensitive flows (WebAuthn/PRF/SecureConfirm, key handling, signing) run inside a cross‑origin iframe with strict headers and isolated WASM workers. Even if the developer's app is compromised, Tatchi passkey wallet remains safe.
 
 
 ### Developer First

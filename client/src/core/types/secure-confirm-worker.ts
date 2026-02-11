@@ -1,7 +1,6 @@
 /**
  * SecureConfirm worker types
  *
- * The legacy VRF WASM worker has been removed from the threshold-only lite stack.
  * The SecureConfirm worker now hosts:
  * - the SecureConfirm bridge (`awaitSecureConfirmationV2`) used by confirmTxFlow, and
  * - a small PRF.first cache for threshold warm sessions.

@@ -8,7 +8,7 @@ import { DeviceLinkingPhase, DeviceLinkingStatus } from '../types/sdkSentEvents'
 import { toAccountId } from '../types/accountIds';
 import { errorMessage } from '../../../../shared/src/utils/errors';
 import { IndexedDBManager } from '../IndexedDBManager';
-import { createNearKeypair, ensureEd25519Prefix } from '../nearCrypto';
+import { createNearKeypair, ensureEd25519Prefix } from '../near/nearCrypto';
 import { getLoginSession } from './login';
 import { DEVICE_LINKING_CONFIG } from '../../config';
 import { removePrfOutputGuard, normalizeRegistrationCredential } from '../WebAuthnManager/credentialsHelpers';
@@ -423,7 +423,7 @@ export class LinkDeviceFlow {
   /**
    * Device2: Attempt auto-login after successful device linking.
    *
-   * Note: In the lite-signer refactor we no longer do VRF WebAuthn verification/unlocks here.
+   * Note: In the lite-signer refactor we no longer do SecureConfirm WebAuthn verification/unlocks here.
    * Auto-login is simply: set last-user pointer + initialize current user state for signing.
    */
   private async attemptAutoLogin(input: { accountId: string; deviceNumber: number }): Promise<void> {

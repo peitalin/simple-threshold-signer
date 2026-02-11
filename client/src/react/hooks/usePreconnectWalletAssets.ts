@@ -1,6 +1,6 @@
 import React from 'react';
 import type { TatchiContextProviderProps } from '../types';
-import { setEmbeddedBase } from '../../core/sdkPaths';
+import { setEmbeddedBase } from '../../core/runtimeAssetPaths';
 
 // Internal: Add preconnect/prefetch hints for wallet service + relayer and
 // expose an absolute embedded asset base for srcdoc iframes.

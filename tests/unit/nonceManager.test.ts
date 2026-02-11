@@ -9,7 +9,7 @@ import { test, expect } from '@playwright/test';
 import { handleInfrastructureErrors } from '../setup';
 
 const IMPORT_PATHS = {
-  nonceManager: '/sdk/esm/core/nonceManager.js',
+  nonceManager: '/sdk/esm/core/near/nonceManager.js',
 } as const;
 
 test.describe('NonceManager Pure Unit Tests', () => {

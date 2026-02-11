@@ -17,9 +17,9 @@ import { getUserFriendlyErrorMessage } from '../../../../shared/src/utils/errors
 import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
 import { IndexedDBManager } from '../IndexedDBManager';
 import type { ClientAuthenticatorData, ClientUserData } from '../IndexedDBManager';
-import { createWebAuthnLoginOptions, verifyWebAuthnLogin } from '../rpcCalls';
+import { createWebAuthnLoginOptions, verifyWebAuthnLogin } from '../near/rpcCalls';
 import { parseDeviceNumber } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
-import { clearAllCachedThresholdEd25519AuthSessions } from '../threshold/thresholdEd25519AuthSession';
+import { clearAllCachedThresholdEd25519AuthSessions } from '../signing/schemes/threshold/session/thresholdEd25519AuthSession';
 import { normalizeThresholdEd25519ParticipantIds } from '../../../../shared/src/threshold/participants';
 
 /**

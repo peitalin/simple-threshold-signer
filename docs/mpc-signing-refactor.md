@@ -32,17 +32,17 @@ High level:
 - Client WASM signer worker holds the client share and coordinates FROST.
 - Relayer holds the server share and participates in `/sign/init` + `/sign/finalize`.
 - Authorization can be either:
-  - per-signature WebAuthn/VRF evidence, or
+  - per-signature WebAuthn/SecureConfirm evidence, or
   - session-style authorization (JWT/cookie) minted at login.
 - Relayer share can be:
   - persisted (`kv`), or
   - derived statelessly from a relayer master secret (`derived` / `auto`).
 
 Key references:
-- Spec: `docs/lite-signer-refactor/plan.md` (VRF-free lite/threshold signer)
+- Spec: `docs/lite-signer-refactor/plan.md` (SecureConfirm-free lite/threshold signer)
 - Stateless relayer plan/notes: `docs/threshold-relay-server.md`
 - Signer worker threshold module: `wasm/near_signer/src/threshold/*`
-- Relayer threshold service: `server/src/server/core/ThresholdService/*`
+- Relayer threshold service: `server/src/core/ThresholdService/*`
 
 ## Target architecture (refactor)
 
@@ -50,7 +50,7 @@ Key references:
 Create a clear separation between:
 - **Protocol** (FROST rounds, commitments, signature shares, aggregation),
 - **Transport** (HTTP calls to relayers),
-- **Authorization** (WebAuthn/VRF vs threshold-session JWT),
+- **Authorization** (WebAuthn/SecureConfirm vs threshold-session JWT),
 - **Key material & persistence** (client share derivation + participant metadata).
 
 Concretely:
@@ -143,9 +143,9 @@ Assume participants are:
 - client (holds its secret share in WASM signer worker)
 - relayer[0..n-1] (each holds its secret share server-side)
 
-**Round 0: Authorization (WebAuthn/VRF or session JWT)**
+**Round 0: Authorization (WebAuthn/SecureConfirm or session JWT)**
 - Client authenticates once with the coordinator relayer:
-  - either by presenting WebAuthn/VRF evidence, or
+  - either by presenting WebAuthn/SecureConfirm evidence, or
   - by presenting an existing threshold session JWT/cookie minted at login.
 - Coordinator may either:
   - verify once and then call downstream relayers with an internal trust token, or
@@ -194,8 +194,8 @@ Refactor so that session auth can authorize:
 - multi-party fanout signing (future),
 without changing how signing handlers validate “do we have authorization to sign this digest”.
 
-**VRF warm sessions + threshold signing (requirement)**
-- The client should be able to perform **one** WebAuthn+VRF ceremony with the **coordinator relayer** (typically at login) to mint a threshold session JWT/cookie.
+**SecureConfirm warm sessions + threshold signing (requirement)**
+- The client should be able to perform **one** WebAuthn+SecureConfirm ceremony with the **coordinator relayer** (typically at login) to mint a threshold session JWT/cookie.
 - Subsequent threshold signing should use this session token to authorize signatures **without additional TouchID/WebAuthn prompts**, including in the future **multi-party coordinator** flow.
 - In Option B, only the coordinator needs to validate the client session token; downstream participant relayers should receive a **narrow internal auth grant per signature** (or verify the same session token only when all relayers are within one trust domain and share verification keys).
 
@@ -247,7 +247,7 @@ Add a new suite skeleton for future n-party tests (skipped initially):
   - signer set, digest(s), commitments, and any authorization binding needed for downstream enforcement.
 - [x] Decide downstream auth model:
   - coordinator issues a signed internal auth grant to relayers, or
-  - coordinator forwards WebAuthn/VRF evidence and relayers verify independently.
+  - coordinator forwards WebAuthn/SecureConfirm evidence and relayers verify independently.
 - [x] Add unit tests for relayer-fleet cosigning (2-of-3; mocked downstream).
 
 ### Phase 5 — Docs + migration notes
@@ -257,7 +257,7 @@ Add a new suite skeleton for future n-party tests (skipped initially):
 
 ## Acceptance criteria for this refactor
 - No user-visible regressions in the existing 2P threshold signing flows (tx/delegate/NEP-413).
-- Email recovery + linkDevice + VRF warm sessions continue to enable threshold signing immediately.
+- Email recovery + linkDevice + SecureConfirm warm sessions continue to enable threshold signing immediately.
 - Code paths for FROST rounds are written against `participants[]` and `commitmentsById`, not hard-coded “client vs one relayer”.
 - Adding a second relayer participant should require **adding new implementation**, not rewriting existing modules.
 

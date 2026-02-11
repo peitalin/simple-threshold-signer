@@ -1,7 +1,6 @@
 /**
  * SecureConfirm Worker Manager
  *
- * The legacy VRF WASM worker has been removed from the lite threshold-signer stack.
  * This manager retains the worker/main-thread handshake for SecureConfirm UI orchestration
  * and the PRF.first warm-session cache.
  */
@@ -12,12 +11,12 @@ import type {
   SecureConfirmWorkerResponse,
 } from '../../types/secure-confirm-worker';
 import { BUILD_PATHS } from '../../../../../sdk/build-paths';
-import { resolveWorkerUrl } from '../../sdkPaths';
+import { resolveWorkerUrl } from '../../runtimeAssetPaths';
 import type { TouchIdPrompt } from '../touchIdPrompt';
-import type { NearClient } from '../../NearClient';
+import type { NearClient } from '../../near/NearClient';
 import type { UnifiedIndexedDBManager } from '../../IndexedDBManager';
 import type { UserPreferencesManager } from '../userPreferences';
-import type { NonceManager } from '../../nonceManager';
+import type { NonceManager } from '../../near/nonceManager';
 import {
   SecureConfirmMessageType,
   type SecureConfirmRequest,
@@ -28,7 +27,7 @@ import type { TransactionInputWasm } from '../../types/actions';
 import type { RpcCallPayload, ConfirmationConfig } from '../../types/signer-worker';
 import type { TransactionContext } from '../../types/rpc';
 import type { ThemeName } from '../../types/tatchi';
-import type { RegistrationCredentialConfirmationPayload } from '../SignerWorkerManager/handlers/validation';
+import type { RegistrationCredentialConfirmationPayload } from '../SignerWorkerManager/internal/validation';
 import { handlePromptUserConfirmInJsMainThread } from './confirmTxFlow';
 import type { SecureConfirmWorkerManagerHandlerContext } from './handlers/types';
 import {
@@ -51,7 +50,7 @@ export interface SecureConfirmWorkerManagerContext {
 /**
  * SecureConfirm Worker Manager
  *
- * This worker previously hosted the VRF WASM runtime. In the lite threshold-signer refactor,
+ * This worker previously hosted a legacy challenge WASM runtime. In the lite threshold-signer refactor,
  * the worker only hosts SecureConfirm (confirmTxFlow bridge) and the threshold PRF.first cache.
  */
 export class SecureConfirmWorkerManager {

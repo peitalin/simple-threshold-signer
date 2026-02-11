@@ -1,11 +1,11 @@
-import { MinimalNearClient } from '../../NearClient';
+import { MinimalNearClient } from '../../near/NearClient';
 import { TatchiPasskey } from '../../TatchiPasskey';
 import { __setWalletIframeHostMode } from '../host-mode';
 import { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
 import type { TatchiConfigsInput } from '../../types/tatchi';
 import type { PMSetConfigPayload } from '../shared/messages';
 import { isString } from '../../../../../shared/src/utils/validation';
-import { setEmbeddedBase } from '../../sdkPaths';
+import { setEmbeddedBase } from '../../runtimeAssetPaths';
 import { assertWalletHostConfigsNoNestedIframeWallet, sanitizeWalletHostConfigs } from './config-guards';
 
 export interface HostContext {

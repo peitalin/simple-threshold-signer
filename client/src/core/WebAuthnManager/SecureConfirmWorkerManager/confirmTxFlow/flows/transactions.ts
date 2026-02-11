@@ -18,7 +18,7 @@ import {
 import { toError } from '../../../../../../../shared/src/utils/errors';
 import { createConfirmSession } from '../adapters/session';
 import { createConfirmTxFlowAdapters } from '../adapters/createAdapters';
-import { computeUiIntentDigestFromNep413 } from '../../../../digests/intentDigest';
+import { computeUiIntentDigestFromNep413 } from '../../../../../utils/intentDigest';
 import type { ThemeName } from '../../../../types/tatchi';
 import { collectAuthenticationCredentialForChallengeB64u } from '../../../collectAuthenticationCredentialForChallengeB64u';
 

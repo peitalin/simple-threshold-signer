@@ -6,7 +6,7 @@ const IMPORT_PATHS = {
   clientDb: '/sdk/esm/core/IndexedDBManager/passkeyClientDB.js',
   nearKeysDb: '/sdk/esm/core/IndexedDBManager/passkeyNearKeysDB.js',
   getDeviceNumber: '/sdk/esm/core/WebAuthnManager/SignerWorkerManager/getDeviceNumber.js',
-  signTxs: '/sdk/esm/core/WebAuthnManager/SignerWorkerManager/MultichainAdapter/near/handlers/signTransactionsWithActions.js',
+  signTxs: '/sdk/esm/core/signing/multichain/near/handlers/signTransactionsWithActions.js',
   signerTypes: '/sdk/esm/core/types/signer-worker.js',
   actions: '/sdk/esm/core/types/actions.js',
 } as const;

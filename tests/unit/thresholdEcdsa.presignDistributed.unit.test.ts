@@ -7,13 +7,13 @@ import { alphabetizeStringify, sha256BytesUtf8 } from '../../shared/src/utils/di
 import { base64UrlDecode, base64UrlEncode } from '../../shared/src/utils/encoders';
 import { mapAdditiveShareToThresholdSignaturesShare2p } from '../../shared/src/threshold/secp256k1Ecdsa2pShareMapping';
 import { SECP256K1_ORDER } from '../../shared/src/threshold/secp256k1';
-import { THRESHOLD_SECP256K1_ECDSA_2P_V1_SCHEME_ID } from '../../server/src/server/core/ThresholdService/schemes/schemeIds';
-import { ThresholdEcdsaSigningHandlers } from '../../server/src/server/core/ThresholdService/ecdsaSigningHandlers';
+import { THRESHOLD_SECP256K1_ECDSA_2P_V1_SCHEME_ID } from '../../server/src/core/ThresholdService/schemes/schemeIds';
+import { ThresholdEcdsaSigningHandlers } from '../../server/src/core/ThresholdService/ecdsaSigningHandlers';
 import {
   InMemoryThresholdEcdsaPresignSessionStore,
   InMemoryThresholdEcdsaPresignaturePool,
   InMemoryThresholdEcdsaSigningSessionStore,
-} from '../../server/src/server/core/ThresholdService/stores/EcdsaSigningStore';
+} from '../../server/src/core/ThresholdService/stores/EcdsaSigningStore';
 import {
   ThresholdEcdsaPresignSession,
 } from '../../wasm/eth_signer/pkg/eth_signer.js';

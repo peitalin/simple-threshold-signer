@@ -6,7 +6,7 @@ import {
 } from '../types';
 import type { SecureConfirmSecurityContext, TransactionContext } from '../../../../types';
 import type { WebAuthnRegistrationCredential } from '../../../../types/webauthn';
-import { sha256Base64UrlUtf8 } from '../../../../digests/intentDigest';
+import { sha256Base64UrlUtf8 } from '../../../../../utils/intentDigest';
 import {
   getNearAccountId,
   getIntentDigest,

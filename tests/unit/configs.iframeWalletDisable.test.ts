@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { buildConfigsFromEnv } from '@/core/defaultConfigs';
+import { buildConfigsFromEnv } from '@/core/config/defaultConfigs';
 
 test.describe('buildConfigsFromEnv iframeWallet override semantics', () => {
   test('preserves explicit walletOrigin "" (does not fall back to defaults)', async () => {

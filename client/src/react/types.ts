@@ -41,7 +41,7 @@ import type {
   SigningSessionStatus,
 } from '../core/types/tatchi';
 import type { DeviceLinkingQRData, StartDevice2LinkingFlowArgs } from '../core/types/linkDevice';
-import type { AccessKeyList } from '../core/NearClient';
+import type { AccessKeyList } from '../core/near/NearClient';
 
 // Re-export enums for convenience
 export {

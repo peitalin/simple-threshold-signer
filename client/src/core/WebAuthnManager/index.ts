@@ -7,15 +7,15 @@ import {
 import { StoreUserDataInput } from '../IndexedDBManager/passkeyClientDB';
 import type { ThresholdEd25519_2p_V1Material } from '../IndexedDBManager/passkeyNearKeysDB';
 import { buildThresholdEd25519Participants2pV1 } from '../../../../shared/src/threshold/participants';
-import { type NearClient, SignedTransaction } from '../NearClient';
+import { type NearClient, SignedTransaction } from '../near/NearClient';
 import { SignerWorkerManager } from './SignerWorkerManager';
 import { SecureConfirmWorkerManager } from './SecureConfirmWorkerManager';
 import { AllowCredential, TouchIdPrompt } from './touchIdPrompt';
 import { toAccountId } from '../types/accountIds';
 import { UserPreferencesManager } from './userPreferences';
 import UserPreferencesInstance from './userPreferences';
-import { NonceManager } from '../nonceManager';
-import NonceManagerInstance from '../nonceManager';
+import { NonceManager } from '../near/nonceManager';
+import NonceManagerInstance from '../near/nonceManager';
 import { ActionType, type ActionArgsWasm, type TransactionInputWasm } from '../types/actions';
 import type {
   RegistrationEventStep3,
@@ -43,20 +43,20 @@ import {
 } from '../types/signer-worker';
 import { WebAuthnRegistrationCredential, WebAuthnAuthenticationCredential } from '../types';
 import { RegistrationCredentialConfirmationPayload } from './SignerWorkerManager/internal/validation';
-import { resolveWorkerBaseOrigin, onEmbeddedBaseChange } from '../sdkPaths';
+import { resolveWorkerBaseOrigin, onEmbeddedBaseChange } from '../runtimeAssetPaths';
 import { DEFAULT_WAIT_STATUS, type TransactionContext } from '../types/rpc';
 import { getLastLoggedInDeviceNumber } from './SignerWorkerManager/getDeviceNumber';
 import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
-import { hasAccessKey } from '../rpcCalls';
+import { hasAccessKey } from '../near/rpcCalls';
 import { ensureEd25519Prefix } from '../../../../shared/src/utils/validation';
-import { enrollThresholdEd25519KeyHandler } from '../threshold/workflows/enrollThresholdEd25519Key';
-import { rotateThresholdEd25519KeyPostRegistrationHandler } from '../threshold/workflows/rotateThresholdEd25519KeyPostRegistration';
-import { connectThresholdEd25519SessionLite } from '../threshold/workflows/connectThresholdEd25519SessionLite';
-import { keygenThresholdEcdsaLite } from '../threshold/workflows/keygenThresholdEcdsaLite';
-import { connectThresholdEcdsaSessionLite } from '../threshold/workflows/connectThresholdEcdsaSessionLite';
+import { enrollThresholdEd25519KeyHandler } from '../signing/schemes/threshold/workflows/enrollThresholdEd25519Key';
+import { rotateThresholdEd25519KeyPostRegistrationHandler } from '../signing/schemes/threshold/workflows/rotateThresholdEd25519KeyPostRegistration';
+import { connectThresholdEd25519SessionLite } from '../signing/schemes/threshold/workflows/connectThresholdEd25519SessionLite';
+import { keygenThresholdEcdsaLite } from '../signing/schemes/threshold/workflows/keygenThresholdEcdsaLite';
+import { connectThresholdEcdsaSessionLite } from '../signing/schemes/threshold/workflows/connectThresholdEcdsaSessionLite';
 import { collectAuthenticationCredentialForChallengeB64u } from './collectAuthenticationCredentialForChallengeB64u';
 import { computeThresholdEd25519KeygenIntentDigest } from '../../utils/intentDigest';
-import { deriveNearKeypairFromPrfSecondB64u } from '../nearCrypto';
+import { deriveNearKeypairFromPrfSecondB64u } from '../near/nearCrypto';
 import { runSecureConfirm } from './SecureConfirmWorkerManager/secureConfirmBridge';
 import {
   SecureConfirmationType,
@@ -66,9 +66,9 @@ import {
 import type {
   TempoSecp256k1SigningRequest,
   TempoSigningRequest,
-} from './SignerWorkerManager/MultichainAdapter/tempo/types';
-import type { TempoSignedResult } from './SignerWorkerManager/MultichainAdapter/tempo/tempoAdapter';
-import type { ThresholdEcdsaSecp256k1KeyRef } from '../multichain/types';
+} from '../signing/multichain/tempo/types';
+import type { TempoSignedResult } from '../signing/multichain/tempo/tempoAdapter';
+import type { ThresholdEcdsaSecp256k1KeyRef } from '../signing/orchestration/types';
 
 type ThresholdEcdsaKeygenLiteResult = Awaited<ReturnType<typeof keygenThresholdEcdsaLite>>;
 type ThresholdEcdsaSessionLiteResult = Awaited<ReturnType<typeof connectThresholdEcdsaSessionLite>>;
@@ -594,7 +594,7 @@ export class WebAuthnManager {
     onEvent?: (update: onProgressEvents) => void;
     sessionId?: string;
   }): Promise<SignTransactionResult[]> {
-    const { signNearWithSecureConfirm } = await import('./SignerWorkerManager/MultichainAdapter/near/walletOrigin');
+    const { signNearWithSecureConfirm } = await import('../signing/multichain/near/walletOrigin');
     const signingSessionPolicy = this.resolveSigningSessionPolicy({});
     const resolvedSessionId =
       String(sessionId || '').trim() ||
@@ -851,9 +851,9 @@ export class WebAuthnManager {
 
     const [{ signTempoWithSecureConfirm }, { Secp256k1Engine }, { WebAuthnP256Engine }] =
       await Promise.all([
-        import('./SignerWorkerManager/MultichainAdapter/tempo/handlers/signTempoWithSecureConfirm'),
-        import('../multichain/engines/secp256k1'),
-        import('../multichain/engines/webauthnP256'),
+        import('../signing/multichain/shared/orchestrator'),
+        import('../signing/multichain/engines/secp256k1'),
+        import('../signing/multichain/engines/webauthnP256'),
       ]);
 
     const ctx = this.secureConfirmWorkerManager.getContext();
@@ -1209,7 +1209,7 @@ export class WebAuthnManager {
     if (schemes.includes('secp256k1')) {
       const prfSecondB64u = this.extractPrfSecondB64u(credential);
       const { deriveSecp256k1KeypairFromPrfSecondB64u } = await import(
-        '../multichain/evm/deriveSecp256k1KeypairFromPrfSecond'
+        '../signing/multichain/evm/deriveSecp256k1KeypairFromPrfSecond'
       );
       const derived = deriveSecp256k1KeypairFromPrfSecondB64u({
         prfSecondB64u,

@@ -5,7 +5,7 @@ import { isObject, assertString } from '../../../../../../shared/src/utils/valid
 import { DelegateActionInput } from '../../../types/delegate';
 import { base58Encode } from '../../../../../../shared/src/utils/base58';
 
-import { ensureEd25519Prefix } from '../../../nearCrypto';
+import { ensureEd25519Prefix } from '../../../near/nearCrypto';
 export { ensureEd25519Prefix };
 
 export const toPublicKeyString = (pk: DelegateActionInput['publicKey']): string => {

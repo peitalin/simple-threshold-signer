@@ -1,6 +1,6 @@
 import { TatchiPasskey } from '@/core/TatchiPasskey';
-import { buildConfigsFromEnv } from '@/core/defaultConfigs';
-import type { NearClient } from '@/core/NearClient';
+import { buildConfigsFromEnv } from '@/core/config/defaultConfigs';
+import type { NearClient } from '@/core/near/NearClient';
 import type { TatchiConfigs, TatchiConfigsInput } from '@/core/types/tatchi';
 
 // Singleton to prevent multiple manager instances in StrictMode and across HMR/module duplication.

@@ -1,4 +1,4 @@
-import type { SignerWorkerManagerContext } from '..';
+import type { MultichainSignerRuntimeDeps } from '../../../signing/multichain/shared/types';
 import {
   WorkerRequestType,
   WorkerResponseType,
@@ -6,7 +6,7 @@ import {
 } from '../../../types/signer-worker';
 
 export async function deriveThresholdEd25519ClientVerifyingShare(args: {
-  ctx: SignerWorkerManagerContext;
+  ctx: MultichainSignerRuntimeDeps;
   sessionId: string;
   nearAccountId: string;
   prfFirstB64u: string;

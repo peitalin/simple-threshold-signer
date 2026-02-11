@@ -3,7 +3,7 @@
 import type { AuthenticatorOptions } from '@server';
 import type { WalletUIRegistry } from '../host/lit-ui/iframe-lit-element-registry';
 import type { EmailRecoveryContracts } from '../../types/tatchi';
-import { SignedTransaction } from '../../NearClient';
+import { SignedTransaction } from '../../near/NearClient';
 import {
   ActionArgs,
   TransactionInput
@@ -12,8 +12,8 @@ import { type DeviceLinkingQRData } from '../../types/linkDevice';
 import type { DelegateActionInput } from '../../types/delegate';
 import type { ConfirmationConfig } from '../../types/signer-worker';
 import type { SignerMode } from '../../types/signer-worker';
-import type { TempoSigningRequest } from '../../multichain/tempo/types';
-import type { ThresholdEcdsaSecp256k1KeyRef } from '../../multichain/types';
+import type { TempoSigningRequest } from '../../signing/multichain/tempo/types';
+import type { ThresholdEcdsaSecp256k1KeyRef } from '../../signing/orchestration/types';
 
 export type WalletProtocolVersion = '1.0.0';
 

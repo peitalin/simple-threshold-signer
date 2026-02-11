@@ -308,6 +308,7 @@ name = "eth_signer"
 version = "0.1.0"
 dependencies = [
  "getrandom",
+ "hkdf",
  "js-sys",
  "k256",
  "num-bigint",
@@ -315,6 +316,7 @@ dependencies = [
  "rand_core",
  "serde",
  "serde-wasm-bindgen",
+ "sha2",
  "sha3",
  "threshold-signatures",
  "wasm-bindgen",

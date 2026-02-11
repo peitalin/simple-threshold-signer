@@ -5,17 +5,13 @@ export {
   type NearClient,
   MinimalNearClient,
   encodeSignedTransactionBase64
-} from './core/NearClient';
-export { createWebAuthnLoginOptions, verifyWebAuthnLogin } from './core/rpcCalls';
+} from './core/near/NearClient';
+export { createWebAuthnLoginOptions, verifyWebAuthnLogin } from './core/near/rpcCalls';
 
 export * from './config';
 export { base64UrlEncode, base64UrlDecode } from '@shared/utils/encoders';
-export { PASSKEY_MANAGER_DEFAULT_CONFIGS } from './core/defaultConfigs';
-export { buildConfigsFromEnv } from './core/defaultConfigs';
-
-///////////////////////////////////////////////////////////////
-// === Types re-exported from various type definition files ===
-///////////////////////////////////////////////////////////////
+export { PASSKEY_MANAGER_DEFAULT_CONFIGS } from './core/config/defaultConfigs';
+export { buildConfigsFromEnv } from './core/config/defaultConfigs';
 
 export type {
   TatchiConfigs,
@@ -93,5 +89,40 @@ export type {
   ConfirmationBehavior,
 } from './core/types/signer-worker';
 
-// Experimental: multichain adapter/engine scaffold (post-lite).
-export * from './core/multichain';
+// Experimental: signing adapter/engine scaffold (post-lite).
+export * from './core/signing/orchestration/types';
+export * from './core/signing/multichain/engines/secp256k1';
+export * from './core/signing/multichain/engines/webauthnP256';
+export * from './core/signing/orchestration/walletOrigin/thresholdEcdsaCoordinator';
+export * from './core/signing/orchestration/walletOrigin/webauthnKeyRef';
+export * from './core/signing/multichain/coseP256';
+export * from './core/signing/multichain/near/nearAdapter';
+export * from './core/signing/multichain/near/walletOrigin';
+export * from './core/signing/multichain/tempo/types';
+export * from './core/signing/multichain/tempo/tempoAdapter';
+export { signTempoWithSecureConfirm } from './core/signing/multichain/tempo/handlers/signTempoWithSecureConfirm';
+
+// Threshold/lite APIs consolidated into the root SDK entrypoint.
+export { keygenThresholdEd25519Lite } from './core/signing/schemes/threshold/workflows/keygenThresholdEd25519Lite';
+export { keygenThresholdEcdsaLite } from './core/signing/schemes/threshold/workflows/keygenThresholdEcdsaLite';
+export { connectThresholdEd25519SessionLite } from './core/signing/schemes/threshold/workflows/connectThresholdEd25519SessionLite';
+export { connectThresholdEcdsaSessionLite } from './core/signing/schemes/threshold/workflows/connectThresholdEcdsaSessionLite';
+export { authorizeThresholdEcdsaWithSession } from './core/signing/schemes/threshold/workflows/thresholdEcdsaAuthorize';
+export {
+  thresholdEcdsaPresignInit,
+  thresholdEcdsaPresignStep,
+  thresholdEcdsaSignInit,
+  thresholdEcdsaSignFinalize,
+} from './core/signing/schemes/threshold/workflows/thresholdEcdsaSigning';
+export {
+  THRESHOLD_SESSION_POLICY_VERSION,
+  buildThresholdSessionPolicy,
+  buildThresholdEcdsaSessionPolicy,
+  computeThresholdSessionPolicyDigest32,
+  computeThresholdEcdsaSessionPolicyDigest32,
+  type ThresholdEd25519SessionPolicy,
+  type ThresholdEcdsaSessionPolicy,
+} from './core/signing/schemes/threshold/session/thresholdSessionPolicy';
+export { PRF_FIRST_SALT_V1, PRF_SECOND_SALT_V1 } from './core/signing/schemes/threshold/crypto/prfSalts';
+export { computeThresholdEd25519KeygenIntentDigest } from './utils/intentDigest';
+export { computeThresholdEcdsaKeygenIntentDigest } from './utils/intentDigest';

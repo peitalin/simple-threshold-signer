@@ -55,7 +55,7 @@ import {
   type ProgressPayload,
   type PreferencesChangedPayload,
 } from '../shared/messages';
-import { SignedTransaction } from '../../NearClient';
+import { SignedTransaction } from '../../near/NearClient';
 import { OnEventsProgressBus, defaultPhaseHeuristics } from './progress/on-events-progress-bus';
 import type {
   ActionSSEEvent,
@@ -87,9 +87,12 @@ import type {
   SignTransactionResult,
   EmailRecoveryContracts,
 } from '../../types/tatchi';
-import type { TempoSecp256k1SigningRequest, TempoSigningRequest } from '../../multichain/tempo/types';
-import type { TempoSignedResult } from '../../multichain/tempo/tempoAdapter';
-import type { ThresholdEcdsaSecp256k1KeyRef } from '../../multichain/types';
+import type {
+  TempoSecp256k1SigningRequest,
+  TempoSigningRequest,
+} from '../../signing/multichain/tempo/types';
+import type { TempoSignedResult } from '../../signing/multichain/tempo/tempoAdapter';
+import type { ThresholdEcdsaSecp256k1KeyRef } from '../../signing/orchestration/types';
 import type { ThresholdEcdsaSessionBootstrapResult } from '../../WebAuthnManager';
 import type { LinkDeviceResult, StartDevice2LinkingFlowArgs, StartDevice2LinkingFlowResults, DeviceLinkingQRData } from '../../types/linkDevice';
 import type { SyncAccountResult } from '../../TatchiPasskey/syncAccount';
@@ -106,10 +109,10 @@ import type { WalletUIRegistry } from '../host/lit-ui/iframe-lit-element-registr
 import { toError } from '../../../../../shared/src/utils/errors';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
 import { mergeSignerMode, type ConfirmationConfig, type SignerMode } from '../../types/signer-worker';
-import type { AccessKeyList } from '../../NearClient';
+import type { AccessKeyList } from '../../near/NearClient';
 import type { SignNEP413MessageResult } from '../../TatchiPasskey/signNEP413';
 import type { DerivedAddressRecord } from '../../IndexedDBManager';
-import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../../defaultConfigs';
+import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../../config/defaultConfigs';
 
 // Simple, framework-agnostic service iframe client.
 // Responsibilities split:

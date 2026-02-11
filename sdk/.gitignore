@@ -1,7 +1,5 @@
 /node_modules
 /dist
-test-results/
-playwright-report/
 
 # Generated TypeScript declaration files
 build-paths.d.ts

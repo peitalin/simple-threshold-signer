@@ -13,7 +13,7 @@ const CLIENT_SRC_ROOT_ABS = path.resolve(SDK_ROOT_ABS, '../client/src');
 const CLIENT_REACT_ROOT_ABS = path.resolve(SDK_ROOT_ABS, '../client/src/react');
 const CLIENT_CHAINSIGS_ROOT_ABS = path.resolve(SDK_ROOT_ABS, '../client/src/chainsigs');
 const CLIENT_PLUGINS_ROOT_ABS = path.resolve(SDK_ROOT_ABS, '../client/src/plugins');
-const SERVER_SRC_ROOT_ABS = path.resolve(SDK_ROOT_ABS, '../server/src/server');
+const SERVER_SRC_ROOT_ABS = path.resolve(SDK_ROOT_ABS, '../server/src');
 const NEAR_SIGNER_WASM_JS_ABS = path.resolve(
   SDK_ROOT_ABS,
   '../wasm/near_signer/pkg/wasm_signer_worker.js',
@@ -119,8 +119,8 @@ const aliasConfig = {
   '@build-paths': path.resolve(SDK_ROOT_ABS, 'build-paths.ts'),
   '@/*': path.resolve(SDK_ROOT_ABS, '../client/src/*'),
   '@shared/*': path.resolve(SDK_ROOT_ABS, '../shared/src/*'),
-  '@server': path.resolve(SDK_ROOT_ABS, '../server/src/server/index.ts'),
-  '@server/*': path.resolve(SDK_ROOT_ABS, '../server/src/server/*'),
+  '@server': path.resolve(SDK_ROOT_ABS, '../server/src/index.ts'),
+  '@server/*': path.resolve(SDK_ROOT_ABS, '../server/src/*'),
 };
 
 // Static assets expected to be served under `/sdk/*` by hosts.
@@ -378,7 +378,6 @@ const configs = [
   {
     input: [
       '../client/src/index.ts',
-      '../client/src/lite/index.ts',
       // Treat this as an entry so Rolldown doesn't tree-shake its re-exported WASM enums.
       // Tests (and some internal tools) import `core/types/signer-worker` directly.
       '../client/src/core/types/signer-worker.ts',
@@ -397,7 +396,7 @@ const configs = [
   },
   // Server ESM build
   {
-    input: '../server/src/server/index.ts',
+    input: '../server/src/index.ts',
     output: {
       dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',
@@ -456,7 +455,7 @@ const configs = [
   },
   // Express router helper ESM bundle
   {
-    input: '../server/src/server/router/express-adaptor.ts',
+    input: '../server/src/router/express-adaptor.ts',
     output: {
       dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',
@@ -470,7 +469,7 @@ const configs = [
   },
   // Cloudflare Workers router adaptor ESM bundle
   {
-    input: '../server/src/server/router/cloudflare-adaptor.ts',
+    input: '../server/src/router/cloudflare-adaptor.ts',
     output: {
       dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',
@@ -484,7 +483,7 @@ const configs = [
   },
   // WASM signer re-export ESM
   {
-    input: '../server/src/server/wasm/signer.ts',
+    input: '../server/src/wasm/signer.ts',
     output: {
       dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',

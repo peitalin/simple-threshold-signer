@@ -22,7 +22,7 @@ extra requirements and limitations compared to the Express example.
 
 - The signer worker WASM is imported directly from the package sources
   (`import signerWasmModule from '@tatchi-xyz/sdk/server/wasm/signer'` and
-  `import shamirWasmModule from '@tatchi-xyz/sdk/server/wasm/vrf'`).
+  `import shamirWasmModule from '@tatchi-xyz/sdk/server/wasm/signer'`).
   Wrangler bundles the referenced files automatically; no `[wasm_modules]`
   section is required in `wrangler.toml`.
 - Do **not** try to `fetch` the WASM from an arbitrary URL at runtime. Workers

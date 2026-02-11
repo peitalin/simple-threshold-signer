@@ -18,10 +18,13 @@ import {
   type NearClient,
   type SignedTransaction,
   type AccessKeyList,
-} from '../NearClient';
-import type { TempoSecp256k1SigningRequest, TempoSigningRequest } from '../multichain/tempo/types';
-import type { TempoSignedResult } from '../multichain/tempo/tempoAdapter';
-import type { ThresholdEcdsaSecp256k1KeyRef } from '../multichain/types';
+} from '../near/NearClient';
+import type {
+  TempoSecp256k1SigningRequest,
+  TempoSigningRequest,
+} from '../signing/multichain/tempo/types';
+import type { TempoSignedResult } from '../signing/multichain/tempo/tempoAdapter';
+import type { ThresholdEcdsaSecp256k1KeyRef } from '../signing/orchestration/types';
 import type {
   ActionResult,
   DelegateRelayResult,
@@ -57,8 +60,8 @@ import { DEFAULT_AUTHENTICATOR_OPTIONS } from '../types/authenticatorOptions';
 import { toAccountId, type AccountId } from '../types/accountIds';
 import type { DerivedAddressRecord } from '../IndexedDBManager';
 import { configureIndexedDB, IndexedDBManager } from '../IndexedDBManager';
-import { prepareRecoveryEmails, getLocalRecoveryEmails } from '../EmailRecovery';
-import { chainsigAddressManager } from '../ChainsigAddressManager';
+import { prepareRecoveryEmails, getLocalRecoveryEmails } from '../../utils/emailRecovery';
+import { chainsigAddressManager } from '../../utils/chainsigAddressManager';
 import { ActionType, type ActionArgs, type TransactionInput } from '../types/actions';
 import type {
   DeviceLinkingQRData,
@@ -78,7 +81,7 @@ import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
 import { toError } from '../../../../shared/src/utils/errors';
 import { coerceThemeName } from '../../../../shared/src/utils/theme';
 import type { DelegateActionInput } from '../types/delegate';
-import { buildConfigsFromEnv } from '../defaultConfigs';
+import { buildConfigsFromEnv } from '../config/defaultConfigs';
 import { LinkDeviceFlow } from './linkDevice';
 import { linkDeviceWithScannedQRData as linkDeviceWithScannedQRDataDevice1 } from './scanDevice';
 import { EmailRecoveryFlow } from './emailRecovery';

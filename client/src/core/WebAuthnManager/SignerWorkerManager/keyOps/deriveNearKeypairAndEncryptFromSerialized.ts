@@ -10,7 +10,7 @@ import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { SignerWorkerManagerContext } from '..';
 import type { WebAuthnRegistrationCredential } from '../../../types/webauthn';
 import { toEnumUserVerificationPolicy } from '../../../types/authenticatorOptions';
-import { withSessionId } from './session';
+import { withSessionId } from '../internal/session';
 import { base64UrlEncode } from '../../../../../../shared/src/utils/encoders';
 
 /**

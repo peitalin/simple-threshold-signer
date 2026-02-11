@@ -1,20 +1,20 @@
-# Lite Signer Refactor — Threshold-Only SDK (No VRF)
+# Lite Signer Refactor — Threshold-Only SDK (No Legacy Challenge Worker)
 
-This plan replaces the current VRF-centric client architecture with a **threshold-signing-focused SDK** that uses **standard WebAuthn challenge/response** minted and verified by the **server/relay**. The goal is to keep the client small, explicit, and relay-compatible while removing `wasm_vrf_worker` + `vrf-wasm` entirely.
+This plan replaces the current legacy-challenge-centric client architecture with a **threshold-signing-focused SDK** that uses **standard WebAuthn challenge/response** minted and verified by the **server/relay**. The goal is to keep the client small, explicit, and relay-compatible while removing `wasm_secureconfirm_worker` + `secureconfirm-wasm` entirely.
 
-This is intended to be the **threshold signer for a neobanking app**, operated as a **regulated, compliant exchange**. In production, the **relay is the system of record** and must store **WebAuthn authenticators + signature counters privately** (not on-chain).
+This is intended to be the **threshold signer for a banking app**, operated as a **regulated, compliant exchange**. In production, the **relay is the system of record** and must store **WebAuthn authenticators + signature counters privately** (not on-chain).
 
 ## Requirements
-- **Hard cutover (no legacy, no migration)**: breaking change; delete/disable VRF-based flows, Shamir, and any “dual path” compatibility. Re-registration/re-onboarding is required; the old system is treated as archived.
+- **Hard cutover (no legacy, no migration)**: breaking change; delete/disable legacy challenge-based flows, Shamir, and any “dual path” compatibility. Re-registration/re-onboarding is required; the old system is treated as archived.
 - **Threshold signing first**: support 2-party threshold Ed25519 signing (client ↔ relay) for NEAR tx signing (optional: NEP-461 + NEP-413 as follow-ons).
-- **No VRF**: remove `wasm_vrf_worker`/`vrf-wasm` and any VRF-WebAuthn/confirmTxFlow coupling from the “lite” path.
-- **No Shamir 3-pass**: remove/avoid Shamir “server-lock” flows and key-rotation tooling used to reconstruct/unlock legacy VRF key material.
+- **No legacy challenge worker**: remove `wasm_secureconfirm_worker`/`secureconfirm-wasm` and any legacy challenge/confirmTxFlow coupling from the “lite” path.
+- **No Shamir 3-pass**: remove/avoid Shamir “server-lock” flows and key-rotation tooling used to reconstruct/unlock legacy challenge key material.
 - **Standard WebAuthn auth**: server-minted challenge → `navigator.credentials.get(...)` assertion → server verification → session/token issuance.
 - **WASM-first signing + crypto**: all low-level cryptography (hashing/signature ops) and transaction serialization/signing must run inside **WASM web workers**, not JS. JS is orchestration + UI only.
   - Target signer modules (lazily loaded): `near_signer.wasm`, `eth_signer.wasm`, `tempo_signer.wasm` (Tempo “wam” typo in notes should be treated as `.wasm`).
   - Constraint: WebAuthn itself is browser/OS-managed; we can’t “move” passkey signing into WASM, but we can keep all tx hashing/encoding and any non-WebAuthn signature logic in WASM workers.
 - **Compliance / privacy**: store authenticators + counters privately in relay storage (encrypted at rest + access-controlled); do not rely on on-chain authenticator registries for verification.
-- **Relay cutover**: keep the same threshold route family (`/threshold-ed25519/*`) but switch auth to standard WebAuthn; do not maintain VRF variants long-term.
+- **Relay cutover**: keep the same threshold route family (`/threshold-ed25519/*`) but switch auth to standard WebAuthn; do not maintain legacy challenge variants long-term.
 - **Keep wallet origin boundary**: retain the cross-origin wallet iframe (or extension) so app-origin code cannot read PRF outputs or derived secrets.
 - **Small surface area**: minimal, typed API; avoid bundling UI into the app origin.
 
@@ -22,18 +22,18 @@ This is intended to be the **threshold signer for a neobanking app**, operated a
 - In:
   - Threshold signing flows (authorize + 2-round FROST signing) and minimal NEAR tx serialization/broadcast plumbing.
   - WebAuthn login/session + (optional) per-intent authorization via relay-issued challenges.
-  - Product flows required by the neobanking app: `emailRecovery`, `linkDevice`, and `syncAccounts` — reimplemented on the threshold-signer stack (VRF-free, relay-private storage).
+  - Product flows required by the neobanking app: `emailRecovery`, `linkDevice`, and `syncAccounts` — reimplemented on the threshold-signer stack (legacy-challenge-free, relay-private storage).
   - Dependency/bundle-size budgets and an example app.
 - Out:
-  - VRF proofs, VRF sessions, VRF-derived challenges, Shamir 3-pass wrapping/unlock, and any “VRF-first” implementations of product flows (legacy email recovery/device linking/account sync).
+  - Legacy challenge proofs, legacy challenge sessions, legacy challenge-derived challenges, Shamir 3-pass wrapping/unlock, and any “legacy-challenge-first” implementations of product flows (legacy email recovery/device linking/account sync).
   - Local signer mode for day-to-day signing (decrypting/storing `near_sk`), and any “export UX” bundled into the lite signer.
   - Heavy UI frameworks/components in the app origin (React/Lit). Keep wallet-iframe UI minimal and purpose-built (SecureConfirm + export).
 
 ## Current status (repo)
-- VRF WASM removed from the build; the `web3authn-vrf.worker` bundle is now SecureConfirm + in-worker PRF.first warm-session cache/bridge.
-- SecureConfirm (confirmTxFlow) is VRF-free and uses standard WebAuthn challenge/response.
+- Legacy challenge WASM removed from the build; the `web3authn-secureconfirm.worker` bundle is now SecureConfirm + in-worker PRF.first warm-session cache/bridge.
+- SecureConfirm (confirmTxFlow) is legacy-challenge-free and uses standard WebAuthn challenge/response.
 - Threshold `/threshold-ed25519/session` is standard-WebAuthn verified and mints JWT/cookie sessions (“lite”).
-- `@tatchi-xyz/sdk/lite` export exists for lite-only imports (package split to `@tatchi-xyz/lite-signer` can follow).
+- Lite helpers are exported from the root `@tatchi-xyz/sdk` entrypoint.
 - `PRF_FIRST_SALT_V1` / `PRF_SECOND_SALT_V1` and HKDF v1 share derivation are implemented.
 - Wallet-iframe “last logged-in user” is scoped by embedding app origin (regression covered).
 - Atomic registration (`POST /create_account_and_register_user`) creates accounts as subaccounts of the relay signer (`RELAYER_ACCOUNT_ID`) and requires `new_account_id` to match that postfix.
@@ -43,12 +43,12 @@ This is intended to be the **threshold signer for a neobanking app**, operated a
   - `@tatchi-xyz/sdk/react` exports `DeviceLinkingPhase`/`Status` (and related `SyncAccount*`/`EmailRecovery*` enums + SSE event types) for app-side progress handling.
   - `@tatchi-xyz/sdk/react/profile` `AccountMenuButton` supports device-linking scan UX via `deviceLinkingScannerParams` (camera scan when available + manual paste fallback).
   - `useTheme()` optionally exposes `setTheme` when the host app controls theme via `TatchiPasskeyProvider theme={{ theme, setTheme }}`.
-- `examples/tatchi-docs` updated to post-VRF APIs and typechecks cleanly (`npx tsc -p examples/tatchi-docs/tsconfig.json --noEmit`).
+- `examples/tatchi-docs` updated to post-SecureConfirm APIs and typechecks cleanly (`npx tsc -p examples/tatchi-docs/tsconfig.json --noEmit`).
 
 ## Repo folder map (lite signer)
 - Source lives under `client/src` (SDK builds are bundled from there via `sdk/`).
-- Lite entrypoint: `client/src/lite/index.ts` → exported as `@tatchi-xyz/sdk/lite`.
-- Threshold helpers: `client/src/core/threshold/*` (PRF salts, session policy, keygen/session helpers).
+- Lite helpers live under `client/src/core/signing/schemes/threshold/*` and are exported from `client/src/index.ts`.
+- Threshold helpers: `client/src/core/signing/schemes/threshold/*` (PRF salts, session policy, keygen/session helpers).
 - SecureConfirm worker types: `client/src/core/types/secure-confirm-worker.ts`.
 - Wallet-origin UI/bridge: `client/src/core/WalletIframe/*`.
 
@@ -87,9 +87,9 @@ This is intended to be the **threshold signer for a neobanking app**, operated a
    - Ensure PRF outputs never cross origins (wallet-iframe ↔ app); only return public results (signatures, public keys, status).
    - Keep user-visible approval (SecureConfirm) on the wallet origin to prevent silent signing initiated by app-origin code.
 5. **Intent digest schema**:
-   - Use the existing canonical digest schema from `client/src/core/digests/intentDigest.ts` (same JSON shapes + `alphabetizeStringify` + sha256 → base64url).
+   - Use the existing canonical digest schema from `client/src/utils/intentDigest.ts` (same JSON shapes + `alphabetizeStringify` + sha256 → base64url).
 6. **No migration/legacy support**:
-   - Delete VRF/Shamir paths and do not maintain compatibility request shapes or UI flows.
+   - Delete SecureConfirm/Shamir paths and do not maintain compatibility request shapes or UI flows.
    - A user must re-onboard on the new protocol; the old repo is treated as archived.
 
 ## Proposed client API (TS)
@@ -136,7 +136,7 @@ Keep the relay as the verifier and policy authority.
   - request `/threshold-ed25519/authorize` (or `/session`) and run `/sign/init` ↔ `/sign/finalize`,
   - build signed NEAR transactions and optionally broadcast to RPC.
 - SecureConfirm bridge:
-  - Replace the VRF WASM worker with a minimal “SecureConfirm worker” that exposes `awaitSecureConfirmationV2` and forwards requests to the wallet-iframe main thread for UI + user gesture.
+  - Replace the SecureConfirm WASM worker with a minimal “SecureConfirm worker” that exposes `awaitSecureConfirmationV2` and forwards requests to the wallet-iframe main thread for UI + user gesture.
 
 ## Phased implementation checklist
 
@@ -146,29 +146,29 @@ Keep the relay as the verifier and policy authority.
 - [x] NEAR escape hatch: derive backup key from `PRF.second` and submit `AddKey(backup_pub_key)` (non-custodial).
 - [x] Document the lite signer SDK/relay contract (types + API + example usage) in this plan.
 
-### Phase 1 — Package boundaries (no VRF, no Shamir)
-- [x] Add a new workspace package for the lite SDK (or refactor `sdk` with a separate `lite` export) with a strict dependency boundary that excludes VRF WASM and Shamir 3-pass.
-- [x] Remove `wasm_vrf_worker` from the build (delete crate + remove Rolldown/build-script/package-export references).
+### Phase 1 — Package boundaries (no legacy challenge worker, no Shamir)
+- [x] Add a new workspace package for the lite SDK (or refactor `sdk` with a separate `lite` export) with a strict dependency boundary that excludes legacy challenge WASM and Shamir 3-pass.
+- [x] Remove `wasm_secureconfirm_worker` from the build (delete crate + remove Rolldown/build-script/package-export references).
 - [x] Remove Shamir 3-pass from the **server/relay** (AuthService config + routes + examples).
-- [x] Remove Shamir 3-pass from the **client** (delete `shamir3pass` configs, VRF wrapping/unlock flows, and any UI/docs tied to it).
-- [x] Remove offline-export precache references to VRF WASM (no longer shipped).
+- [x] Remove Shamir 3-pass from the **client** (delete `shamir3pass` configs, legacy challenge wrapping/unlock flows, and any UI/docs tied to it).
+- [x] Remove offline-export precache references to legacy challenge WASM (no longer shipped).
 
-### Phase 2 — SecureConfirm-only worker (replace VRF worker)
-- [x] Refactor the VRF worker bundle into a SecureConfirm-only worker (delete VRF WASM dependency; keep `awaitSecureConfirmationV2` plumbing).
-- [x] Make SecureConfirm signing prompts VRF-free (WebAuthn challenge = `sessionPolicyDigest32` or `intentDigest`; no VRF proof generation).
+### Phase 2 — SecureConfirm-only worker (replace legacy challenge worker)
+- [x] Refactor the SecureConfirm worker bundle into a SecureConfirm-only worker (delete legacy challenge WASM dependency; keep `awaitSecureConfirmationV2` plumbing).
+- [x] Make SecureConfirm signing prompts legacy-challenge-free (WebAuthn challenge = `sessionPolicyDigest32` or `intentDigest`; no legacy challenge proof generation).
 - [ ] Ensure SecureConfirm UI stays wallet-origin-only, minimal, and intent-driven (no app-origin UI dependency).
 - [x] Cache `PRF.first` in-memory inside the SecureConfirm worker for the session TTL/remaining-uses window (mirror the legacy warm-session caching behavior) and dispense it to signer workers.
-- [x] Rename “VRF” types/paths to “SecureConfirm” (follow-up cleanup; no compatibility shim).
-  - [x] Remove `vrfChallenge` from SecureConfirm decision payloads; rely on WebAuthn `clientDataJSON.challenge` where needed.
-  - [x] Replace `client/src/core/types/vrf-worker.ts` with `client/src/core/types/secure-confirm-worker.ts` and migrate the SecureConfirm worker manager to use it.
-  - [x] Rename wallet-iframe status APIs from `onVrfStatusChanged`/`clearVrfSession` to `onLoginStatusChanged`/`logout`.
-  - [x] Remove remaining `VRFChallenge` usage in client types and delete legacy VRF worker handlers.
+- [x] Rename legacy challenge types/paths to “SecureConfirm” (follow-up cleanup; no compatibility shim).
+  - [x] Remove `secureconfirmChallenge` from SecureConfirm decision payloads; rely on WebAuthn `clientDataJSON.challenge` where needed.
+  - [x] Replace `client/src/core/types/secureconfirm-worker.ts` with `client/src/core/types/secure-confirm-worker.ts` and migrate the SecureConfirm worker manager to use it.
+  - [x] Rename wallet-iframe status APIs from `onLegacyChallengeStatusChanged`/`clearLegacyChallengeSession` to `onLoginStatusChanged`/`logout`.
+  - [x] Remove remaining `LegacyChallenge` usage in client types and delete legacy challenge worker handlers.
 
 ### Phase 3 — Standard WebAuthn auth (relay challenge/response)
 - [x] Add lite WebAuthn verification for `POST /threshold-ed25519/session` (standard assertion verified by relay; challenge = `sessionPolicyDigest32`).
 - [x] Extend `/threshold-ed25519/session` routers to mint JWT/cookie for lite requests.
-- [x] Add client helper `mintThresholdEd25519AuthSessionLite(...)` (no VRF payload; PRF outputs redacted before network).
-- [x] Hard cutover: remove VRF variants from `/threshold-ed25519/session` request types and server branching.
+- [x] Add client helper `mintThresholdEd25519AuthSessionLite(...)` (no legacy challenge payload; PRF outputs redacted before network).
+- [x] Hard cutover: remove legacy challenge variants from `/threshold-ed25519/session` request types and server branching.
 - [x] Relayer: persist authenticators + signature counters in relay storage and verify lite WebAuthn assertions against relay-stored authenticators (no on-chain authenticator lookups in the threshold path).
 - [x] Relayer: persist authenticators at registration time (relay as system of record) so the product can hard-delete the on-chain authenticator registry entirely.
 - [x] Add `POST /auth/passkey/options` + `POST /auth/passkey/verify` (server-minted challenges, replay protection, counters) using `@simplewebauthn/server` (SimpleWebAuthn), then remove legacy `/verify-authentication-response` flows.
@@ -184,7 +184,7 @@ Keep the relay as the verifier and policy authority.
 - [x] Client: mint fresh threshold sessions (do not reuse a stable `sessionId`), and request `remainingUses >= usesNeeded` so signing does not accidentally create 1-use sessions or exhaust a cached token immediately.
 
 ### Phase 4 — Threshold signing path (wallet origin)
-- [x] Implement VRF-free threshold keygen/onboarding end-to-end (persist *public* threshold material only).
+- [x] Implement legacy-challenge-free threshold keygen/onboarding end-to-end (persist *public* threshold material only).
   - Keygen WebAuthn challenge schema (v1): `sha256(alphabetizeStringify({ version:"threshold_keygen_v1", nearAccountId, rpId, keygenSessionId }))` (base64url string).
 - [x] Add a wallet-origin keygen helper (`keygenThresholdEd25519Lite`) that derives `clientVerifyingShareB64u` from `PRF.first` and calls `POST /threshold-ed25519/keygen`.
 - [x] Wire fixed, versioned WebAuthn PRF salts (`PRF_FIRST_SALT_V1` / `PRF_SECOND_SALT_V1`) into wallet-origin WebAuthn calls.
@@ -201,11 +201,11 @@ Keep the relay as the verifier and policy authority.
   - `signNep413Message`: same.
 
 ### Next steps (execute next)
-- [x] Extract the lite package boundary: expose lite-only entry via `@tatchi-xyz/sdk/lite` (full package split to `@tatchi-xyz/lite-signer` can follow).
+- [x] Consolidate lite helpers into the root `@tatchi-xyz/sdk` entrypoint (no separate `@tatchi-xyz/sdk/lite` alias).
 - [x] Move “warm session” caching into the SecureConfirm worker (PRF.first cache + dispense-to-signer bridge).
 - [x] Remove local-signer coupling from threshold signing: threshold signing should not require `localKeyMaterial`/`wrapKeySalt`; it should be driven by `PRF.first` + relay share.
-- [x] Hard-delete Shamir + VRF legacy client plumbing (keep `emailRecovery` / `linkDevice` / `syncAccounts` features): remove remaining VRF/Shamir types, IndexedDB fields, docs, and tests (no migration path; bump DB versions as needed).
-  - [x] Remove remaining VRF/Shamir IndexedDB fields/types and legacy tests/docs (SecureConfirm-only).
+- [x] Hard-delete Shamir + SecureConfirm legacy client plumbing (keep `emailRecovery` / `linkDevice` / `syncAccounts` features): remove remaining SecureConfirm/Shamir types, IndexedDB fields, docs, and tests (no migration path; bump DB versions as needed).
+  - [x] Remove remaining SecureConfirm/Shamir IndexedDB fields/types and legacy tests/docs (SecureConfirm-only).
   - [x] Restore `emailRecovery` / `linkDevice` / `syncAccounts` API surface + wallet-iframe protocol types (feature-preserving).
   - [x] Re-implement these flows on the threshold stack (relay-private storage; no on-chain authenticator registry dependence).
     - [x] `syncAccounts`: relay passkey→account lookup + client IndexedDB sync (no on-chain registry).
@@ -265,8 +265,8 @@ Keep the relay as the verifier and policy authority.
     - `wallet-iframe/` (7): transport + overlay routing correctness
     - `lit-components/` (4): confirm UI semantics
     - `unit/` (45): helpers, parsing, storage, worker behavior
-- [ ] Identify and delete tests that only cover removed functionality (VRF worker, Shamir 3-pass, on-chain WebAuthn verifier) and update any fixtures/mocks that are now unused.
-  - Quick scan: no `wasm_vrf_worker`/Shamir/on-chain `verify_authentication_response` tests remain; most “VRF” mentions assert VRF absence.
+- [ ] Identify and delete tests that only cover removed functionality (SecureConfirm worker, Shamir 3-pass, on-chain WebAuthn verifier) and update any fixtures/mocks that are now unused.
+  - Quick scan: no `wasm_secureconfirm_worker`/Shamir/on-chain `verify_authentication_response` tests remain; most “SecureConfirm” mentions assert SecureConfirm absence.
 - [ ] Consolidate duplicate coverage (especially header/CSP and worker/iframe routing tests) and keep only the highest-signal cases.
   - Candidate dedupe area: multiple “headers” suites (`headers.*`, `wallet-service-headers.*`, `vite-wallet-corp.*`).
   - Low-signal wrappers removed: `tests/unit/next-headers.unit.test.ts`, `tests/unit/vite-headers.unit.test.ts`.

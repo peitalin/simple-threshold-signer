@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTatchi } from '../../context';
 import './LinkedDevicesModal.css';
 import { useTheme, Theme } from '../theme';
-import type { AccessKeyList } from '@/core/NearClient';
+import type { AccessKeyList } from '@/core/near/NearClient';
 import { IndexedDBManager } from '@/core/IndexedDBManager';
 
 interface LinkedDevicesModalProps {

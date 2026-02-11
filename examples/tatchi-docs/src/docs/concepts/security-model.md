@@ -12,7 +12,7 @@ The wallet's security model rests on the following:
 2. **Workers for secrets** - Never expose keys to the main thread
 3. **Security headers** - CSP blocks injection attacks, Permissions Policy controls WebAuthn access
 4. **User presence guarantees** - Ensure TouchID approvals have user presence
-5. **VRF binding in WebAuthn** - Ensures against replay attacks, and ensures each transaction signing attempt is fresh with user presence.
+5. **SecureConfirm binding in WebAuthn** - Ensures against replay attacks, and ensures each transaction signing attempt is fresh with user presence.
 
 This design makes an explicit tradeoff:
 
@@ -47,7 +47,7 @@ Apps can be compromised via malicious dependencies, XSS attacks, or supply chain
 The wallet runs at its own dedicated origin (like `https://wallet.web3authn.org`) inside an iframe. This origin owns all long-lived secrets:
 
 - Encrypted vault blobs (`C_near`, `wrapKeySalt`) and authenticator metadata (IndexedDB)
-- Encrypted VRF keypair material (at rest) and VRF session state (in VRF worker memory while unlocked)
+- Encrypted SecureConfirm keypair material (at rest) and SecureConfirm session state (in SecureConfirm worker memory while unlocked)
 - WebAuthn ceremony + PRF evaluation (outputs are ephemeral and never returned to the embedding app)
 - User/session metadata used to route signing and confirmations
 
@@ -92,11 +92,11 @@ Even inside the isolated wallet origin, we minimize what the UI main thread ever
 
 All cryptographic operations that touch key‑unwrapping power run in Web Workers (WASM):
 
-- **VRF worker (stateful, long‑lived)** – coordinates WebAuthn confirmation, verifies VRF/WebAuthn freshness (optionally via contract RPC), reconstructs/unlocks the VRF keypair (`vrf_sk`) and derives `WrapKeySeed`. It can cache short‑lived *VRF sessions* (TTL + remaining uses) and dispense session keys to signers.
+- **SecureConfirm worker (stateful, long‑lived)** – coordinates WebAuthn confirmation, verifies SecureConfirm/WebAuthn freshness (optionally via contract RPC), reconstructs/unlocks the SecureConfirm keypair (`secureconfirm_sk`) and derives `WrapKeySeed`. It can cache short‑lived *SecureConfirm sessions* (TTL + remaining uses) and dispense session keys to signers.
 - **Signer worker (one‑shot, pooled)** – receives only `WrapKeySeed + wrapKeySalt` over a dedicated `MessagePort`, derives the KEK, decrypts `near_sk`, signs, and then terminates (a new worker is used for the next request).
-- **1 VRF worker → N signer workers** – a single VRF worker can serve many disposable signer workers over time. Each signing attempt uses a fresh `MessageChannel` for worker‑to‑worker secret transfer.
+- **1 SecureConfirm worker → N signer workers** – a single SecureConfirm worker can serve many disposable signer workers over time. Each signing attempt uses a fresh `MessageChannel` for worker‑to‑worker secret transfer.
 
-Your app never receives `PRF.*`, `vrf_sk`, `WrapKeySeed`, or `near_sk`. `WrapKeySeed + wrapKeySalt` (and, for flows that require it, `PRF.second`) move worker‑to‑worker over a `MessagePort` — not through app JS payloads and not over the network.
+Your app never receives `PRF.*`, `secureconfirm_sk`, `WrapKeySeed`, or `near_sk`. `WrapKeySeed + wrapKeySalt` (and, for flows that require it, `PRF.second`) move worker‑to‑worker over a `MessagePort` — not through app JS payloads and not over the network.
 
 This minimizes plaintext exposure - even with DevTools access to the main thread, private keys remain invisible.
 
@@ -221,45 +221,45 @@ await tatchi.executeAction({
 
 For more details, see the [Architecture](/docs/concepts/architecture) guide.
 
-## 5. VRF binding WebAuthn
+## 5. SecureConfirm binding WebAuthn
 
-Web3Authn uses a verifiable random function (VRF) to bind each WebAuthn ceremony to the current on‑chain state, then derives the unwrapping key inside workers. This prevents replay and keeps long‑lived key material out of app‑visible JS.
+Web3Authn uses a verifiable random function (SecureConfirm) to bind each WebAuthn ceremony to the current on‑chain state, then derives the unwrapping key inside workers. This prevents replay and keeps long‑lived key material out of app‑visible JS.
 
-During a VRF‑backed signing flow, the wallet:
+During a SecureConfirm‑backed signing flow, the wallet:
 
-1. Fetches fresh chain context (block height/hash) and asks the VRF worker to mint a VRF challenge (output + proof) bound to that state.
-2. Runs WebAuthn using the VRF output as the challenge (user presence) and requests PRF evaluation (`PRF.first_auth`, and optionally `PRF.second` for specific flows).
-3. Optionally gates key dispensing by calling the Web3Authn contract to verify the VRF proof + WebAuthn signature before deriving/dispensing any unwrapping material.
-4. Derives `WrapKeySeed` from **two factors**: fresh `PRF.first_auth` and the in‑memory VRF secret key (`vrf_sk_bytes`). `WrapKeySeed + wrapKeySalt` (and `PRF.second` when needed) are delivered to the signer worker over an internal `MessagePort`.
+1. Fetches fresh chain context (block height/hash) and asks the SecureConfirm worker to mint a SecureConfirm challenge (output + proof) bound to that state.
+2. Runs WebAuthn using the SecureConfirm output as the challenge (user presence) and requests PRF evaluation (`PRF.first_auth`, and optionally `PRF.second` for specific flows).
+3. Optionally gates key dispensing by calling the Web3Authn contract to verify the SecureConfirm proof + WebAuthn signature before deriving/dispensing any unwrapping material.
+4. Derives `WrapKeySeed` from **two factors**: fresh `PRF.first_auth` and the in‑memory SecureConfirm secret key (`secureconfirm_sk_bytes`). `WrapKeySeed + wrapKeySalt` (and `PRF.second` when needed) are delivered to the signer worker over an internal `MessagePort`.
 5. Signer worker derives `KEK`, decrypts `near_sk`, signs, and terminates.
 
 ### KEK derivation (two‑factor unwrapping)
 
 The signer’s KEK is derived from a `WrapKeySeed` that requires both:
 - a fresh `PRF.first_auth` (TouchID/WebAuthn), and
-- the VRF secret key bytes (`vrf_sk_bytes`) held only in the VRF worker (unlocked via the wallet’s VRF unlock flow, e.g. Shamir 3‑pass or explicit recovery).
+- the SecureConfirm secret key bytes (`secureconfirm_sk_bytes`) held only in the SecureConfirm worker (unlocked via the wallet’s SecureConfirm unlock flow, e.g. Shamir 3‑pass or explicit recovery).
 
 In code this is HKDF‑SHA256 with domain separation:
 
 ```text
-K_pass_auth = HKDF(PRF.first_auth, info="vrf-wrap-pass")
-WrapKeySeed  = HKDF(K_pass_auth || vrf_sk_bytes, info="near-wrap-seed")
+K_pass_auth = HKDF(PRF.first_auth, info="secureconfirm-wrap-pass")
+WrapKeySeed  = HKDF(K_pass_auth || secureconfirm_sk_bytes, info="near-wrap-seed")
 KEK          = HKDF(WrapKeySeed, salt=wrapKeySalt, info="near-kek")
 ```
 
-`wrapKeySalt` comes from the encrypted vault entry (or is generated once during vault creation/upgrade). It is not derived from `vrf_sk`.
+`wrapKeySalt` comes from the encrypted vault entry (or is generated once during vault creation/upgrade). It is not derived from `secureconfirm_sk`.
 
-### VRF sessions (1 VRF : N signers)
+### SecureConfirm sessions (1 SecureConfirm : N signers)
 
-After a successful confirmation, the VRF worker can cache `{WrapKeySeed, wrapKeySalt}` under a `sessionId` with a TTL and remaining‑uses budget. Subsequent signing requests can reuse that session without a new WebAuthn prompt by calling a “dispense session key” operation in the VRF worker, which sends the same `{WrapKeySeed, wrapKeySalt}` to a fresh signer worker over a new `MessageChannel`.
+After a successful confirmation, the SecureConfirm worker can cache `{WrapKeySeed, wrapKeySalt}` under a `sessionId` with a TTL and remaining‑uses budget. Subsequent signing requests can reuse that session without a new WebAuthn prompt by calling a “dispense session key” operation in the SecureConfirm worker, which sends the same `{WrapKeySeed, wrapKeySalt}` to a fresh signer worker over a new `MessageChannel`.
 
-See [VRF Sessions](/docs/concepts/vrf-sessions) for the detailed handshake flow.
+See [SecureConfirm Sessions](/docs/concepts/secureconfirm-sessions) for the detailed handshake flow.
 
-The VRF construction gives three important properties:
+The SecureConfirm construction gives three important properties:
 
 - **Freshness** – block height/hash tie the challenge to the specific chain state the user saw
-- **Verifiability** – the contract independently verifies the VRF proof and WebAuthn signature together
-- **Non‑exportability** – `vrf_sk` stays VRF‑worker‑only; `WrapKeySeed` is only ever transferred VRF‑worker → signer‑worker over a `MessagePort`, and PRF extension outputs are never forwarded to RPC or returned to the embedding app
+- **Verifiability** – the contract independently verifies the SecureConfirm proof and WebAuthn signature together
+- **Non‑exportability** – `secureconfirm_sk` stays SecureConfirm‑worker‑only; `WrapKeySeed` is only ever transferred SecureConfirm‑worker → signer‑worker over a `MessagePort`, and PRF extension outputs are never forwarded to RPC or returned to the embedding app
 
 Combined with WebAuthn’s user‑presence requirement, this means each signing attempt is user‑approved, freshness‑bound, and compartmentalized across workers.
 
@@ -271,5 +271,5 @@ Combined with WebAuthn’s user‑presence requirement, this means each signing 
 ## Next steps
 
 - Learn about [passkey scope strategies](/docs/concepts/passkey-scope)
-- Understand [VRF-backed challenges](/docs/concepts/vrf-webauthn)
+- Understand [SecureConfirm-backed challenges](/docs/concepts/secureconfirm-webauthn)
 - Review the [architecture and iframe isolation model](/docs/concepts/architecture)

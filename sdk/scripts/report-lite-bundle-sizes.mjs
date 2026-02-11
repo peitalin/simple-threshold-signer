@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Report bundle sizes (raw/gzip/brotli) for the lite entry and wallet-origin assets.
+ * Report bundle sizes (raw/gzip/brotli) for the root SDK entry and wallet-origin assets.
  *
  * Usage:
  *   pnpm -C sdk build:prod
@@ -27,7 +27,7 @@ if (HELP) {
 [report-lite-bundle-sizes] Report lite bundle sizes (raw/gzip/brotli).
 
 Reads from:
-  - dist/esm/lite/index.js
+  - dist/esm/index.js
   - dist/workers/*
 
 Options:
@@ -63,21 +63,21 @@ function compressBrotli(buf) {
 
 const TARGETS = [
   {
-    id: 'lite-index',
-    label: 'lite entry',
-    relPath: 'dist/esm/lite/index.js',
+    id: 'sdk-index',
+    label: 'sdk entry',
+    relPath: 'dist/esm/index.js',
     budget: { raw: 8_000, gzip: 3_000, brotli: 3_000 },
   },
   {
     id: 'secure-confirm-worker',
     label: 'secure-confirm worker',
-    relPath: 'dist/workers/web3authn-secure-confirm.worker.js',
+    relPath: 'dist/workers/passkey-secure-confirm.worker.js',
     budget: { raw: 25_000, gzip: 8_000, brotli: 8_000 },
   },
   {
     id: 'signer-worker',
     label: 'signer worker',
-    relPath: 'dist/workers/web3authn-signer.worker.js',
+    relPath: 'dist/workers/near-signer.worker.js',
     budget: { raw: 90_000, gzip: 20_000, brotli: 20_000 },
   },
   {

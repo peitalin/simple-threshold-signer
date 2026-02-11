@@ -4,6 +4,9 @@ export interface ValidationResult {
   error?: string;
 }
 
+export type { NearAccountValidationOptions } from './near';
+export { ensureEd25519Prefix, validateNearAccountId, isValidAccountId } from './near';
+
 // ==============================
 // Normalization helpers (shared)
 // ==============================
@@ -85,116 +88,6 @@ export function toSingleLine(value: unknown): string {
     .replace(/[\r\n]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-}
-
-/**
- * Ensure a key string has the NEAR Ed25519 prefix (`ed25519:`).
- *
- * - Accepts either `ed25519:<base58>` or a bare `<base58>` string.
- * - Canonicalizes `ED25519:` → `ed25519:`.
- * - If a different prefix is present (e.g. `secp256k1:`), returns the input unchanged.
- */
-export function ensureEd25519Prefix(value: string): string {
-  const raw = String(value ?? '').trim();
-  if (!raw) return '';
-
-  if (/^[a-z0-9_]+:/i.test(raw)) {
-    if (/^ed25519:/i.test(raw)) {
-      return `ed25519:${raw.replace(/^ed25519:/i, '')}`;
-    }
-    return raw;
-  }
-
-  return `ed25519:${raw}`;
-}
-
-export interface NearAccountValidationOptions {
-  /** Restrict to specific suffixes (e.g., ['testnet', 'near']) */
-  allowedSuffixes?: string[];
-  /** Require Top-level domains with exactly 2 parts (username.suffix) instead of allowing subdomains */
-  requireTopLevelDomain?: boolean;
-}
-
-/**
- * Validate NEAR account ID format with optional suffix restrictions
- * @param nearAccountId - The account ID to validate
- * @param options - Optional validation constraints
- */
-export function validateNearAccountId(
-  nearAccountId: string,
-  options: NearAccountValidationOptions = {
-    allowedSuffixes: ['testnet', 'near'],
-    requireTopLevelDomain: false
-  }
-): ValidationResult {
-  if (!nearAccountId || typeof nearAccountId !== 'string') {
-    return { valid: false, error: 'Account ID must be a non-empty string' };
-  }
-
-  const parts = nearAccountId.split('.');
-  if (parts.length < 2) {
-    return { valid: false, error: 'Account ID must contain at least one dot (e.g., username.testnet)' };
-  }
-
-  // Check for exact two parts requirement (e.g., server registration)
-  if (options.requireTopLevelDomain && parts.length !== 2) {
-    const suffixList = options.allowedSuffixes?.join(', ') || 'valid suffixes';
-    return {
-      valid: false,
-      error: `Invalid NEAR account ID format. Expected format: <username>.<suffix> where suffix is one of: ${suffixList}`
-    };
-  }
-
-  const username = parts[0];
-  const suffix = parts[parts.length - 1]; // Last part for suffix checking
-  const domain = parts.slice(1).join('.');
-
-  // Validate username part
-  if (!username || username.length === 0) {
-    return { valid: false, error: 'Username part cannot be empty' };
-  }
-
-  if (!/^[a-z0-9_\-]+$/.test(username)) {
-    return { valid: false, error: 'Username can only contain lowercase letters, numbers, underscores, and hyphens' };
-  }
-
-  // Validate domain part
-  if (!domain || domain.length === 0) {
-    return { valid: false, error: 'Domain part cannot be empty' };
-  }
-
-  // Check allowed suffixes if specified
-  if (options.allowedSuffixes && options.allowedSuffixes.length > 0) {
-    // Check if the account ID ends with any of the allowed suffixes
-    const matchesAnySuffix = options.allowedSuffixes.some(allowedSuffix => {
-      // For single-part suffixes, check the last part
-      if (!allowedSuffix.includes('.')) {
-        return suffix === allowedSuffix;
-      }
-      // For multi-part suffixes, check if the account ID ends with the full suffix
-      return nearAccountId.endsWith(`.${allowedSuffix}`);
-    });
-
-    if (!matchesAnySuffix) {
-      return {
-        valid: false,
-        error: `Invalid NEAR account ID suffix. Expected account to end with one of: ${options.allowedSuffixes.join(', ')}`
-      };
-    }
-  }
-
-  return { valid: true };
-}
-
-/**
- * Lightweight NEAR account ID validation used by server-side helpers.
- * - length: 2..64
- * - chars: lowercase letters, digits, `_`, `.`, `-`
- */
-export function isValidAccountId(accountId: unknown): accountId is string {
-  if (typeof accountId !== 'string') return false;
-  if (!accountId || accountId.length < 2 || accountId.length > 64) return false;
-  return /^[a-z0-9_.-]+$/.test(accountId);
 }
 
 // ===========================

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { secp256k1 } from '@noble/curves/secp256k1.js';
-import { deriveSecp256k1KeypairFromPrfSecondB64u } from '@/core/multichain/evm/deriveSecp256k1KeypairFromPrfSecond';
-import { bytesToHex, hexToBytes } from '@/core/multichain/evm/bytes';
+import { deriveSecp256k1KeypairFromPrfSecondB64u } from '@/core/signing/multichain/evm/deriveSecp256k1KeypairFromPrfSecond';
+import { bytesToHex, hexToBytes } from '@/core/signing/multichain/evm/bytes';
 
 test.describe('deriveSecp256k1KeypairFromPrfSecondB64u', () => {
   test('is deterministic and returns valid secp256k1 material', () => {

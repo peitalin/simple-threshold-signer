@@ -171,7 +171,7 @@ Before merging changes to the progress bus or overlay logic, verify:
 
 - Pre‑warm to reduce perceived latency before the overlay appears:
   - `tatchi.prefetchBlockheight()` → caches/refreshes block height/hash/nonce ahead of time.
-  - Sources: `client/src/core/TatchiPasskey/index.ts` and `client/src/core/nonceManager.ts`.
+  - Sources: `client/src/core/TatchiPasskey/index.ts` and `client/src/core/near/nonceManager.ts`.
 
 - Overlay is intentionally invisible but intercepts clicks while active. Keep the overlay up for the minimum time by limiting “show” to the phases that truly need activation (as implemented in `progress/on-events-progress-bus.ts`).
 

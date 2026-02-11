@@ -2,7 +2,7 @@ import type { ActionResult } from './tatchi';
 import type { AfterCall, DeviceLinkingSSEEvent, EventCallback } from './sdkSentEvents';
 import { DeviceLinkingPhase } from './sdkSentEvents';
 import { AccountId } from './accountIds';
-import { SignedTransaction } from '../NearClient';
+import { SignedTransaction } from '../near/NearClient';
 import { WebAuthnRegistrationCredential } from '.';
 import type { ConfirmationConfig } from './signer-worker';
 

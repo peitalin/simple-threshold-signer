@@ -1,5 +1,5 @@
 /**
- * Encodes binary data to standard base64 format for NEAR RPC compatibility.
+ * Encodes binary data to standard base64 format.
  * Uses standard base64 characters (+, /, =) rather than base64url encoding.
  *
  * Important: Avoids spreading large arrays into String.fromCharCode(...) which

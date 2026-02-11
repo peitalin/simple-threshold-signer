@@ -216,6 +216,6 @@ Update ROR manifest on the rpId domain to include the new host, delegate WebAuth
 
 ## Next steps
 
-- Learn about [VRF-backed challenges](/docs/concepts/vrf-webauthn)
+- Learn about [SecureConfirm-backed challenges](/docs/concepts/secureconfirm-webauthn)
 - Understand the [architecture and iframe isolation model](/docs/concepts/architecture)
 - Review the [security model](/docs/concepts/security-model)

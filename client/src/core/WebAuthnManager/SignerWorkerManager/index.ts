@@ -1,9 +1,9 @@
 import { SIGNER_WORKER_MANAGER_CONFIG } from "../../../config";
 import { ClientAuthenticatorData, UnifiedIndexedDBManager } from '../../IndexedDBManager';
 import { IndexedDBManager } from '../../IndexedDBManager';
-import { SignedTransaction, type NearClient } from '../../NearClient';
+import { SignedTransaction, type NearClient } from '../../near/NearClient';
 import { isObject } from '../../../../../shared/src/utils/validation';
-import { resolveWorkerUrl } from '../../sdkPaths';
+import { resolveWorkerUrl } from '../../runtimeAssetPaths';
 import {
   WorkerRequestType,
   WorkerResponseForRequest,
@@ -27,53 +27,53 @@ import {
 } from '../../types/signer-worker';
 import type { ThresholdBehavior } from '../../types/signer-worker';
 import { TouchIdPrompt } from "../touchIdPrompt";
-import { WorkerControlMessage } from '../../workerControlMessages';
+import { WorkerControlMessage } from '../../workers/workerControlMessages';
+import type { MultichainSignerRuntimeDeps } from '../../signing/multichain/shared/types';
+import {
+  signNearDelegateAction,
+  signNearNep413Message,
+  signNearTransactionsWithActions,
+} from '../../signing/multichain/shared/orchestrator';
 
 import {
   decryptPrivateKeyWithPrf,
-  signTransactionsWithActions,
+} from './keyOps/decryptPrivateKeyWithPrf';
+import {
   recoverKeypairFromPasskey,
+} from './keyOps/recoverKeypairFromPasskey';
+import {
   extractCosePublicKey,
+} from './keyOps/extractCosePublicKey';
+import {
   signTransactionWithKeyPair,
-  signNep413Message,
+} from './keyOps/signTransactionWithKeyPair';
+import {
   deriveNearKeypairAndEncryptFromSerialized,
-  signDelegateAction,
+} from './keyOps/deriveNearKeypairAndEncryptFromSerialized';
+import {
   exportNearKeypairUi,
+} from './keyOps/exportNearKeypairUi';
+import {
   deriveThresholdEd25519ClientVerifyingShare,
-} from './handlers';
+} from './keyOps/deriveThresholdEd25519ClientVerifyingShare';
 import { RpcCallPayload } from '../../types/signer-worker';
 import { UserPreferencesManager } from '../userPreferences';
-import { NonceManager } from '../../nonceManager';
+import { NonceManager } from '../../near/nonceManager';
 import type { ThemeName } from '../../types/tatchi';
 import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../types';
 import { toError } from '../../../../../shared/src/utils/errors';
-import { withSessionId } from './handlers/session';
+import { withSessionId } from './internal/session';
 
 type WithOptionalSessionId<T> = T extends { sessionId: string }
   ? Omit<T, 'sessionId'> & { sessionId?: string }
   : T;
 
-export interface SignerWorkerManagerContext {
-  touchIdPrompt: TouchIdPrompt;
-  nearClient: NearClient;
-  indexedDB: UnifiedIndexedDBManager;
+export interface SignerWorkerManagerContext extends MultichainSignerRuntimeDeps {
   userPreferencesManager: UserPreferencesManager;
-  nonceManager: NonceManager;
   getTheme?: () => ThemeName;
-  relayerUrl: string;
   rpIdOverride?: string;
   nearExplorerUrl?: string;
-  secureConfirmWorkerManager?: SecureConfirmWorkerManager;
-  sendMessage: <T extends keyof WorkerRequestTypeMap>(args: {
-    message: {
-      type: T;
-      payload: WithOptionalSessionId<WorkerRequestTypeMap[T]['request']>;
-    };
-    onEvent?: (update: onProgressEvents) => void;
-    timeoutMs?: number;
-    sessionId?: string;
-  }) => Promise<WorkerResponseForRequest<T>>;
-};
+}
 
 /**
  * WebAuthnWorkers handles PRF, workers, and COSE operations
@@ -489,7 +489,7 @@ export class SignerWorkerManager {
     nearAccountId: AccountId;
     logs?: string[]
   }>> {
-    return signTransactionsWithActions({
+    return signNearTransactionsWithActions({
       ctx: this.getContext(),
       ...args
     });
@@ -513,7 +513,7 @@ export class SignerWorkerManager {
     nearAccountId: AccountId;
     logs?: string[];
   }> {
-    return signDelegateAction({ ctx: this.getContext(), ...args });
+    return signNearDelegateAction({ ctx: this.getContext(), ...args });
   }
 
   /**
@@ -591,7 +591,7 @@ export class SignerWorkerManager {
     state?: string;
     error?: string;
   }> {
-    return signNep413Message({
+    return signNearNep413Message({
       ctx: this.getContext(),
       payload
     });

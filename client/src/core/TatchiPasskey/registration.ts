@@ -1,4 +1,4 @@
-import type { NearClient } from '../NearClient';
+import type { NearClient } from '../near/NearClient';
 import { ensureEd25519Prefix, validateNearAccountId } from '../../../../shared/src/utils/validation';
 import type {
   RegistrationHooksOptions,
@@ -20,8 +20,8 @@ import type { WebAuthnRegistrationCredential } from '../types/webauthn';
 import type { AccountId } from '../types/accountIds';
 import { errorMessage, getUserFriendlyErrorMessage } from '../../../../shared/src/utils/errors';
 import { buildThresholdEd25519Participants2pV1 } from '../../../../shared/src/threshold/participants';
-import { checkNearAccountExistsBestEffort } from '../rpcCalls';
-import { deriveNearKeypairFromPrfSecondB64u } from '../nearCrypto';
+import { checkNearAccountExistsBestEffort } from '../near/rpcCalls';
+import { deriveNearKeypairFromPrfSecondB64u } from '../near/nearCrypto';
 import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
 // Registration forces a visible, clickable confirmation for cross‑origin safety
 

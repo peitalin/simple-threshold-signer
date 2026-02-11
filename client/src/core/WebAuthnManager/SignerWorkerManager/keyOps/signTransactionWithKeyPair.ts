@@ -1,5 +1,5 @@
 
-import { SignedTransaction } from '../../../NearClient';
+import { SignedTransaction } from '../../../near/NearClient';
 import { type ActionArgsWasm, validateActionArgsWasm } from '../../../types/actions';
 import {
   WorkerRequestType,

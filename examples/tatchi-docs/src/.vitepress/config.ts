@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
 import { fileURLToPath } from 'node:url'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { loadEnv, type Plugin } from 'vite'
 import { tatchiWallet } from '@tatchi-xyz/sdk/plugins/vite'
@@ -69,7 +70,9 @@ if (env.VITE_RP_ID_BASE) process.env.VITE_RP_ID_BASE = env.VITE_RP_ID_BASE
 // When bundling workspace packages (like `sdk/dist/*`) from outside the docs tree,
 // Vite's resolver may not look inside `examples/tatchi-docs/node_modules` for
 // subpath imports. Explicit aliases keep polyfill shim imports resolvable.
-const polyfillShim = (p: string) => fileURLToPath(new URL(`../../node_modules/vite-plugin-node-polyfills/shims/${p}/dist/index.js`, import.meta.url))
+const require = createRequire(import.meta.url)
+const polyfillsPackageRoot = dirname(dirname(dirname(dirname(require.resolve('vite-plugin-node-polyfills/shims/buffer')))))
+const polyfillShim = (p: string) => join(polyfillsPackageRoot, 'shims', p, 'dist', 'index.js')
 
 export default defineConfig({
   // Hosted at the site root
@@ -191,11 +194,11 @@ export default defineConfig({
                 ]
               },
               {
-                text: 'VRF WebAuthn',
-                link: '/docs/concepts/vrf-webauthn',
+                text: 'SecureConfirm WebAuthn',
+                link: '/docs/concepts/secureconfirm-webauthn',
                 items: [
-                  { text: 'Challenge Construction', link: '/docs/concepts/vrf-webauthn#vrf-challenge-construction' },
-                  { text: 'WebAuthn Contract', link: '/docs/concepts/vrf-webauthn#webauthn-contract-verification' },
+                  { text: 'Challenge Construction', link: '/docs/concepts/secureconfirm-webauthn#secureconfirm-challenge-construction' },
+                  { text: 'WebAuthn Contract', link: '/docs/concepts/secureconfirm-webauthn#webauthn-contract-verification' },
                 ]
               },
             ],

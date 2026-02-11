@@ -22,8 +22,8 @@
 
 import { WalletIframeRouter } from './client/router';
 import { TatchiPasskey } from '../TatchiPasskey';
-import { MinimalNearClient } from '../NearClient';
-import type { NearClient, SignedTransaction, AccessKeyList } from '../NearClient';
+import { MinimalNearClient } from '../near/NearClient';
+import type { NearClient, SignedTransaction, AccessKeyList } from '../near/NearClient';
 import type {
   ActionResult,
   GetRecentLoginsResult,
@@ -56,7 +56,7 @@ import { toError } from '../../../../shared/src/utils/errors';
 import { coerceThemeName } from '../../../../shared/src/utils/theme';
 import type { WalletUIRegistry } from './host/lit-ui/iframe-lit-element-registry';
 import type { DelegateActionInput } from '../types/delegate';
-import { buildConfigsFromEnv } from '../defaultConfigs';
+import { buildConfigsFromEnv } from '../config/defaultConfigs';
 import { configureIndexedDB, type DerivedAddressRecord } from '../IndexedDBManager';
 
 

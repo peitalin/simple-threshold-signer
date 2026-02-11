@@ -1,6 +1,6 @@
 # Web3Authn SDK
 
-Passkey wallet SDK for NEAR Protocol. An embedded wallet powered by VRF WebAuthn, cross-origin iframe isolation, and WASM-based cryptography.
+Passkey wallet SDK for NEAR Protocol. An embedded wallet powered by SecureConfirm WebAuthn, cross-origin iframe isolation, and WASM-based cryptography.
 
 Featuring:
 - **Core SDK**: Framework-agnostic JavaScript/TypeScript library

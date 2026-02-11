@@ -369,7 +369,7 @@ export const DemoPage: React.FC = () => {
 
 	      <div className="action-section">
 	        <div className="demo-divider" aria-hidden="true" />
-	        <h2 className="demo-subtitle">VRF Signing Session</h2>
+	        <h2 className="demo-subtitle">Signing Session</h2>
 	        <div className="action-text">
 	          Create a warm signing session with configurable <code>remaining_uses</code> and TTL.
 	          Touch once, then sign multiple times while the session is active.

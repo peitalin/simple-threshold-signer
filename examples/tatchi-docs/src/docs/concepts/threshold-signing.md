@@ -35,7 +35,7 @@ Threshold enrollment is intended to run *after* the passkey is registered on-cha
 ```mermaid
 sequenceDiagram
   participant App as Wallet (iframe UI)
-  participant VRF as VRF Worker
+  participant SecureConfirm as SecureConfirm Worker
   participant Signer as Signer Worker
   participant Relay as Relayer
   participant NEAR as NEAR RPC
@@ -44,14 +44,14 @@ sequenceDiagram
   App->>Signer: deriveThresholdEd25519ClientVerifyingShare(sessionId, nearAccountId)
   Signer-->>App: clientVerifyingShareB64u + wrapKeySalt
 
-  Note over App,VRF: 2) Build VRF challenge bound to keygen intent
+  Note over App,SecureConfirm: 2) Build SecureConfirm challenge bound to keygen intent
   App->>NEAR: viewBlock(final)
   NEAR-->>App: blockHeight + blockHash
-  App->>VRF: generateVrfChallengeOnce(intentDigest=keygenIntent)
-  VRF-->>App: vrfChallenge
-  App->>App: WebAuthn get() using vrfChallenge as challenge
+  App->>SecureConfirm: generateSecureConfirmChallengeOnce(intentDigest=keygenIntent)
+  SecureConfirm-->>App: secureconfirmChallenge
+  App->>App: WebAuthn get() using secureconfirmChallenge as challenge
 
-  Note over App,Relay: 3) Keygen on relay (WebAuthn+VRF verified)
+  Note over App,Relay: 3) Keygen on relay (WebAuthn+SecureConfirm verified)
   App->>Relay: POST /threshold-ed25519/keygen
   Relay-->>App: publicKey=groupPk, relayerKeyId, relayerVerifyingShareB64u
 
@@ -69,20 +69,20 @@ Threshold signing is used whenever the SDK chooses `signerMode: 'threshold-signe
 
 At a high level:
 
-1. The VRF/confirmation flow produces a fresh `intentDigest`, `transactionContext` (nonce/block hash), and (when needed) a WebAuthn assertion.
+1. The SecureConfirm/confirmation flow produces a fresh `intentDigest`, `transactionContext` (nonce/block hash), and (when needed) a WebAuthn assertion.
 2. The signer worker derives the client signing share from `WrapKeySeed`, runs 2-round FROST with the relayer, and aggregates the final Ed25519 signature.
 
 ```mermaid
 sequenceDiagram
   participant App as Wallet (iframe UI)
-  participant VRF as VRF Worker
+  participant SecureConfirm as SecureConfirm Worker
   participant Signer as Signer Worker
   participant Relay as Relayer (coordinator)
 
-  Note over App,VRF: 1) Confirm + VRF/WebAuthn (freshness + user presence)
-  App->>VRF: confirmAndPrepareSigningSession(intent)
-  VRF-->>Signer: MessagePort: WrapKeySeed + wrapKeySalt
-  VRF-->>App: intentDigest, transactionContext, vrfChallenge?, credential?
+  Note over App,SecureConfirm: 1) Confirm + SecureConfirm/WebAuthn (freshness + user presence)
+  App->>SecureConfirm: confirmAndPrepareSigningSession(intent)
+  SecureConfirm-->>Signer: MessagePort: WrapKeySeed + wrapKeySalt
+  SecureConfirm-->>App: intentDigest, transactionContext, secureconfirmChallenge?, credential?
 
   Note over Signer,Relay: 2) Authorize digest + payload on relay
   Signer->>Relay: POST /threshold-ed25519/authorize (or via session token)
@@ -175,10 +175,10 @@ and returns `(R, z)`.
 
 ## Threshold Sessions
 
-To avoid running `/authorize` with WebAuthn+VRF on every signature, the SDK can mint a short-lived, limited-use threshold session:
+To avoid running `/authorize` with WebAuthn+SecureConfirm on every signature, the SDK can mint a short-lived, limited-use threshold session:
 
-- Client calls `POST /threshold-ed25519/session` once (usually during login), passing a **session policy** `{ ttlMs, remainingUses }` and a VRF proof that includes `session_policy_digest_32`.
+- Client calls `POST /threshold-ed25519/session` once (usually during login), passing a **session policy** `{ ttlMs, remainingUses }` and a SecureConfirm proof that includes `session_policy_digest_32`.
 - The relayer stores the session server-side and returns a JWT (or sets an HttpOnly cookie).
 - Subsequent `/authorize` calls can use the session token instead of a fresh WebAuthn assertion.
 
-The session policy is validated server-side (TTL caps + use count caps) and is *cryptographically bound* into the VRF challenge to prevent policy tampering.
+The session policy is validated server-side (TTL caps + use count caps) and is *cryptographically bound* into the SecureConfirm challenge to prevent policy tampering.

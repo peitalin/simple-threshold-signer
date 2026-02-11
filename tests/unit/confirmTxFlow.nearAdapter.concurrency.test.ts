@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { handleInfrastructureErrors } from '../setup';
 
 const IMPORT_PATHS = {
-  nonceManager: '/sdk/esm/core/nonceManager.js',
+  nonceManager: '/sdk/esm/core/near/nonceManager.js',
   nearAdapter: '/sdk/esm/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/adapters/near.js',
 } as const;
 

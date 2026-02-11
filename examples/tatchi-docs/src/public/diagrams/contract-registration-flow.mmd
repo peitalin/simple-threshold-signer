@@ -6,13 +6,13 @@ sequenceDiagram
     participant NEAR as NEAR RPC
     participant Contract as Web3Authn Contract
 
-    Note over JSMain,Worker: Phase 1: Bootstrap VRF Challenge
+    Note over JSMain,Worker: Phase 1: Bootstrap SecureConfirm Challenge
     JSMain->>NEAR: 1. Get block height + hash from RPC
     NEAR->>JSMain: Block data
-    JSMain->>Worker: 2. generateVrfKeypairBootstrap()
-    Worker->>Worker: 3. Generate bootstrap VRF keypair (temporary)
-    Worker->>Worker: 4. Generate VRF proof + output (challenge)
-    Worker->>JSMain: 5. VRF challenge for WebAuthn ceremony
+    JSMain->>Worker: 2. generateSecureConfirmKeypairBootstrap()
+    Worker->>Worker: 3. Generate bootstrap SecureConfirm keypair (temporary)
+    Worker->>Worker: 4. Generate SecureConfirm proof + output (challenge)
+    Worker->>JSMain: 5. SecureConfirm challenge for WebAuthn ceremony
 
     Note over JSMain,Worker: Phase 2: WebAuthn Registration with Dual PRF
     JSMain->>Worker: 6. requestRegistrationCredentialConfirmation()
@@ -20,10 +20,10 @@ sequenceDiagram
     Worker->>JSMain: Registration credential
 
     Note over JSMain,Worker: Phase 3: Derive Deterministic Keys from PRF
-    JSMain->>Worker: 7. deriveVrfKeypairFromRawPrf(ed25519PrfOutput)
-    Worker->>Worker: 8. Derive deterministic VRF keypair from PRF
-    Worker->>Worker: 9. Encrypt deterministic VRF with ChaCha20-Poly1305
-    Worker->>JSMain: 10. Encrypted deterministic VRF keypair
+    JSMain->>Worker: 7. deriveSecureConfirmKeypairFromRawPrf(ed25519PrfOutput)
+    Worker->>Worker: 8. Derive deterministic SecureConfirm keypair from PRF
+    Worker->>Worker: 9. Encrypt deterministic SecureConfirm with ChaCha20-Poly1305
+    Worker->>JSMain: 10. Encrypted deterministic SecureConfirm keypair
 
     JSMain->>Worker: 11. deriveNearKeypairFromDualPrf(chacha20PrfOutput)
     Worker->>Worker: 12. Derive NEAR ed25519 keypair from PRF
@@ -37,6 +37,6 @@ sequenceDiagram
     Contract->>JSMain: 17. Registration complete (txId)
 
     Note over JSMain,Worker: Phase 5: Client-side Storage
-    JSMain->>JSMain: 18. Store encrypted deterministic VRF in IndexedDB
+    JSMain->>JSMain: 18. Store encrypted deterministic SecureConfirm in IndexedDB
     JSMain->>JSMain: 19. Store encrypted NEAR keypair in IndexedDB
     JSMain->>JSMain: 20. Registration complete ✓

@@ -10,17 +10,17 @@ sequenceDiagram
     JSMain->>JSMain: 1. Validate action inputs
     JSMain->>JSMain: 2. Pre-warm NonceManager (async)
 
-    Note over JSMain,Worker: Phase 2: User Confirmation & VRF Challenge
+    Note over JSMain,Worker: Phase 2: User Confirmation & SecureConfirm Challenge
     JSMain->>Worker: 3. Request user confirmation
     Note over Worker: UI mounts showing transaction details
     Worker->>NEAR: 4. Get nonce, block height + hash
     NEAR->>Worker: Block data + nonce
-    Worker->>Worker: 5. Generate VRF challenge (no TouchID)
+    Worker->>Worker: 5. Generate SecureConfirm challenge (no TouchID)
 
     Note over JSMain,Worker: Phase 3: WebAuthn Authentication
     Worker->>Worker: 6. WebAuthn authentication (TouchID prompt)
-    Worker->>Contract: 7. verify_authentication_response(vrf_data, webauthn_authentication)
-    Contract->>Contract: 8. Verify VRF proof against stored VRF pubkey ✓
+    Worker->>Contract: 7. verify_authentication_response(secureconfirm_data, webauthn_authentication)
+    Contract->>Contract: 8. Verify SecureConfirm proof against stored SecureConfirm pubkey ✓
     Contract->>Contract: 9. Check freshness (block_height within MAX_BLOCK_AGE) ✓
     Contract->>Contract: 10. Verify WebAuthn signature against stored passkey ✓
     Contract->>Worker: 11. Authentication verified ✓

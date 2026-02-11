@@ -9,7 +9,7 @@ import { AccountId, toAccountId } from "../../../types/accountIds";
 import { SignerWorkerManagerContext } from '..';
 import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { isObject } from '../../../../../../shared/src/utils/validation';
-import { withSessionId } from './session';
+import { withSessionId } from '../internal/session';
 
 export async function decryptPrivateKeyWithPrf({
   ctx,

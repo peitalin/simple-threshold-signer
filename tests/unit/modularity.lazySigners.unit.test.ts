@@ -4,9 +4,9 @@ import path from 'node:path';
 
 const IMPORT_PATHS = {
   nearWalletOrigin:
-    '/sdk/esm/core/WebAuthnManager/SignerWorkerManager/MultichainAdapter/near/walletOrigin.js',
+    '/sdk/esm/core/signing/multichain/near/walletOrigin.js',
   tempoAdapter:
-    '/sdk/esm/core/WebAuthnManager/SignerWorkerManager/MultichainAdapter/tempo/tempoAdapter.js',
+    '/sdk/esm/core/signing/multichain/tempo/tempoAdapter.js',
   actions: '/sdk/esm/core/types/actions.js',
 } as const;
 
@@ -23,20 +23,20 @@ test.describe('modularity lazy signer loading', () => {
     const source = fs.readFileSync(sourcePath, 'utf8');
 
     expect(source).toContain(
-      "await import('./SignerWorkerManager/MultichainAdapter/near/walletOrigin')",
+      "await import('../signing/multichain/near/walletOrigin')",
     );
     expect(source).toContain(
-      "import('./SignerWorkerManager/MultichainAdapter/tempo/handlers/signTempoWithSecureConfirm')",
+      "import('../signing/multichain/shared/orchestrator')",
     );
-    expect(source).toContain("import('../multichain/engines/secp256k1')");
-    expect(source).toContain("import('../multichain/engines/webauthnP256')");
+    expect(source).toContain("import('../signing/multichain/engines/secp256k1')");
+    expect(source).toContain("import('../signing/multichain/engines/webauthnP256')");
 
     expect(source).not.toContain(
-      "from './SignerWorkerManager/MultichainAdapter/near/walletOrigin'",
+      "from '../signing/multichain/near/walletOrigin'",
     );
-    expect(source).not.toContain("from './SignerWorkerManager/MultichainAdapter/tempo/handlers/signTempoWithSecureConfirm'");
-    expect(source).not.toContain("from '../multichain/engines/secp256k1'");
-    expect(source).not.toContain("from '../multichain/engines/webauthnP256'");
+    expect(source).not.toContain("from '../signing/multichain/shared/orchestrator'");
+    expect(source).not.toContain("from '../signing/multichain/engines/secp256k1'");
+    expect(source).not.toContain("from '../signing/multichain/engines/webauthnP256'");
   });
 
   test('near wallet-origin path does not instantiate multichain wasm workers', async ({

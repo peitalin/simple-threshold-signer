@@ -31,8 +31,8 @@
     "paths": {
       "@/*": ["../client/src/*"],
       "@shared/*": ["../shared/src/*"],
-      "@server": ["../server/src/server/index.ts"],
-      "@server/*": ["../server/src/server/*"],
+      "@server": ["../server/src/index.ts"],
+      "@server/*": ["../server/src/*"],
       "@build-paths": ["./build-paths.ts"],
       "react": ["./node_modules/@types/react/index.d.ts"],
       "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime.d.ts"],

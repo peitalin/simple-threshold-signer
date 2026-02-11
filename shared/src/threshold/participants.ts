@@ -5,7 +5,7 @@ import {
   THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID,
   THRESHOLD_ED25519_RELAYER_PARTICIPANT_ID,
   THRESHOLD_ED25519_2P_PARTICIPANT_IDS,
-} from '../../../client/src/core/defaultConfigs';
+} from '../../../client/src/core/config/defaultConfigs';
 
 export {
   THRESHOLD_ED25519_CLIENT_PARTICIPANT_ID,

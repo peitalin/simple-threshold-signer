@@ -38,7 +38,7 @@ function Registration() {
 }
 ```
 
-Behind the scenes, this triggers a WebAuthn registration, derives a deterministic NEAR keypair from the credential, and stores everything you need in IndexedDB (the WebAuthn credential ID, NEAR public key, and encrypted VRF keypair). If you've configured a relay, it'll also store server-encrypted VRF material for smoother future logins.
+Behind the scenes, this triggers a WebAuthn registration, derives a deterministic NEAR keypair from the credential, and stores everything you need in IndexedDB (the WebAuthn credential ID, NEAR public key, and encrypted SecureConfirm keypair). If you've configured a relay, it'll also store server-encrypted SecureConfirm material for smoother future logins.
 
 ## Login
 
@@ -73,16 +73,16 @@ function Login() {
 }
 ```
 
-When you call `loginAndCreateSession()`, the SDK establishes a VRF session and mints a warm signing session. If you've configured a relay, it can unlock the VRF key via Shamir 3-pass without prompting for TouchID. Otherwise it falls back to a biometric prompt to decrypt the VRF keypair. Once logged in, you're ready to sign transactions.
+When you call `loginAndCreateSession()`, the SDK establishes a SecureConfirm session and mints a warm signing session. If you've configured a relay, it can unlock the SecureConfirm key via Shamir 3-pass without prompting for TouchID. Otherwise it falls back to a biometric prompt to decrypt the SecureConfirm keypair. Once logged in, you're ready to sign transactions.
 
 ## Send Transaction
 
-Once logged in (VRF key is unlocked) you can call `executeAction()` which takes your account ID, the receiver contract, and an array of actions (in this case, a function call).
+Once logged in (SecureConfirm key is unlocked) you can call `executeAction()` which takes your account ID, the receiver contract, and an array of actions (in this case, a function call).
 
 ```tsx
 import { useState } from 'react'
 import { useTatchi } from '@tatchi-xyz/sdk/react'
-import { ActionType } from '@tatchi-xyz/sdk/core'
+import { ActionType } from '@tatchi-xyz/sdk'
 
 function Transactions() {
   const { tatchi, loginState } = useTatchi()
@@ -129,16 +129,16 @@ You can set `confirmationConfig: { behavior: 'requireClick' | 'skipClick' }` to 
 
 The `onEvent()` callback streams progress events (authentication, signing, broadcasting, completion) that you can use to update your UI or handle errors.
 
-When you're done, call `logoutAndClearSession()` to clear the in-memory VRF key and update `loginState` accordingly.
+When you're done, call `logoutAndClearSession()` to clear the in-memory SecureConfirm key and update `loginState` accordingly.
 
 
 ## Recap
 
 **Registration**: `registerPasskey()` triggers WebAuthn registration, derives a deterministic NEAR keypair, encrypts and persists the data in IndexedDB. In iframe mode, this happens in the wallet origin for isolation.
 
-**Login**: `getRecentLogins()` reads from IndexedDB and tracks the last-used account. `loginAndCreateSession()` unlocks the VRF key and ensures a warm signing session exists. With a relay server configured, you can unlock the VRF key automatically without biometrics, otherwise it uses TouchID to unlock (serverless). The VRF key is used to generate verifiable challenges for stateless Passkey authentication with the onchain webauthn contract.
+**Login**: `getRecentLogins()` reads from IndexedDB and tracks the last-used account. `loginAndCreateSession()` unlocks the SecureConfirm key and ensures a warm signing session exists. With a relay server configured, you can unlock the SecureConfirm key automatically without biometrics, otherwise it uses TouchID to unlock (serverless). The SecureConfirm key is used to generate verifiable challenges for stateless Passkey authentication with the onchain webauthn contract.
 
-*Logout*: `logoutAndClearSession()` clears the in-memory VRF key and updates loginState.
+*Logout*: `logoutAndClearSession()` clears the in-memory SecureConfirm key and updates loginState.
 
 **Transactions**: `executeAction()` builds, signs, and broadcasts transactions to the NEAR blockchain. `onEvent` handlers stream progress events back for UI updates.
 
@@ -146,6 +146,6 @@ When you're done, call `logoutAndClearSession()` to clear the in-memory VRF key 
 
 - [Set up other frameworks](./other-frameworks.md): Next.js, Vue, Svelte, Express
 - [React Recipes](/docs/getting-started/react-recipes): convenience components for registration, login, and managing accounts.
-- [Concepts](../concepts/index.md): security model, VRF/PRF, architecture
+- [Concepts](../concepts/index.md): security model, SecureConfirm/PRF, architecture
   - [Architecture](../concepts/architecture.md)
-  - [VRF challenges](../concepts/vrf-webauthn.md)
+  - [SecureConfirm challenges](../concepts/secureconfirm-webauthn.md)

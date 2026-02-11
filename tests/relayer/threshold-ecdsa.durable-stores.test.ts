@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { ensurePostgresSchema, getPostgresPool } from '../../server/src/server/storage/postgres';
-import { createThresholdEcdsaSigningStores } from '../../server/src/server/core/ThresholdService/stores/EcdsaSigningStore';
+import { ensurePostgresSchema, getPostgresPool } from '../../server/src/storage/postgres';
+import { createThresholdEcdsaSigningStores } from '../../server/src/core/ThresholdService/stores/EcdsaSigningStore';
 
 function randPrefix(tag: string): string {
   return `test:${tag}:${Date.now()}:${Math.random().toString(16).slice(2)}:`;

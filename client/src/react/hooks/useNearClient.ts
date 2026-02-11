@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { MinimalNearClient, type NearClient } from '@/index';
-import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@/core/defaultConfigs';
+import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@/core/config/defaultConfigs';
 
 export const useNearClient = (rpcNodeURL: string = PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl): NearClient => {
   const nearClient = useMemo(() => {

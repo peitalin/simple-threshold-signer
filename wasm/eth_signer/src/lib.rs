@@ -1,9 +1,11 @@
 use num_bigint::BigUint;
 use num_traits::Num;
 use serde::Deserialize;
+use sha2::Sha256;
 use sha3::{Digest, Keccak256};
 use wasm_bindgen::prelude::*;
 
+use hkdf::Hkdf;
 use js_sys::{Array, Object, Reflect, Uint8Array};
 use k256::elliptic_curve::bigint::U256;
 use k256::elliptic_curve::ops::Reduce;
@@ -11,7 +13,7 @@ use k256::elliptic_curve::point::AffineCoordinates;
 use k256::elliptic_curve::scalar::IsHigh;
 use k256::elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint};
 use k256::elliptic_curve::PrimeField;
-use k256::{AffinePoint, EncodedPoint, FieldBytes, ProjectivePoint};
+use k256::{AffinePoint, EncodedPoint, FieldBytes, ProjectivePoint, SecretKey};
 use rand_core::OsRng;
 use threshold_signatures::ecdsa::{
     ot_based_ecdsa::{
@@ -34,8 +36,32 @@ pub fn init_eth_signer() {
     // no-op; reserved for future logger initialization
 }
 
+const THRESHOLD_SECP256K1_CLIENT_SHARE_SALT_V1: &[u8] =
+    b"tatchi/lite/threshold-secp256k1-ecdsa/client-share:v1";
+const SECP256K1_ORDER_HEX: &str =
+    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141";
+
 fn js_err(msg: impl Into<String>) -> JsValue {
     JsValue::from_str(&msg.into())
+}
+
+fn reduce_hkdf_output_to_nonzero_secp256k1_scalar(okm64: &[u8]) -> Result<[u8; 32], JsValue> {
+    let order = BigUint::from_str_radix(SECP256K1_ORDER_HEX, 16)
+        .map_err(|_| js_err("failed to parse secp256k1 group order"))?;
+    let reduced =
+        (BigUint::from_bytes_be(okm64) % (&order - BigUint::from(1u8))) + BigUint::from(1u8);
+    let reduced_bytes = reduced.to_bytes_be();
+    if reduced_bytes.len() > 32 {
+        return Err(js_err(format!(
+            "derived secp256k1 scalar exceeds 32 bytes (got {})",
+            reduced_bytes.len()
+        )));
+    }
+
+    let mut out = [0u8; 32];
+    let offset = out.len() - reduced_bytes.len();
+    out[offset..].copy_from_slice(&reduced_bytes);
+    Ok(out)
 }
 
 fn parse_scalar_32(bytes: &[u8], field_name: &str) -> Result<TsScalar, JsValue> {
@@ -80,8 +106,8 @@ fn parse_affine_point_33(bytes: &[u8], field_name: &str) -> Result<AffinePoint, 
             bytes.len()
         )));
     }
-    let encoded =
-        EncodedPoint::from_bytes(bytes).map_err(|_| js_err(format!("{field_name} is not valid SEC1 bytes")))?;
+    let encoded = EncodedPoint::from_bytes(bytes)
+        .map_err(|_| js_err(format!("{field_name} is not valid SEC1 bytes")))?;
     let point = Option::<AffinePoint>::from(AffinePoint::from_encoded_point(&encoded))
         .ok_or_else(|| js_err(format!("{field_name} is not a valid secp256k1 point")))?;
     Ok(point)
@@ -158,7 +184,8 @@ impl ThresholdEcdsaPresignSession {
         if !participants_list.contains(me) {
             return Err(js_err("me must be included in participantIds"));
         }
-        let threshold_usize = usize::try_from(threshold).map_err(|_| js_err("threshold out of range"))?;
+        let threshold_usize =
+            usize::try_from(threshold).map_err(|_| js_err("threshold out of range"))?;
         if threshold_usize < 2 {
             return Err(js_err("threshold must be >= 2"));
         }
@@ -252,7 +279,11 @@ impl ThresholdEcdsaPresignSession {
         }
 
         let obj = Object::new();
-        Reflect::set(&obj, &JsValue::from_str("stage"), &JsValue::from_str(self.stage.as_str()))?;
+        Reflect::set(
+            &obj,
+            &JsValue::from_str("stage"),
+            &JsValue::from_str(self.stage.as_str()),
+        )?;
         Reflect::set(&obj, &JsValue::from_str("event"), &JsValue::from_str(event))?;
 
         let arr = Array::new();
@@ -294,7 +325,9 @@ impl ThresholdEcdsaPresignSession {
     #[wasm_bindgen]
     pub fn start_presign(&mut self) -> Result<(), JsValue> {
         if self.stage != PresignStage::TriplesDone {
-            return Err(js_err("start_presign is only valid after triples stage completes"));
+            return Err(js_err(
+                "start_presign is only valid after triples stage completes",
+            ));
         }
         let triples = self
             .triples_output
@@ -469,14 +502,16 @@ pub fn threshold_ecdsa_finalize_signature(
         };
         let recovered = k256::ecdsa::VerifyingKey::recover_from_prehash(&digest_arr, &sig, recid);
         if let Ok(vk) = recovered {
-            if vk.to_encoded_point(true).as_bytes() == expected_vk.to_encoded_point(true).as_bytes() {
+            if vk.to_encoded_point(true).as_bytes() == expected_vk.to_encoded_point(true).as_bytes()
+            {
                 recid_out = Some(id);
                 break;
             }
         }
     }
 
-    let recid = recid_out.ok_or_else(|| js_err("failed to recover public key (no valid recId found)"))?;
+    let recid =
+        recid_out.ok_or_else(|| js_err("failed to recover public key (no valid recId found)"))?;
 
     let mut out = Vec::with_capacity(65);
     out.extend_from_slice(sig.r().to_bytes().as_ref());
@@ -641,7 +676,12 @@ pub fn compute_eip1559_tx_hash(tx: JsValue) -> Result<Vec<u8>, JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn encode_eip1559_signed_tx(tx: JsValue, y_parity: u8, r: Vec<u8>, s: Vec<u8>) -> Result<Vec<u8>, JsValue> {
+pub fn encode_eip1559_signed_tx(
+    tx: JsValue,
+    y_parity: u8,
+    r: Vec<u8>,
+    s: Vec<u8>,
+) -> Result<Vec<u8>, JsValue> {
     if y_parity > 1 {
         return Err(JsValue::from_str("yParity must be 0 or 1"));
     }
@@ -664,21 +704,36 @@ pub fn encode_eip1559_signed_tx(tx: JsValue, y_parity: u8, r: Vec<u8>, s: Vec<u8
         }
         None => vec![],
     };
-    let data_bytes = hex_to_bytes(tx.data.as_deref().unwrap_or("0x")).map_err(|e| JsValue::from_str(&e))?;
+    let data_bytes =
+        hex_to_bytes(tx.data.as_deref().unwrap_or("0x")).map_err(|e| JsValue::from_str(&e))?;
     let access_list = tx.access_list.as_deref().unwrap_or(&[]);
     let access_list_enc = encode_access_list(access_list).map_err(|e| JsValue::from_str(&e))?;
 
-    fields.push(rlp_encode_bytes(&u256_bytes_be_from_dec(&tx.chain_id).map_err(|e| JsValue::from_str(&e))?));
-    fields.push(rlp_encode_bytes(&u256_bytes_be_from_dec(&tx.nonce).map_err(|e| JsValue::from_str(&e))?));
-    fields.push(rlp_encode_bytes(&u256_bytes_be_from_dec(&tx.max_priority_fee_per_gas).map_err(|e| JsValue::from_str(&e))?));
-    fields.push(rlp_encode_bytes(&u256_bytes_be_from_dec(&tx.max_fee_per_gas).map_err(|e| JsValue::from_str(&e))?));
-    fields.push(rlp_encode_bytes(&u256_bytes_be_from_dec(&tx.gas_limit).map_err(|e| JsValue::from_str(&e))?));
+    fields.push(rlp_encode_bytes(
+        &u256_bytes_be_from_dec(&tx.chain_id).map_err(|e| JsValue::from_str(&e))?,
+    ));
+    fields.push(rlp_encode_bytes(
+        &u256_bytes_be_from_dec(&tx.nonce).map_err(|e| JsValue::from_str(&e))?,
+    ));
+    fields.push(rlp_encode_bytes(
+        &u256_bytes_be_from_dec(&tx.max_priority_fee_per_gas).map_err(|e| JsValue::from_str(&e))?,
+    ));
+    fields.push(rlp_encode_bytes(
+        &u256_bytes_be_from_dec(&tx.max_fee_per_gas).map_err(|e| JsValue::from_str(&e))?,
+    ));
+    fields.push(rlp_encode_bytes(
+        &u256_bytes_be_from_dec(&tx.gas_limit).map_err(|e| JsValue::from_str(&e))?,
+    ));
     fields.push(rlp_encode_bytes(&to_bytes));
-    fields.push(rlp_encode_bytes(&u256_bytes_be_from_dec(&tx.value).map_err(|e| JsValue::from_str(&e))?));
+    fields.push(rlp_encode_bytes(
+        &u256_bytes_be_from_dec(&tx.value).map_err(|e| JsValue::from_str(&e))?,
+    ));
     fields.push(rlp_encode_bytes(&data_bytes));
     fields.push(access_list_enc);
 
-    fields.push(rlp_encode_bytes(&u256_bytes_be_from_dec(&format!("{y_parity}")).map_err(|e| JsValue::from_str(&e))?));
+    fields.push(rlp_encode_bytes(
+        &u256_bytes_be_from_dec(&format!("{y_parity}")).map_err(|e| JsValue::from_str(&e))?,
+    ));
     fields.push(rlp_encode_bytes(&strip_leading_zeros(r)));
     fields.push(rlp_encode_bytes(&strip_leading_zeros(s)));
 
@@ -690,7 +745,10 @@ pub fn encode_eip1559_signed_tx(tx: JsValue, y_parity: u8, r: Vec<u8>, s: Vec<u8
 }
 
 #[wasm_bindgen]
-pub fn sign_secp256k1_recoverable(digest32: Vec<u8>, private_key32: Vec<u8>) -> Result<Vec<u8>, JsValue> {
+pub fn sign_secp256k1_recoverable(
+    digest32: Vec<u8>,
+    private_key32: Vec<u8>,
+) -> Result<Vec<u8>, JsValue> {
     if digest32.len() != 32 {
         return Err(JsValue::from_str("digest32 must be 32 bytes"));
     }
@@ -700,7 +758,6 @@ pub fn sign_secp256k1_recoverable(digest32: Vec<u8>, private_key32: Vec<u8>) -> 
 
     // k256 expects a 32-byte secret key.
     use k256::ecdsa::{Signature, SigningKey};
-    use k256::elliptic_curve::SecretKey;
 
     let sk = SecretKey::from_slice(&private_key32)
         .map_err(|_| JsValue::from_str("invalid secp256k1 private key"))?;
@@ -726,5 +783,51 @@ pub fn sign_secp256k1_recoverable(digest32: Vec<u8>, private_key32: Vec<u8>) -> 
     out.extend_from_slice(&r_bytes);
     out.extend_from_slice(&s_bytes);
     out.push(recid.to_byte());
+    Ok(out)
+}
+
+#[wasm_bindgen]
+pub fn derive_threshold_secp256k1_client_share(
+    prf_first32: Vec<u8>,
+    user_id: String,
+    derivation_path: u32,
+) -> Result<Vec<u8>, JsValue> {
+    if prf_first32.len() != 32 {
+        return Err(js_err(format!(
+            "prf_first32 must be 32 bytes (got {})",
+            prf_first32.len()
+        )));
+    }
+
+    let user_id = user_id.trim();
+    if user_id.is_empty() {
+        return Err(js_err("user_id must be non-empty"));
+    }
+
+    let mut info = Vec::with_capacity(user_id.as_bytes().len() + 1 + 4);
+    info.extend_from_slice(user_id.as_bytes());
+    info.push(0);
+    info.extend_from_slice(&derivation_path.to_be_bytes());
+
+    let hk = Hkdf::<Sha256>::new(Some(THRESHOLD_SECP256K1_CLIENT_SHARE_SALT_V1), &prf_first32);
+    let mut okm64 = [0u8; 64];
+    hk.expand(&info, &mut okm64)
+        .map_err(|_| js_err("HKDF expand failed for threshold secp256k1 client share"))?;
+
+    let client_signing_share32 = reduce_hkdf_output_to_nonzero_secp256k1_scalar(&okm64)?;
+    let secret_key = SecretKey::from_slice(&client_signing_share32)
+        .map_err(|_| js_err("derived client signing share is not a valid secp256k1 secret key"))?;
+    let client_verifying_share33 = secret_key.public_key().to_encoded_point(true);
+    let client_verifying_share33 = client_verifying_share33.as_bytes();
+    if client_verifying_share33.len() != 33 {
+        return Err(js_err(format!(
+            "derived client verifying share must be 33 bytes (got {})",
+            client_verifying_share33.len()
+        )));
+    }
+
+    let mut out = Vec::with_capacity(65);
+    out.extend_from_slice(&client_signing_share32);
+    out.extend_from_slice(client_verifying_share33);
     Ok(out)
 }

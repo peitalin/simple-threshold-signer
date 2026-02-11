@@ -9,8 +9,8 @@ import type {
 import { DeviceLinkingPhase, DeviceLinkingStatus } from '../types/sdkSentEvents';
 import { DeviceLinkingError, DeviceLinkingErrorCode } from '../types/linkDevice';
 import { DEVICE_LINKING_CONFIG } from '../../config.js';
-import { executeDeviceLinkingContractCalls } from '../rpcCalls';
-import { ensureEd25519Prefix } from '../nearCrypto';
+import { executeDeviceLinkingContractCalls } from '../near/rpcCalls';
+import { ensureEd25519Prefix } from '../near/nearCrypto';
 
 /**
  * Device1 (original device): Link device using pre-scanned QR data

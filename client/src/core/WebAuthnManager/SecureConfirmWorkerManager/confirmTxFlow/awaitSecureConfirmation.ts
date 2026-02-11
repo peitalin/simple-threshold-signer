@@ -29,7 +29,7 @@ type ConfirmResponseEnvelope = {
  * Where this runs:
  * - Runs inside the SecureConfirm Web Worker (not the main thread).
  * - Invoked from the worker runtime; the SecureConfirm worker exposes this as
- *   `globalThis.awaitSecureConfirmationV2` in `client/src/core/web3authn-secure-confirm.worker.ts`.
+ *   `globalThis.awaitSecureConfirmationV2` in `client/src/core/workers/passkey-secure-confirm.worker.ts`.
  *
  * High-level flow:
  * 1) SecureConfirm runtime calls `awaitSecureConfirmationV2(request)`
@@ -72,7 +72,7 @@ export function awaitSecureConfirmationV2(
     };
 
     // 3) Wait for the matching decision message from the main thread.
-    // Note: `web3authn-secure-confirm.worker.ts` intentionally ignores USER_PASSKEY_CONFIRM_RESPONSE
+    // Note: `passkey-secure-confirm.worker.ts` intentionally ignores USER_PASSKEY_CONFIRM_RESPONSE
     // at the worker `onmessage` level and lets this handler consume it.
     const onDecisionReceived = (messageEvent: MessageEvent) => {
       const env = messageEvent?.data as unknown;

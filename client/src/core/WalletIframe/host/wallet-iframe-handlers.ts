@@ -25,7 +25,7 @@ import type {
 } from '../../types/tatchi';
 import type { ConfirmationConfig } from '../../types/signer-worker';
 import { toAccountId } from '../../types/accountIds';
-import { SignedTransaction } from '../../NearClient';
+import { SignedTransaction } from '../../near/NearClient';
 import { isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx, PlainSignedTransactionLike } from '../../../../../shared/src/utils/validation';
 import type { ActionArgs } from '../../types';
 

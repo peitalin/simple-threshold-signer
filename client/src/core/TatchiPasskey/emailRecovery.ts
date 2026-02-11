@@ -7,7 +7,7 @@ import { removePrfOutputGuard, normalizeRegistrationCredential } from '../WebAut
 import { toAccountId } from '../types/accountIds';
 import { buildThresholdEd25519Participants2pV1 } from '../../../../shared/src/threshold/participants';
 import { IndexedDBManager } from '../IndexedDBManager';
-import { EmailRecoveryPendingStore } from '../EmailRecovery';
+import { EmailRecoveryPendingStore } from '../../utils/emailRecovery';
 import { errorMessage } from '../../../../shared/src/utils/errors';
 
 /**

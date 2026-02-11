@@ -11,7 +11,7 @@ import type {
   RelayCloudflareWorkerEnv as Env,
 } from '@tatchi-xyz/sdk/server/router/cloudflare';
 import signerWasmModule from '@tatchi-xyz/sdk/server/wasm/signer';
-import shamirWasmModule from '@tatchi-xyz/sdk/server/wasm/vrf';
+import shamirWasmModule from '@tatchi-xyz/sdk/server/wasm/signer';
 import jwtSession from './jwtSession';
 
 export { ThresholdEd25519StoreDurableObject } from '@tatchi-xyz/sdk/server/router/cloudflare';

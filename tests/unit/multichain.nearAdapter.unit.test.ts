@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 const IMPORT_PATHS = {
   nearAdapter:
-    '/sdk/esm/core/WebAuthnManager/SignerWorkerManager/MultichainAdapter/near/nearAdapter.js',
+    '/sdk/esm/core/signing/multichain/near/nearAdapter.js',
   actions: '/sdk/esm/core/types/actions.js',
 } as const;
 

@@ -31,7 +31,7 @@ export {
 
 // === RE-EXPORT CORE TYPES ===
 export { TatchiPasskey } from '../core/TatchiPasskey';
-export { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../core/defaultConfigs';
+export { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../core/config/defaultConfigs';
 export type { TatchiConfigs, TatchiConfigsInput } from '../core/types/tatchi';
 export type { StoreUserDataInput } from '../core/IndexedDBManager/passkeyClientDB';
 
@@ -83,7 +83,7 @@ export type {
 ////////////////////////////
 
 export { useNearClient } from './hooks/useNearClient';
-export type { NearClient, AccessKeyList } from '../core/NearClient';
+export type { NearClient, AccessKeyList } from '../core/near/NearClient';
 export { useAccountInput } from './hooks/useAccountInput';
 export { useDeviceLinking } from './hooks/useDeviceLinking';
 export type { UseDeviceLinkingOptions, UseDeviceLinkingReturn } from './hooks/useDeviceLinking';

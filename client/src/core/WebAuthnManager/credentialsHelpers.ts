@@ -6,7 +6,7 @@ import {
   type AuthenticationExtensionsClientOutputs,
   type CredentialPropertiesOutput,
 } from '../types/webauthn';
-import { PRF_FIRST_SALT_V1, PRF_SECOND_SALT_V1 } from '../threshold/prfSalts';
+import { PRF_FIRST_SALT_V1, PRF_SECOND_SALT_V1 } from '../signing/schemes/threshold/crypto/prfSalts';
 
 type SerializableCredential = WebAuthnAuthenticationCredential | WebAuthnRegistrationCredential;
 
