@@ -27,7 +27,7 @@ import type { TransactionInputWasm } from '../../types/actions';
 import type { RpcCallPayload, ConfirmationConfig } from '../../types/signer-worker';
 import type { TransactionContext } from '../../types/rpc';
 import type { ThemeName } from '../../types/tatchi';
-import type { RegistrationCredentialConfirmationPayload } from '../threshold/validation/keys';
+import type { RegistrationCredentialConfirmationPayload } from '../threshold/keys';
 import { handlePromptUserConfirmInJsMainThread } from './confirmTxFlow';
 import type { SecureConfirmWorkerManagerHandlerContext } from './handlers/types';
 import {

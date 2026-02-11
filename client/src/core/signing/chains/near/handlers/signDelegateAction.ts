@@ -54,7 +54,7 @@ function generateSessionId(): string {
 import {
   ensureEd25519Prefix,
   toPublicKeyString,
-} from '../../../threshold/validation/keys';
+} from '../../../threshold/keys';
 import { deriveThresholdEd25519ClientVerifyingShare } from '../../../threshold/workflows/deriveThresholdEd25519ClientVerifyingShare';
 
 const DUMMY_WRAP_KEY_SALT_B64U = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';

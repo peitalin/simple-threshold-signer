@@ -88,7 +88,7 @@ const DUMMY_WRAP_KEY_SALT_B64U = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
  *
  * Architecture:
  * - index.ts (this file): Main class orchestrating everything
- * - signerWorkerManager: NEAR transaction signing and threshold signing helpers
+ * - signerWorkerManager: signer-worker runtime bridge + key operations
  * - secureConfirmWorkerManager: wallet-origin confirmations + WebAuthn credential collection
  * - touchIdPrompt: TouchID prompt for biometric authentication
  */
@@ -594,29 +594,58 @@ export class WebAuthnManager {
     onEvent?: (update: onProgressEvents) => void;
     sessionId?: string;
   }): Promise<SignTransactionResult[]> {
-    const { signNearWithSecureConfirm } = await import('../chains/near/walletOrigin');
     const signingSessionPolicy = this.resolveSigningSessionPolicy({});
     const resolvedSessionId =
       String(sessionId || '').trim() ||
       this.getOrCreateActiveSigningSessionId(toAccountId(rpcCall.nearAccountId));
-    return await signNearWithSecureConfirm({
-      signerWorkerManager: this.signerWorkerManager,
-      request: {
+    const [{ executeSigningIntent }, { NearEd25519Engine, NEAR_ED25519_KEY_REF }] =
+      await Promise.all([
+        import('../orchestration/executeSigningIntent'),
+        import('../engines/ed25519'),
+      ]);
+    const ctx = this.signerWorkerManager.getContext();
+    const engine = new NearEd25519Engine();
+    return await executeSigningIntent({
+      intent: {
         chain: 'near',
-        kind: 'transactionsWithActions',
-        nearAccountId: rpcCall.nearAccountId,
-        transactions,
+        uiModel: { kind: 'transactionsWithActions' as const },
+        signRequests: [
+          {
+            kind: 'near-transactions-with-actions' as const,
+            algorithm: 'ed25519' as const,
+            payload: {
+              ctx,
+              transactions,
+              rpcCall,
+              deviceNumber,
+              signerMode,
+              confirmationConfigOverride,
+              title,
+              body,
+              onEvent,
+              signingSessionTtlMs: signingSessionPolicy.ttlMs,
+              signingSessionRemainingUses: signingSessionPolicy.remainingUses,
+              sessionId: resolvedSessionId,
+            },
+          },
+        ],
+        finalize: async (signed) => {
+          if (signed.length !== 1) {
+            throw new Error(
+              `[WebAuthnManager][transactions] expected one engine output, got ${signed.length}`,
+            );
+          }
+          const first = signed[0];
+          if (first.kind !== 'near-transactions-with-actions') {
+            throw new Error(
+              `[WebAuthnManager][transactions] unexpected engine output kind: ${first.kind}`,
+            );
+          }
+          return first.result;
+        },
       },
-      rpcCall,
-      deviceNumber,
-      signerMode,
-      confirmationConfigOverride,
-      title,
-      body,
-      onEvent,
-      signingSessionTtlMs: signingSessionPolicy.ttlMs,
-      signingSessionRemainingUses: signingSessionPolicy.remainingUses,
-      sessionId: resolvedSessionId,
+      engines: { ed25519: engine },
+      resolveSignInput: async (signReq) => ({ signReq, keyRef: NEAR_ED25519_KEY_REF }),
     });
   }
 
@@ -766,18 +795,50 @@ export class WebAuthnManager {
     try {
       const activeSessionId = this.getOrCreateActiveSigningSessionId(nearAccountId);
       console.debug('[WebAuthnManager][delegate] session created', { sessionId: activeSessionId });
-      return await this.signerWorkerManager.signDelegateAction({
-        delegate,
-        rpcCall: normalizedRpcCall,
-        deviceNumber,
-        signerMode,
-        confirmationConfigOverride,
-        title,
-        body,
-        onEvent,
-        signingSessionTtlMs: signingSessionPolicy.ttlMs,
-        signingSessionRemainingUses: signingSessionPolicy.remainingUses,
-        sessionId: activeSessionId,
+      const [{ executeSigningIntent }, { NearEd25519Engine, NEAR_ED25519_KEY_REF }] =
+        await Promise.all([
+          import('../orchestration/executeSigningIntent'),
+          import('../engines/ed25519'),
+        ]);
+      const ctx = this.signerWorkerManager.getContext();
+      const engine = new NearEd25519Engine();
+      return await executeSigningIntent({
+        intent: {
+          chain: 'near',
+          uiModel: { kind: 'delegateAction' as const },
+          signRequests: [
+            {
+              kind: 'near-delegate-action' as const,
+              algorithm: 'ed25519' as const,
+              payload: {
+                ctx,
+                delegate,
+                rpcCall: normalizedRpcCall,
+                deviceNumber,
+                signerMode,
+                confirmationConfigOverride,
+                title,
+                body,
+                onEvent,
+                signingSessionTtlMs: signingSessionPolicy.ttlMs,
+                signingSessionRemainingUses: signingSessionPolicy.remainingUses,
+                sessionId: activeSessionId,
+              },
+            },
+          ],
+          finalize: async (signed) => {
+            if (signed.length !== 1) {
+              throw new Error(`[WebAuthnManager][delegate] expected one engine output, got ${signed.length}`);
+            }
+            const first = signed[0];
+            if (first.kind !== 'near-delegate-action') {
+              throw new Error(`[WebAuthnManager][delegate] unexpected engine output kind: ${first.kind}`);
+            }
+            return first.result;
+          },
+        },
+        engines: { ed25519: engine },
+        resolveSignInput: async (signReq) => ({ signReq, keyRef: NEAR_ED25519_KEY_REF }),
       });
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -811,13 +872,47 @@ export class WebAuthnManager {
       const contractId = this.tatchiPasskeyConfigs.contractId;
       const nearRpcUrl =
         this.tatchiPasskeyConfigs.nearRpcUrl.split(',')[0] || this.tatchiPasskeyConfigs.nearRpcUrl;
-      const result = await this.signerWorkerManager.signNep413Message({
-        ...payload,
-        sessionId: activeSessionId,
-        contractId,
-        nearRpcUrl,
-        signingSessionTtlMs: signingSessionPolicy.ttlMs,
-        signingSessionRemainingUses: signingSessionPolicy.remainingUses,
+      const [{ executeSigningIntent }, { NearEd25519Engine, NEAR_ED25519_KEY_REF }] =
+        await Promise.all([
+          import('../orchestration/executeSigningIntent'),
+          import('../engines/ed25519'),
+        ]);
+      const ctx = this.signerWorkerManager.getContext();
+      const engine = new NearEd25519Engine();
+      const result = await executeSigningIntent({
+        intent: {
+          chain: 'near',
+          uiModel: { kind: 'nep413' as const },
+          signRequests: [
+            {
+              kind: 'near-nep413-message' as const,
+              algorithm: 'ed25519' as const,
+              payload: {
+                ctx,
+                payload: {
+                  ...payload,
+                  sessionId: activeSessionId,
+                  contractId,
+                  nearRpcUrl,
+                  signingSessionTtlMs: signingSessionPolicy.ttlMs,
+                  signingSessionRemainingUses: signingSessionPolicy.remainingUses,
+                },
+              },
+            },
+          ],
+          finalize: async (signed) => {
+            if (signed.length !== 1) {
+              throw new Error(`[WebAuthnManager][nep413] expected one engine output, got ${signed.length}`);
+            }
+            const first = signed[0];
+            if (first.kind !== 'near-nep413-message') {
+              throw new Error(`[WebAuthnManager][nep413] unexpected engine output kind: ${first.kind}`);
+            }
+            return first.result;
+          },
+        },
+        engines: { ed25519: engine },
+        resolveSignInput: async (signReq) => ({ signReq, keyRef: NEAR_ED25519_KEY_REF }),
       });
       if (result.success) {
         return result;
@@ -851,7 +946,7 @@ export class WebAuthnManager {
 
     const [{ signTempoWithSecureConfirm }, { Secp256k1Engine }, { WebAuthnP256Engine }] =
       await Promise.all([
-        import('../chains/orchestrator'),
+        import('../chains/tempo/handlers/signTempoWithSecureConfirm'),
         import('../engines/secp256k1'),
         import('../engines/webauthnP256'),
       ]);

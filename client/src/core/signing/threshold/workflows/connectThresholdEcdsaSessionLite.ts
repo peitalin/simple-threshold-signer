@@ -6,7 +6,7 @@ import {
   type ThresholdPrfFirstCachePort,
   type ThresholdSignerWorkerPort,
   type ThresholdWebAuthnPromptPort,
-} from '../ports/webauthn';
+} from '../webauthn';
 import { deriveThresholdSecp256k1ClientShareWasm } from '../../chains/evm/ethSignerWasm';
 import { buildThresholdEcdsaSessionPolicy } from '../session/thresholdSessionPolicy';
 import {

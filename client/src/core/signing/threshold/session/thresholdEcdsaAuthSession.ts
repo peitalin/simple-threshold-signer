@@ -2,7 +2,7 @@ import { stripTrailingSlashes, toTrimmedString } from '../../../../../../shared/
 import type { ThresholdEcdsaSessionPolicy } from './thresholdSessionPolicy';
 import type { WebAuthnAuthenticationCredential } from '../../../types/webauthn';
 import { normalizeThresholdEd25519ParticipantIds } from '../../../../../../shared/src/threshold/participants';
-import { redactCredentialExtensionOutputs } from '../ports/webauthn';
+import { redactCredentialExtensionOutputs } from '../webauthn';
 
 export type ThresholdEcdsaSessionKind = 'jwt' | 'cookie';
 

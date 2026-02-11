@@ -10,7 +10,7 @@ import {
 import {
   parseAndValidateRegistrationCredentialConfirmationPayload,
   type RegistrationCredentialConfirmationPayload,
-} from '../../../threshold/validation/keys';
+} from '../../../threshold/keys';
 
 export async function requestRegistrationCredentialConfirmation({
   ctx,

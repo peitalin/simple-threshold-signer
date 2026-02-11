@@ -15,25 +15,13 @@ import {
   WorkerRequestTypeMap,
 } from '../../../types/signer-worker';
 import { SecureConfirmWorkerManager } from '../../secureConfirm/manager';
-import type { ActionArgsWasm, TransactionInputWasm } from '../../../types/actions';
-import type { DelegateActionInput } from '../../../types/delegate';
+import type { ActionArgsWasm } from '../../../types/actions';
 import type { onProgressEvents } from '../../../types/sdkSentEvents';
 import type { AuthenticatorOptions } from '../../../types/authenticatorOptions';
 import { AccountId } from "../../../types/accountIds";
-import {
-  ConfirmationConfig,
-  type SignerMode,
-  WasmSignedDelegate,
-} from '../../../types/signer-worker';
-import type { ThresholdBehavior } from '../../../types/signer-worker';
 import { TouchIdPrompt } from "../../webauthn/prompt/touchIdPrompt";
 import { WorkerControlMessage } from '../../../workers/workerControlMessages';
 import type { MultichainSignerRuntimeDeps } from '../../chains/types';
-import {
-  signNearDelegateAction,
-  signNearNep413Message,
-  signNearTransactionsWithActions,
-} from '../../chains/orchestrator';
 
 import {
   decryptPrivateKeyWithPrf,
@@ -56,7 +44,6 @@ import {
 import {
   deriveThresholdEd25519ClientVerifyingShare,
 } from './keyOps/deriveThresholdEd25519ClientVerifyingShare';
-import { RpcCallPayload } from '../../../types/signer-worker';
 import { UserPreferencesManager } from '../../api/userPreferences';
 import { NonceManager } from '../../../near/nonceManager';
 import type { ThemeName } from '../../../types/tatchi';
@@ -467,56 +454,6 @@ export class SignerWorkerManager {
     return decryptPrivateKeyWithPrf({ ctx: this.getContext(), ...args });
   }
 
-  // === ACTION-BASED SIGNING METHODS ===
-
-  /**
-   * Sign multiple transactions with a shared WebAuthn credential.
-   * Efficiently processes multiple transactions with one PRF-backed signing session.
-   */
-  async signTransactionsWithActions(args: {
-    transactions: TransactionInputWasm[],
-    rpcCall: RpcCallPayload,
-    signerMode: SignerMode,
-    onEvent?: (update: onProgressEvents) => void,
-    confirmationConfigOverride?: Partial<ConfirmationConfig>,
-    title?: string;
-    body?: string;
-    signingSessionTtlMs?: number;
-    signingSessionRemainingUses?: number;
-    sessionId: string,
-    deviceNumber?: number;
-  }): Promise<Array<{
-    signedTransaction: SignedTransaction;
-    nearAccountId: AccountId;
-    logs?: string[]
-  }>> {
-    return signNearTransactionsWithActions({
-      ctx: this.getContext(),
-      ...args
-    });
-  }
-
-  async signDelegateAction(args: {
-    delegate: DelegateActionInput;
-    rpcCall: RpcCallPayload;
-    signerMode: SignerMode;
-    deviceNumber?: number;
-    onEvent?: (update: onProgressEvents) => void;
-    confirmationConfigOverride?: Partial<ConfirmationConfig>;
-    title?: string;
-    body?: string;
-    signingSessionTtlMs?: number;
-    signingSessionRemainingUses?: number;
-    sessionId: string;
-  }): Promise<{
-    signedDelegate: WasmSignedDelegate;
-    hash: string;
-    nearAccountId: AccountId;
-    logs?: string[];
-  }> {
-    return signNearDelegateAction({ ctx: this.getContext(), ...args });
-  }
-
   /**
    * Recover keypair from authentication credential for account recovery
    * Uses dual PRF-based Ed25519 key derivation with account-specific HKDF and AES encryption
@@ -560,42 +497,6 @@ export class SignerWorkerManager {
     logs?: string[];
   }> {
     return signTransactionWithKeyPair({ ctx: this.getContext(), ...args });
-  }
-
-  /**
-   * Sign a NEP-413 message using the user's passkey-derived private key
-   *
-   * @param payload - NEP-413 signing parameters including message, recipient, nonce, and state
-   * @returns Promise resolving to signing result with account ID, public key, and signature
-   */
-  async signNep413Message(payload: {
-    message: string;
-    recipient: string;
-    nonce: string;
-    state: string | null;
-    accountId: string;
-    signerMode: SignerMode;
-    deviceNumber?: number;
-    title?: string;
-    body?: string;
-    confirmationConfigOverride?: Partial<ConfirmationConfig>;
-    signingSessionTtlMs?: number;
-    signingSessionRemainingUses?: number;
-    sessionId: string;
-    contractId?: string;
-    nearRpcUrl?: string;
-  }): Promise<{
-    success: boolean;
-    accountId: string;
-    publicKey: string;
-    signature: string;
-    state?: string;
-    error?: string;
-  }> {
-    return signNearNep413Message({
-      ctx: this.getContext(),
-      payload
-    });
   }
 
   /**

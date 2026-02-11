@@ -46,19 +46,34 @@ export type SignRequest =
       credential?: WebAuthnAuthenticationCredential;
     };
 
-export interface SigningIntent<UiModel = unknown, Result = unknown> {
+export interface SigningIntent<
+  UiModel = unknown,
+  Result = unknown,
+  Request = SignRequest,
+  Signed = SignatureBytes,
+> {
   chain: ChainNamespace;
   uiModel: UiModel;
-  signRequests: SignRequest[];
-  finalize: (signatures: SignatureBytes[]) => Promise<Result>;
+  signRequests: Request[];
+  finalize: (signatures: Signed[]) => Promise<Result>;
 }
 
-export interface ChainAdapter<Request = unknown, UiModel = unknown, Result = unknown> {
+export interface ChainAdapter<
+  Request = unknown,
+  UiModel = unknown,
+  Result = unknown,
+  SignRequestType = SignRequest,
+  Signed = SignatureBytes,
+> {
   readonly chain: ChainNamespace;
-  buildIntent: (request: Request) => Promise<SigningIntent<UiModel, Result>>;
+  buildIntent: (request: Request) => Promise<SigningIntent<UiModel, Result, SignRequestType, Signed>>;
 }
 
-export interface SigningEngine {
+export interface SigningEngine<
+  Request = SignRequest,
+  Key = KeyRef,
+  Signed = SignatureBytes,
+> {
   readonly algorithm: SignatureAlgorithm;
-  sign: (req: SignRequest, keyRef: KeyRef) => Promise<SignatureBytes>;
+  sign: (req: Request, keyRef: Key) => Promise<Signed>;
 }

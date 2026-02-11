@@ -1,5 +1,5 @@
 import type { ConfirmationConfig } from '../../../types/signer-worker';
-import type { RegistrationCredentialConfirmationPayload } from '../../threshold/validation/keys';
+import type { RegistrationCredentialConfirmationPayload } from '../../threshold/keys';
 import { requestRegistrationCredentialConfirmation as requestRegistrationCredentialConfirmationFlow } from '../confirmTxFlow/flows/requestRegistrationCredentialConfirmation';
 import type { SecureConfirmWorkerManagerHandlerContext } from './types';
 

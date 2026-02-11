@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const IMPORT_PATHS = {
-  nearWalletOrigin:
-    '/sdk/esm/core/signing/chains/near/walletOrigin.js',
+  nearAdapter:
+    '/sdk/esm/core/signing/chains/near/nearAdapter.js',
   tempoAdapter:
     '/sdk/esm/core/signing/chains/tempo/tempoAdapter.js',
   actions: '/sdk/esm/core/types/actions.js',
@@ -22,24 +22,23 @@ test.describe('modularity lazy signer loading', () => {
     );
     const source = fs.readFileSync(sourcePath, 'utf8');
 
+    expect(source).toContain("import('../engines/ed25519')");
     expect(source).toContain(
-      "await import('../chains/near/walletOrigin')",
-    );
-    expect(source).toContain(
-      "import('../chains/orchestrator')",
+      "import('../chains/tempo/handlers/signTempoWithSecureConfirm')",
     );
     expect(source).toContain("import('../engines/secp256k1')");
     expect(source).toContain("import('../engines/webauthnP256')");
 
     expect(source).not.toContain(
-      "from '../chains/near/walletOrigin'",
+      "await import('../chains/near/walletOrigin')",
     );
-    expect(source).not.toContain("from '../chains/orchestrator'");
+    expect(source).not.toContain("from '../chains/tempo/handlers/signTempoWithSecureConfirm'");
+    expect(source).not.toContain("from '../engines/ed25519'");
     expect(source).not.toContain("from '../engines/secp256k1'");
     expect(source).not.toContain("from '../engines/webauthnP256'");
   });
 
-  test('near wallet-origin path does not instantiate multichain wasm workers', async ({
+  test('near adapter path does not instantiate multichain wasm workers', async ({
     page,
   }) => {
     const result = await page.evaluate(async ({ paths }) => {
@@ -51,40 +50,27 @@ test.describe('modularity lazy signer loading', () => {
             url: String(url),
             name: typeof opts?.name === 'string' ? opts.name : null,
           });
-          throw new Error('Worker creation is not expected in near wallet-origin normalization flow');
+          throw new Error('Worker creation is not expected in near adapter intent-build flow');
         }
       }
 
       const originalWorker = window.Worker;
       try {
         (window as any).Worker = ThrowingWorker as any;
-        const { signNearWithSecureConfirm } = await import(paths.nearWalletOrigin);
+        const { NearAdapter } = await import(paths.nearAdapter);
         const { ActionType } = await import(paths.actions);
+        const adapter = new NearAdapter();
 
-        const signerWorkerManager = {
-          signTransactionsWithActions: async () => [] as any[],
-        };
-
-        await signNearWithSecureConfirm({
-          signerWorkerManager,
-          request: {
-            chain: 'near',
-            kind: 'transactionsWithActions',
-            nearAccountId: 'alice.near',
-            transactions: [
-              {
-                receiverId: 'bob.near',
-                actions: [{ action_type: ActionType.Transfer, deposit: '1' }],
-              },
-            ],
-          },
-          rpcCall: {
-            nearAccountId: 'alice.near',
-            nearRpcUrl: 'https://rpc.testnet.near.org',
-            contractId: 'w3a-v1.testnet',
-          },
-          signerMode: { mode: 'local-signer' },
-          sessionId: 'session-near-only',
+        await adapter.buildIntent({
+          chain: 'near',
+          kind: 'transactionsWithActions',
+          nearAccountId: 'alice.near',
+          transactions: [
+            {
+              receiverId: 'bob.near',
+              actions: [{ action_type: ActionType.Transfer, deposit: '1' }],
+            },
+          ],
         });
 
         return { workerCreations };

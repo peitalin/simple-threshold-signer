@@ -6,7 +6,7 @@ import {
   getPrfFirstB64uFromCredential,
   type ThresholdIndexedDbPort,
   type ThresholdWebAuthnPromptPort,
-} from '../ports/webauthn';
+} from '../webauthn';
 
 function generateKeygenSessionId(): string {
   const id = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')

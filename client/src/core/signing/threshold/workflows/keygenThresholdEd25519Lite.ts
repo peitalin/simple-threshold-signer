@@ -8,7 +8,7 @@ import {
   type ThresholdEd25519ClientShareDeriverPort,
   type ThresholdIndexedDbPort,
   type ThresholdWebAuthnPromptPort,
-} from '../ports/webauthn';
+} from '../webauthn';
 
 const DUMMY_WRAP_KEY_SALT_B64U = base64UrlEncode(new Uint8Array(32));
 

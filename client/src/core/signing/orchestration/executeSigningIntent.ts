@@ -1,16 +1,19 @@
 import type {
-  KeyRef,
-  SignRequest,
   SigningEngine,
   SigningIntent,
 } from './types';
 
-export async function executeSigningIntent<Result>(args: {
-  intent: SigningIntent<unknown, Result>;
-  engines: Record<string, SigningEngine>;
-  resolveSignInput: (req: SignRequest) => Promise<{ signReq: SignRequest; keyRef: KeyRef }>;
+export async function executeSigningIntent<
+  Result,
+  Request extends { algorithm: string },
+  Key,
+  Signed,
+>(args: {
+  intent: SigningIntent<unknown, Result, Request, Signed>;
+  engines: Record<string, SigningEngine<Request, Key, Signed>>;
+  resolveSignInput: (req: Request) => Promise<{ signReq: Request; keyRef: Key }>;
 }): Promise<Result> {
-  const signatures: Uint8Array[] = [];
+  const signatures: Signed[] = [];
   for (const pendingReq of args.intent.signRequests) {
     const { signReq, keyRef } = await args.resolveSignInput(pendingReq);
     const engine = args.engines[signReq.algorithm];

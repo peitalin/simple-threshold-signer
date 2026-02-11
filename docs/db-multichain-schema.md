@@ -1,7 +1,7 @@
 # DB Multichain Schema Refactor Plan
 
 Status: Draft  
-Last updated: 2026-02-11
+Last updated: 2026-02-12
 
 ## Scope
 
@@ -16,6 +16,7 @@ In scope:
   - `client/src/core/signing/api/*`
   - `client/src/core/signing/chains/*`
   - `client/src/core/signing/engines/*`
+  - `client/src/core/signing/orchestration/*`
   - `client/src/core/signing/workers/*`
   - `client/src/core/signing/secureConfirm/*`
   - `client/src/core/signing/webauthn/*`
@@ -35,14 +36,22 @@ The plan targets the refactored signing layout currently in this repo:
 - Chain orchestration + handlers:
   - `client/src/core/signing/chains/{near,evm,tempo}/*`
   - `client/src/core/signing/chains/near/handlers/*`
+  - `client/src/core/signing/chains/tempo/handlers/*`
+- Intent orchestration:
+  - `client/src/core/signing/orchestration/executeSigningIntent.ts`
+  - `client/src/core/signing/orchestration/types.ts`
+  - `client/src/core/signing/orchestration/walletOrigin/*`
 - Signing engines:
   - `client/src/core/signing/engines/*`
 - WebAuthn utilities:
   - `client/src/core/signing/webauthn/{credentials,cose,prompt,device,fallbacks}/*`
 - Secure confirm flow:
   - `client/src/core/signing/secureConfirm/*`
+  - `client/src/core/signing/secureConfirm/confirmTxFlow/adapters/*`
+  - `client/src/core/signing/secureConfirm/ui/lit-components/*`
 - Worker managers and worker RPC:
   - `client/src/core/signing/workers/*`
+  - `client/src/core/signing/workers/signerWorkerManager/{internal,keyOps}/*`
 - Browser worker entrypoints:
   - `client/src/core/workers/passkey-confirm.worker.ts`
   - `client/src/core/workers/{near-signer,eth-signer,tempo-signer}.worker.ts`
@@ -389,7 +398,7 @@ Use this section as the execution tracker for this refactor. Mark items as compl
 - [ ] Add migration telemetry logs (start/end/duration/error/counts).
 - [ ] Define canonical normalization rules (CAIP/account/address/signer ids).
 - [ ] Add regression tests for existing NEAR login/signing/link-device behavior.
-- [ ] Add regression tests for the refactored signing entrypoints (`signing/api`, `signing/chains/near/handlers`, `signing/workers`).
+- [ ] Add regression tests for the refactored signing entrypoints (`signing/api`, `signing/chains/*/handlers`, `signing/orchestration`, `signing/workers`).
 - [ ] Document rollback switch/feature flag for emergency fallback.
 - [ ] Phase 0 exit review completed and approved.
 
@@ -433,7 +442,9 @@ Use this section as the execution tracker for this refactor. Mark items as compl
 - [ ] Add one-time warning/deprecation logs for NEAR-specific DB APIs.
 - [ ] Migrate internal consumers to new generic APIs (preserve external compatibility wrappers).
 - [ ] Migrate DB call sites in `client/src/core/signing/chains/near/handlers/*`.
-- [ ] Migrate DB call sites in `client/src/core/signing/api/*` and `client/src/core/signing/workers/*`.
+- [ ] Migrate DB call sites in `client/src/core/signing/chains/tempo/handlers/*`.
+- [ ] Migrate DB call sites in `client/src/core/signing/api/*`, `client/src/core/signing/orchestration/*`, and `client/src/core/signing/workers/*`.
+- [ ] Ensure `client/src/core/signing/secureConfirm/confirmTxFlow/adapters/*` uses generic DB lookups (no legacy direct assumptions).
 - [ ] Ensure worker entrypoints under `client/src/core/workers/*` use the same V2 DB resolution path.
 - [ ] Add telemetry dashboards/metrics for V2 read-hit ratio and fallback rate.
 - [ ] Add telemetry for outbox retries, dead-letter count, and saga-repair actions.
@@ -515,7 +526,7 @@ Idempotency requirements:
   - Write both V2 and legacy for one release window.
   - Signer updates go through outbox + idempotency keys.
 - Enforce saga repair between wallet DB and key DB on startup.
-- Migrate active refactored signing modules first (`signing/api`, `signing/chains`, `signing/workers`, `signing/secureConfirm`), then residual compatibility modules.
+- Migrate active refactored signing modules first (`signing/api`, `signing/chains`, `signing/orchestration`, `signing/workers`, `signing/secureConfirm`), then residual compatibility modules.
 
 Exit criteria:
 - Internal metrics show new-store read hit-rate near 100%.
@@ -529,7 +540,7 @@ Exit criteria:
 - Require `G1`-`G6` cutover gates before deleting legacy stores.
 
 Exit criteria:
-- No calls to NEAR-specific DB methods from signing core paths (`signing/api`, `signing/chains`, `signing/engines`, `signing/workers`, `signing/secureConfirm`, `signing/webauthn`).
+- No calls to NEAR-specific DB methods from signing core paths (`signing/api`, `signing/chains`, `signing/engines`, `signing/orchestration`, `signing/workers`, `signing/secureConfirm`, `signing/webauthn`).
 - Legacy stores removable without user-visible data loss.
 
 ## PR Breakdown

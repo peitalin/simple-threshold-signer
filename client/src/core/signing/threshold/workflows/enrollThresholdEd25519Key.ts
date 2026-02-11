@@ -2,7 +2,7 @@ import { toAccountId, type AccountId } from '../../../types/accountIds';
 import { thresholdEd25519Keygen } from '../../../near/rpcCalls';
 import { ensureEd25519Prefix } from '../../../../../../shared/src/utils/validation';
 import type { WebAuthnAuthenticationCredential } from '../../../types/webauthn';
-import type { ThresholdWebAuthnPromptPort } from '../ports/webauthn';
+import type { ThresholdWebAuthnPromptPort } from '../webauthn';
 
 type DeriveThresholdClientShareResult = {
   success: boolean;

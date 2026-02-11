@@ -1,6 +1,6 @@
-import type { AccountId } from '../../../types/accountIds';
-import type { ClientAuthenticatorData } from '../../../IndexedDBManager';
-import type { WebAuthnAuthenticationCredential } from '../../../types/webauthn';
+import type { AccountId } from '../../types/accountIds';
+import type { ClientAuthenticatorData } from '../../IndexedDBManager';
+import type { WebAuthnAuthenticationCredential } from '../../types/webauthn';
 import {
   collectAuthenticationCredentialForChallengeB64u as collectAuthenticationCredentialForChallengeB64uShared,
   type WebAuthnAllowCredential,
@@ -8,11 +8,11 @@ import {
   type WebAuthnIndexedDbClientPort,
   type WebAuthnIndexedDbPort,
   type WebAuthnPromptPort,
-} from '../../webauthn/credentials/collectAuthenticationCredentialForChallengeB64u';
+} from '../webauthn/credentials/collectAuthenticationCredentialForChallengeB64u';
 import {
   getPrfFirstB64uFromCredential,
   redactCredentialExtensionOutputs,
-} from '../../webauthn/credentials/credentialExtensions';
+} from '../webauthn/credentials/credentialExtensions';
 
 export { getPrfFirstB64uFromCredential, redactCredentialExtensionOutputs };
 

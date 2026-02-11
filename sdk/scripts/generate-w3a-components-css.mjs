@@ -22,7 +22,18 @@ function resolveRepoRoot() {
 
 const repoRoot = resolveRepoRoot();
 const palettePath = path.join(repoRoot, 'client', 'src', 'theme', 'palette.json');
-const cssOutPath = path.join(repoRoot, 'client', 'src', 'core', 'WebAuthnManager', 'LitComponents', 'css', 'w3a-components.css');
+const cssOutPath = path.join(
+  repoRoot,
+  'client',
+  'src',
+  'core',
+  'signing',
+  'secureConfirm',
+  'ui',
+  'lit-components',
+  'css',
+  'w3a-components.css',
+);
 
 function fail(msg) {
   console.error(`\n[generate-w3a-components-css] ${msg}`);
@@ -180,5 +191,6 @@ const hostThemeTokens = `:root[data-w3a-theme=\"light\"] ${hostSelectors} {\n${e
 
 const cssOut = `${header}\n\n${darkBlock}\n\n${hostThemeTokens}\n`;
 
+fs.mkdirSync(path.dirname(cssOutPath), { recursive: true });
 fs.writeFileSync(cssOutPath, cssOut);
 console.log('[generate-w3a-components-css] Wrote', path.relative(process.cwd(), cssOutPath));

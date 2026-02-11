@@ -8,7 +8,7 @@ import {
   type ThresholdPrfFirstCachePort,
   type ThresholdSignerWorkerPort,
   type ThresholdWebAuthnPromptPort,
-} from '../ports/webauthn';
+} from '../webauthn';
 import { buildThresholdSessionPolicy } from '../session/thresholdSessionPolicy';
 import {
   makeThresholdEd25519AuthSessionCacheKey,

@@ -10,9 +10,10 @@ The wallet's security model rests on the following:
 
 1. **Origin isolation and credential scope** - Keep secrets separate from your app and choose the right passkey boundaries
 2. **Workers for secrets** - Never expose keys to the main thread
-3. **Security headers** - CSP blocks injection attacks, Permissions Policy controls WebAuthn access
-4. **User presence guarantees** - Ensure TouchID approvals have user presence
-5. **SecureConfirm binding in WebAuthn** - Ensures against replay attacks, and ensures each transaction signing attempt is fresh with user presence.
+3. **Threshold MPC signing** - no single entity can sign alone or reconstruct the long-lived private key
+4. **Security headers + cross-origin isolation** - CSP blocks injection attacks, Permissions Policy controls WebAuthn access, COEP/CORP harden isolated UI surfaces
+5. **User verification guarantees** - signing requires WebAuthn `userVerification` (biometric/PIN), not just passive presence
+6. **Intent-digest binding across UI, WebAuthn, and WASM** - ensures what the user confirms is exactly what is signed
 
 This design makes an explicit tradeoff:
 
@@ -27,6 +28,7 @@ This design makes an explicit tradeoff:
 - A compromised **app origin** (XSS, malicious npm deps, compromised app hosting) — wallet secrets stay in the wallet origin and in workers.
 - Network attackers who can observe traffic but cannot break TLS — secrets are never transmitted; contract verification provides cryptographic checks.
 - Accidental exposure in app code — APIs and guardrails avoid putting PRF/keys into app-visible payloads.
+- Single-party compromise in signing infrastructure — threshold MPC requires independent shares and coordinated partial signatures.
 
 **This model is not designed to fully protect against:**
 
@@ -100,8 +102,22 @@ Your app never receives `PRF.*`, `secureconfirm_sk`, `WrapKeySeed`, or `near_sk`
 
 This minimizes plaintext exposure - even with DevTools access to the main thread, private keys remain invisible.
 
+## 3. Threshold MPC signing (no key reconstruction)
 
-## 3. Security headers
+For threshold keys, signing is performed with MPC shares and partial signatures:
+
+- The client holds a passkey-derived client signing share.
+- The relayer/coordinator holds an independent server share.
+- The protocol combines partial signatures; no participant reconstructs a full private key during routine signing.
+
+Security consequence:
+
+- A compromise of only one side (client or relayer) is insufficient for signature forgery.
+- A relayer cannot unilaterally sign user transactions.
+- A client-side attacker without successful WebAuthn verification cannot complete signing.
+
+
+## 4. Security headers and cross-origin isolation
 
 The wallet uses HTTP security headers to control code execution and API access. Two policies work together to prevent injection attacks and enforce WebAuthn boundaries.
 
@@ -170,10 +186,18 @@ plugins: [
 
 **Result:** Only the wallet iframe can run WebAuthn ceremonies. Your app cannot accidentally (or maliciously) call WebAuthn directly.
 
-**Key takeaway:** CSP blocks injection attacks while Permissions Policy enforces WebAuthn boundaries. Both policies make the security model auditable and enforceable at the HTTP layer.
+### COEP/CORP and cross-origin isolated confirmation UI
+
+The transaction confirmation modal runs inside a cross-origin isolated iframe controlled by the wallet origin.
+
+- `Cross-Origin-Embedder-Policy` (COEP) and `Cross-Origin-Resource-Policy` (CORP) reduce ambient cross-origin resource risks.
+- Strict CSP restricts script/style execution sources.
+- The app origin cannot script or replace wallet-origin confirmation controls.
+
+**Key takeaway:** CSP + Permissions Policy + COEP/CORP make the signing and confirmation boundary auditable and enforceable at the browser policy layer.
 
 
-## 4. User presence guarantees
+## 5. User verification guarantees
 
 Users should clearly see when they're approving sensitive actions like:
 
@@ -217,11 +241,13 @@ await tatchi.executeAction({
 })
 ```
 
-**Key takeaway:** Confirmation happens in a context your app cannot spoof.
+In high-assurance signing flows, WebAuthn should require `userVerification` so approvals are bound to an explicit biometric/PIN gate, not only a passive "touch" signal.
+
+**Key takeaway:** Confirmation and WebAuthn verification happen in a context your app cannot spoof.
 
 For more details, see the [Architecture](/docs/concepts/architecture) guide.
 
-## 5. SecureConfirm binding WebAuthn
+## 6. SecureConfirm binding in WebAuthn
 
 Web3Authn uses a verifiable random function (SecureConfirm) to bind each WebAuthn ceremony to the current on‑chain state, then derives the unwrapping key inside workers. This prevents replay and keeps long‑lived key material out of app‑visible JS.
 
@@ -262,6 +288,21 @@ The SecureConfirm construction gives three important properties:
 - **Non‑exportability** – `secureconfirm_sk` stays SecureConfirm‑worker‑only; `WrapKeySeed` is only ever transferred SecureConfirm‑worker → signer‑worker over a `MessagePort`, and PRF extension outputs are never forwarded to RPC or returned to the embedding app
 
 Combined with WebAuthn’s user‑presence requirement, this means each signing attempt is user‑approved, freshness‑bound, and compartmentalized across workers.
+
+### Intent digest binding invariant (WYSIWYS)
+
+To prevent "what the user saw" from diverging from "what got signed", signing enforces the same canonical intent digest across all layers:
+
+1. Confirmation modal computes `intentDigest` from canonicalized transaction intent.
+2. WebAuthn challenge includes that `intentDigest` (or a hash domain-separated from it).
+3. WASM signer re-computes `intentDigest` from the actual signing payload.
+4. Any mismatch fails closed and aborts signing.
+
+Invariant:
+
+`digest(modal_payload) == digest(webauthn_challenge_payload) == digest(wasm_signing_payload)`
+
+This is the core WYSIWYS guarantee: what the user confirms is exactly what is authorized and signed.
 
 **Primary vs backup**
 - **Primary:** Shamir 3-pass (relay + device) runs on every session unlock for 2-of-2 security.

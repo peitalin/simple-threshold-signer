@@ -91,13 +91,13 @@ export type {
 
 // Experimental: signing adapter/engine scaffold (post-lite).
 export * from './core/signing/orchestration/types';
+export * from './core/signing/engines/ed25519';
 export * from './core/signing/engines/secp256k1';
 export * from './core/signing/engines/webauthnP256';
 export * from './core/signing/orchestration/walletOrigin/thresholdEcdsaCoordinator';
 export * from './core/signing/orchestration/walletOrigin/webauthnKeyRef';
 export * from './core/signing/webauthn/cose/coseP256';
 export * from './core/signing/chains/near/nearAdapter';
-export * from './core/signing/chains/near/walletOrigin';
 export * from './core/signing/chains/tempo/types';
 export * from './core/signing/chains/tempo/tempoAdapter';
 export { signTempoWithSecureConfirm } from './core/signing/chains/tempo/handlers/signTempoWithSecureConfirm';
@@ -123,6 +123,6 @@ export {
   type ThresholdEd25519SessionPolicy,
   type ThresholdEcdsaSessionPolicy,
 } from './core/signing/threshold/session/thresholdSessionPolicy';
-export { PRF_FIRST_SALT_V1, PRF_SECOND_SALT_V1 } from './core/signing/threshold/crypto/prfSalts';
+export { PRF_FIRST_SALT_V1, PRF_SECOND_SALT_V1 } from './core/signing/threshold/prfSalts';
 export { computeThresholdEd25519KeygenIntentDigest } from './utils/intentDigest';
 export { computeThresholdEcdsaKeygenIntentDigest } from './utils/intentDigest';
