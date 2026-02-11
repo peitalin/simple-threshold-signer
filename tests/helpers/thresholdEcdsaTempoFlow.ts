@@ -260,7 +260,7 @@ export async function runThresholdEcdsaTempoFlow(
 
       if (input.clearCachedThresholdSessionBeforeSign) {
         try {
-          const authSessionMod = await import('/sdk/esm/core/signing/schemes/threshold/session/thresholdEcdsaAuthSession.js');
+          const authSessionMod = await import('/sdk/esm/core/signing/threshold/session/thresholdEcdsaAuthSession.js');
           authSessionMod.clearAllCachedThresholdEcdsaAuthSessions?.();
         } catch {}
       }

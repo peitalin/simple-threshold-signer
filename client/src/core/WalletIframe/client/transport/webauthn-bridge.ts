@@ -1,6 +1,6 @@
 import { isObject } from '../../../../../../shared/src/utils/validation';
-import { serializeRegistrationCredentialWithPRF, serializeAuthenticationCredentialWithPRF } from '../../../WebAuthnManager/credentialsHelpers';
-import { WebAuthnBridgeMessage } from '../../../WebAuthnManager/WebAuthnFallbacks';
+import { serializeRegistrationCredentialWithPRF, serializeAuthenticationCredentialWithPRF } from '../../../signing/webauthn/credentials/helpers';
+import { WebAuthnBridgeMessage } from '../../../signing/webauthn/fallbacks';
 
 type CreateReq = { requestId?: string; publicKey?: PublicKeyCredentialCreationOptions };
 type GetReq = { requestId?: string; publicKey?: PublicKeyCredentialRequestOptions };

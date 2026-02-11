@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest } from '../setup';
 
 const IMPORT_PATHS = {
-  helpers: '/sdk/esm/core/WebAuthnManager/credentialsHelpers.js',
+  helpers: '/sdk/esm/core/signing/webauthn/credentials/helpers.js',
 } as const;
 
 test.describe('credentialsHelpers – redaction', () => {

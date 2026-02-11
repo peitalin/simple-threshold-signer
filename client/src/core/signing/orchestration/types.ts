@@ -58,7 +58,7 @@ export interface ChainAdapter<Request = unknown, UiModel = unknown, Result = unk
   buildIntent: (request: Request) => Promise<SigningIntent<UiModel, Result>>;
 }
 
-export interface SignerEngine {
+export interface SigningEngine {
   readonly algorithm: SignatureAlgorithm;
   sign: (req: SignRequest, keyRef: KeyRef) => Promise<SignatureBytes>;
 }

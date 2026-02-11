@@ -4,9 +4,9 @@ import path from 'node:path';
 
 const IMPORT_PATHS = {
   nearWalletOrigin:
-    '/sdk/esm/core/signing/multichain/near/walletOrigin.js',
+    '/sdk/esm/core/signing/chains/near/walletOrigin.js',
   tempoAdapter:
-    '/sdk/esm/core/signing/multichain/tempo/tempoAdapter.js',
+    '/sdk/esm/core/signing/chains/tempo/tempoAdapter.js',
   actions: '/sdk/esm/core/types/actions.js',
 } as const;
 
@@ -15,28 +15,28 @@ test.describe('modularity lazy signer loading', () => {
     await page.goto('/');
   });
 
-  test('WebAuthnManager multichain wiring stays dynamic-import based', async () => {
+  test('WebAuthnManager signing wiring stays dynamic-import based', async () => {
     const sourcePath = path.resolve(
       process.cwd(),
-      '../client/src/core/WebAuthnManager/index.ts',
+      '../client/src/core/signing/api/WebAuthnManager.ts',
     );
     const source = fs.readFileSync(sourcePath, 'utf8');
 
     expect(source).toContain(
-      "await import('../signing/multichain/near/walletOrigin')",
+      "await import('../chains/near/walletOrigin')",
     );
     expect(source).toContain(
-      "import('../signing/multichain/shared/orchestrator')",
+      "import('../chains/orchestrator')",
     );
-    expect(source).toContain("import('../signing/multichain/engines/secp256k1')");
-    expect(source).toContain("import('../signing/multichain/engines/webauthnP256')");
+    expect(source).toContain("import('../engines/secp256k1')");
+    expect(source).toContain("import('../engines/webauthnP256')");
 
     expect(source).not.toContain(
-      "from '../signing/multichain/near/walletOrigin'",
+      "from '../chains/near/walletOrigin'",
     );
-    expect(source).not.toContain("from '../signing/multichain/shared/orchestrator'");
-    expect(source).not.toContain("from '../signing/multichain/engines/secp256k1'");
-    expect(source).not.toContain("from '../signing/multichain/engines/webauthnP256'");
+    expect(source).not.toContain("from '../chains/orchestrator'");
+    expect(source).not.toContain("from '../engines/secp256k1'");
+    expect(source).not.toContain("from '../engines/webauthnP256'");
   });
 
   test('near wallet-origin path does not instantiate multichain wasm workers', async ({

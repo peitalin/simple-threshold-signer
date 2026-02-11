@@ -2,10 +2,10 @@ import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest } from '../setup';
 
 const IMPORT_PATHS = {
-  handle: '/sdk/esm/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/handleSecureConfirmRequest.js',
-  types: '/sdk/esm/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/types.js',
+  handle: '/sdk/esm/core/signing/secureConfirm/confirmTxFlow/handleSecureConfirmRequest.js',
+  types: '/sdk/esm/core/signing/secureConfirm/confirmTxFlow/types.js',
   events: '/sdk/esm/core/WalletIframe/events.js',
-  localOnly: '/sdk/esm/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/flows/localOnly.js',
+  localOnly: '/sdk/esm/core/signing/secureConfirm/confirmTxFlow/flows/localOnly.js',
 } as const;
 
 test.describe('confirmTxFlow – defensive paths', () => {

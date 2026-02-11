@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, isValidElement, cloneElement } from 'react';
 import { createComponent } from '@lit/react';
-import HaloBorderElement from '../../core/WebAuthnManager/LitComponents/HaloBorder';
+import HaloBorderElement from '../../core/signing/secureConfirm/ui/lit-components/HaloBorder';
 
 export interface LitHaloBorderProps {
   animated?: boolean;

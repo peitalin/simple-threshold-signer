@@ -90,10 +90,10 @@ import type {
 import type {
   TempoSecp256k1SigningRequest,
   TempoSigningRequest,
-} from '../../signing/multichain/tempo/types';
-import type { TempoSignedResult } from '../../signing/multichain/tempo/tempoAdapter';
+} from '../../signing/chains/tempo/types';
+import type { TempoSignedResult } from '../../signing/chains/tempo/tempoAdapter';
 import type { ThresholdEcdsaSecp256k1KeyRef } from '../../signing/orchestration/types';
-import type { ThresholdEcdsaSessionBootstrapResult } from '../../WebAuthnManager';
+import type { ThresholdEcdsaSessionBootstrapResult } from '../../signing/api/WebAuthnManager';
 import type { LinkDeviceResult, StartDevice2LinkingFlowArgs, StartDevice2LinkingFlowResults, DeviceLinkingQRData } from '../../types/linkDevice';
 import type { SyncAccountResult } from '../../TatchiPasskey/syncAccount';
 import {

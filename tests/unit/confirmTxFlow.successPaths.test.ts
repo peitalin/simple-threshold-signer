@@ -3,10 +3,10 @@ import { setupBasicPasskeyTest } from '../setup';
 import { createHash } from 'node:crypto';
 
 const IMPORT_PATHS = {
-  handle: '/sdk/esm/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/handleSecureConfirmRequest.js',
-  types: '/sdk/esm/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/types.js',
-  localOnly: '/sdk/esm/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/flows/localOnly.js',
-  litTags: '/sdk/esm/core/WebAuthnManager/LitComponents/tags.js',
+  handle: '/sdk/esm/core/signing/secureConfirm/confirmTxFlow/handleSecureConfirmRequest.js',
+  types: '/sdk/esm/core/signing/secureConfirm/confirmTxFlow/types.js',
+  localOnly: '/sdk/esm/core/signing/secureConfirm/confirmTxFlow/flows/localOnly.js',
+  litTags: '/sdk/esm/core/signing/secureConfirm/ui/lit-components/tags.js',
 } as const;
 
 test.describe('confirmTxFlow – success paths', () => {

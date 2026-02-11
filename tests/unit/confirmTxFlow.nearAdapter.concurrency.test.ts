@@ -3,7 +3,7 @@ import { handleInfrastructureErrors } from '../setup';
 
 const IMPORT_PATHS = {
   nonceManager: '/sdk/esm/core/near/nonceManager.js',
-  nearAdapter: '/sdk/esm/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/adapters/near.js',
+  nearAdapter: '/sdk/esm/core/signing/secureConfirm/confirmTxFlow/adapters/near.js',
 } as const;
 
 test.describe('confirmTxFlow near adapter – concurrency', () => {

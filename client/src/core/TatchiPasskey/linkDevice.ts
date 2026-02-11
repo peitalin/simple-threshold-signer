@@ -11,7 +11,7 @@ import { IndexedDBManager } from '../IndexedDBManager';
 import { createNearKeypair, ensureEd25519Prefix } from '../near/nearCrypto';
 import { getLoginSession } from './login';
 import { DEVICE_LINKING_CONFIG } from '../../config';
-import { removePrfOutputGuard, normalizeRegistrationCredential } from '../WebAuthnManager/credentialsHelpers';
+import { removePrfOutputGuard, normalizeRegistrationCredential } from '../signing/webauthn/credentials/helpers';
 import { buildThresholdEd25519Participants2pV1 } from '../../../../shared/src/threshold/participants';
 import { DEFAULT_WAIT_STATUS } from '../types/rpc';
 import { ActionType, type ActionArgsWasm } from '../types/actions';

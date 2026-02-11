@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest } from '../setup';
 
 const IMPORT_PATHS = {
-  determine: '/sdk/esm/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/determineConfirmationConfig.js',
-  types: '/sdk/esm/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/types.js',
+  determine: '/sdk/esm/core/signing/secureConfirm/confirmTxFlow/determineConfirmationConfig.js',
+  types: '/sdk/esm/core/signing/secureConfirm/confirmTxFlow/types.js',
 } as const;
 
 test.describe('determineConfirmationConfig', () => {

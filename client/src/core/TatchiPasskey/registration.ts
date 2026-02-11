@@ -13,7 +13,7 @@ import {
   createAccountAndRegisterWithRelayServer
 } from './faucets/createAccountRelayServer';
 import { PasskeyManagerContext } from './index';
-import { WebAuthnManager } from '../WebAuthnManager';
+import { WebAuthnManager } from '../signing/api/WebAuthnManager';
 import { IndexedDBManager } from '../IndexedDBManager';
 import { type ConfirmationConfig, type SignerMode, mergeSignerMode } from '../types/signer-worker';
 import type { WebAuthnRegistrationCredential } from '../types/webauthn';

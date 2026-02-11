@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest, handleInfrastructureErrors } from '../setup';
 
 const IMPORT_PATHS = {
-  handle: '/sdk/esm/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/handleSecureConfirmRequest.js',
+  handle: '/sdk/esm/core/signing/secureConfirm/confirmTxFlow/handleSecureConfirmRequest.js',
 } as const;
 
 test.describe('handlePromptUserConfirmInJsMainThread - Orchestrator Unit Tests', () => {
@@ -120,7 +120,7 @@ test.describe('handlePromptUserConfirmInJsMainThread - Orchestrator Unit Tests',
       try {
         const mod = await import(paths.handle);
         const handle = mod.handlePromptUserConfirmInJsMainThread as Function;
-        const types = await import('/sdk/esm/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/types.js');
+        const types = await import('/sdk/esm/core/signing/secureConfirm/confirmTxFlow/types.js');
 
         const ctx: any = {
           userPreferencesManager: {

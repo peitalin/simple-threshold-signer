@@ -3,7 +3,7 @@ import { setupBasicPasskeyTest } from '../setup';
 
 const IMPORT_PATHS = {
   // Use concrete module path that exists in dist
-  fallbacks: '/sdk/esm/core/WebAuthnManager/WebAuthnFallbacks/safari-fallbacks.js',
+  fallbacks: '/sdk/esm/core/signing/webauthn/fallbacks/safari-fallbacks.js',
 } as const;
 
 test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', () => {

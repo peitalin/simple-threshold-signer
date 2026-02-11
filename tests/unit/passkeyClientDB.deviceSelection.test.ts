@@ -3,7 +3,7 @@ import { setupBasicPasskeyTest } from '../setup';
 
 const IMPORT_PATHS = {
   clientDB: '/sdk/esm/core/IndexedDBManager/passkeyClientDB.js',
-  getDeviceNumber: '/sdk/esm/core/WebAuthnManager/SignerWorkerManager/getDeviceNumber.js',
+  getDeviceNumber: '/sdk/esm/core/signing/webauthn/device/getDeviceNumber.js',
 } as const;
 
 test.describe('PasskeyClientDB device selection', () => {

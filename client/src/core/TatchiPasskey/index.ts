@@ -1,4 +1,4 @@
-import { WebAuthnManager, type ThresholdEcdsaSessionBootstrapResult } from '../WebAuthnManager';
+import { WebAuthnManager, type ThresholdEcdsaSessionBootstrapResult } from '../signing/api/WebAuthnManager';
 import {
   loginAndCreateSession,
   getLoginSession,
@@ -22,8 +22,8 @@ import {
 import type {
   TempoSecp256k1SigningRequest,
   TempoSigningRequest,
-} from '../signing/multichain/tempo/types';
-import type { TempoSignedResult } from '../signing/multichain/tempo/tempoAdapter';
+} from '../signing/chains/tempo/types';
+import type { TempoSignedResult } from '../signing/chains/tempo/tempoAdapter';
 import type { ThresholdEcdsaSecp256k1KeyRef } from '../signing/orchestration/types';
 import type {
   ActionResult,
@@ -75,7 +75,7 @@ import type {
   SignNEP413MessageResult
 } from './signNEP413';
 import { SignedDelegate } from '../types/delegate';
-import type { UserPreferencesManager } from '../WebAuthnManager/userPreferences';
+import type { UserPreferencesManager } from '../signing/api/userPreferences';
 import type { WalletIframeRouter } from '../WalletIframe/client/router';
 import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
 import { toError } from '../../../../shared/src/utils/errors';

@@ -10,13 +10,13 @@ import {
   thresholdEcdsaPresignSessionAbortWasm,
   thresholdEcdsaPresignSessionInitWasm,
   thresholdEcdsaPresignSessionStepWasm,
-} from '../../multichain/evm/ethSignerWasm';
+} from '../../chains/evm/ethSignerWasm';
 import {
   thresholdEcdsaPresignInit,
   thresholdEcdsaPresignStep,
   thresholdEcdsaSignFinalize,
   thresholdEcdsaSignInit,
-} from '../../schemes/threshold/workflows/thresholdEcdsaSigning';
+} from '../../threshold/workflows/thresholdEcdsaSigning';
 
 type ThresholdEcdsaSessionKind = 'jwt' | 'cookie';
 

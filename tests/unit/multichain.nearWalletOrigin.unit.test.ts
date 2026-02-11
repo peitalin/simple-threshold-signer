@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 const IMPORT_PATHS = {
   nearWalletOrigin:
-    '/sdk/esm/core/signing/multichain/near/walletOrigin.js',
+    '/sdk/esm/core/signing/chains/near/walletOrigin.js',
   actions: '/sdk/esm/core/types/actions.js',
 } as const;
 

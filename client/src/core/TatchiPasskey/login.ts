@@ -14,12 +14,12 @@ import type {
 import type { PasskeyManagerContext } from './index';
 import type { AccountId } from '../types/accountIds';
 import { getUserFriendlyErrorMessage } from '../../../../shared/src/utils/errors';
-import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
+import { authenticatorsToAllowCredentials } from '../signing/webauthn/prompt/touchIdPrompt';
 import { IndexedDBManager } from '../IndexedDBManager';
 import type { ClientAuthenticatorData, ClientUserData } from '../IndexedDBManager';
 import { createWebAuthnLoginOptions, verifyWebAuthnLogin } from '../near/rpcCalls';
-import { parseDeviceNumber } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
-import { clearAllCachedThresholdEd25519AuthSessions } from '../signing/schemes/threshold/session/thresholdEd25519AuthSession';
+import { parseDeviceNumber } from '../signing/webauthn/device/getDeviceNumber';
+import { clearAllCachedThresholdEd25519AuthSessions } from '../signing/threshold/session/thresholdEd25519AuthSession';
 import { normalizeThresholdEd25519ParticipantIds } from '../../../../shared/src/threshold/participants';
 
 /**

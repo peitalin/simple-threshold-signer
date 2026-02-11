@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 const IMPORT_PATHS = {
-  cose: '/sdk/esm/core/signing/multichain/coseP256.js',
+  cose: '/sdk/esm/core/signing/webauthn/cose/coseP256.js',
 } as const;
 
 test.describe('COSE P-256 public key parsing', () => {

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 const IMPORT_PATHS = {
-  engine: '/sdk/esm/core/signing/multichain/engines/webauthnP256.js',
+  engine: '/sdk/esm/core/signing/engines/webauthnP256.js',
 } as const;
 
 test.describe('WebAuthnP256Engine', () => {

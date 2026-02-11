@@ -21,7 +21,7 @@ import type { FinalExecutionOutcome } from '@near-js/types';
 
 import { TransactionContext } from '../types/rpc';
 import { DEFAULT_WAIT_STATUS } from '../types/rpc';
-import { removePrfOutputGuard } from '../WebAuthnManager/credentialsHelpers';
+import { removePrfOutputGuard } from '../signing/webauthn/credentials/helpers';
 import { errorMessage } from '../../../../shared/src/utils/errors';
 import { ensureEd25519Prefix } from '../../../../shared/src/utils/validation';
 import { ActionType } from '../types/actions';

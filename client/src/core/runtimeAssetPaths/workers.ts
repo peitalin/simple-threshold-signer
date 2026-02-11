@@ -73,5 +73,5 @@ function detectWorkerFromPath(p: string): 'signer' | 'secureConfirm' {
 function defaultWorkerPath(worker: 'signer' | 'secureConfirm'): string {
   return worker === 'signer'
     ? '/sdk/workers/near-signer.worker.js'
-    : '/sdk/workers/passkey-secure-confirm.worker.js'
+    : '/sdk/workers/passkey-confirm.worker.js'
 }

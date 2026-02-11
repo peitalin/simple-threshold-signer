@@ -3,7 +3,7 @@ import { SyncAccountPhase, SyncAccountStatus } from '../types/sdkSentEvents';
 import type { PasskeyManagerContext } from './index';
 import type { AccountId, WebAuthnAuthenticationCredential } from '../types';
 import { toAccountId } from '../types/accountIds';
-import { removePrfOutputGuard } from '../WebAuthnManager/credentialsHelpers';
+import { removePrfOutputGuard } from '../signing/webauthn/credentials/helpers';
 import { base64UrlDecode } from '../../../../shared/src/utils/base64';
 import { errorMessage } from '../../../../shared/src/utils/errors';
 import { IndexedDBManager } from '../IndexedDBManager';

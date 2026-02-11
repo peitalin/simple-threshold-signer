@@ -71,7 +71,7 @@ const TARGETS = [
   {
     id: 'secure-confirm-worker',
     label: 'secure-confirm worker',
-    relPath: 'dist/workers/passkey-secure-confirm.worker.js',
+    relPath: 'dist/workers/passkey-confirm.worker.js',
     budget: { raw: 25_000, gzip: 8_000, brotli: 8_000 },
   },
   {

@@ -304,45 +304,45 @@ const emitWalletServiceStaticAssets = async (sdkRoot = process.cwd()): Promise<v
     console.warn('⚠️  Failed to generate w3a-components.css from palette:', e);
     const src = path.join(
       sdkRoot,
-      '../client/src/core/WebAuthnManager/LitComponents/css/w3a-components.css',
+      '../client/src/core/signing/secureConfirm/ui/lit-components/css/w3a-components.css',
     );
     const dest = path.join(sdkDir, 'w3a-components.css');
     if (fs.existsSync(src)) fs.copyFileSync(src, dest);
   }
 
   copyIfMissing(
-    path.join(sdkRoot, '../client/src/core/WebAuthnManager/LitComponents/css/tx-tree.css'),
+    path.join(sdkRoot, '../client/src/core/signing/secureConfirm/ui/lit-components/css/tx-tree.css'),
     path.join(sdkDir, 'tx-tree.css'),
   );
   copyIfMissing(
-    path.join(sdkRoot, '../client/src/core/WebAuthnManager/LitComponents/css/tx-confirmer.css'),
+    path.join(sdkRoot, '../client/src/core/signing/secureConfirm/ui/lit-components/css/tx-confirmer.css'),
     path.join(sdkDir, 'tx-confirmer.css'),
   );
   copyIfMissing(
-    path.join(sdkRoot, '../client/src/core/WebAuthnManager/LitComponents/css/drawer.css'),
+    path.join(sdkRoot, '../client/src/core/signing/secureConfirm/ui/lit-components/css/drawer.css'),
     path.join(sdkDir, 'drawer.css'),
   );
   copyIfMissing(
-    path.join(sdkRoot, '../client/src/core/WebAuthnManager/LitComponents/css/halo-border.css'),
+    path.join(sdkRoot, '../client/src/core/signing/secureConfirm/ui/lit-components/css/halo-border.css'),
     path.join(sdkDir, 'halo-border.css'),
   );
   copyIfMissing(
     path.join(
       sdkRoot,
-      '../client/src/core/WebAuthnManager/LitComponents/css/passkey-halo-loading.css',
+      '../client/src/core/signing/secureConfirm/ui/lit-components/css/passkey-halo-loading.css',
     ),
     path.join(sdkDir, 'passkey-halo-loading.css'),
   );
   copyIfMissing(
-    path.join(sdkRoot, '../client/src/core/WebAuthnManager/LitComponents/css/padlock-icon.css'),
+    path.join(sdkRoot, '../client/src/core/signing/secureConfirm/ui/lit-components/css/padlock-icon.css'),
     path.join(sdkDir, 'padlock-icon.css'),
   );
   copyIfMissing(
-    path.join(sdkRoot, '../client/src/core/WebAuthnManager/LitComponents/css/export-viewer.css'),
+    path.join(sdkRoot, '../client/src/core/signing/secureConfirm/ui/lit-components/css/export-viewer.css'),
     path.join(sdkDir, 'export-viewer.css'),
   );
   copyIfMissing(
-    path.join(sdkRoot, '../client/src/core/WebAuthnManager/LitComponents/css/export-iframe.css'),
+    path.join(sdkRoot, '../client/src/core/signing/secureConfirm/ui/lit-components/css/export-iframe.css'),
     path.join(sdkDir, 'export-iframe.css'),
   );
   copyIfMissing(
@@ -608,7 +608,7 @@ const configs = [
   // Confirm UI helpers and elements bundle for iframe usage
   // Build from confirm-ui.ts (container-agnostic); keep output filename stable
   {
-    input: '../client/src/core/WebAuthnManager/LitComponents/confirm-ui.ts',
+    input: '../client/src/core/signing/secureConfirm/ui/lit-components/confirm-ui.ts',
     output: {
       dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',
@@ -627,12 +627,12 @@ const configs = [
     input: {
       // Tx Confirmer component
       'w3a-tx-confirmer':
-        '../client/src/core/WebAuthnManager/LitComponents/IframeTxConfirmer/tx-confirmer-wrapper.ts',
+        '../client/src/core/signing/secureConfirm/ui/lit-components/IframeTxConfirmer/tx-confirmer-wrapper.ts',
       // Wallet service host (headless)
       'wallet-iframe-host-runtime': '../client/src/core/WalletIframe/host/index.ts',
       // Export viewer host + bootstrap
       'iframe-export-bootstrap':
-        '../client/src/core/WebAuthnManager/LitComponents/ExportPrivateKey/iframe-export-bootstrap-script.ts',
+        '../client/src/core/signing/secureConfirm/ui/lit-components/ExportPrivateKey/iframe-export-bootstrap-script.ts',
     },
     output: {
       dir: BUILD_PATHS.BUILD.ESM,
@@ -649,7 +649,7 @@ const configs = [
   },
   // Export Private Key viewer bundle (Lit element rendered inside iframe)
   {
-    input: '../client/src/core/WebAuthnManager/LitComponents/ExportPrivateKey/viewer.ts',
+    input: '../client/src/core/signing/secureConfirm/ui/lit-components/ExportPrivateKey/viewer.ts',
     output: {
       dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',
@@ -666,9 +666,9 @@ const configs = [
   // Standalone bundles for HaloBorder + PasskeyHaloLoading (for iframe/embedded usage)
   {
     input: {
-      'halo-border': '../client/src/core/WebAuthnManager/LitComponents/HaloBorder/index.ts',
+      'halo-border': '../client/src/core/signing/secureConfirm/ui/lit-components/HaloBorder/index.ts',
       'passkey-halo-loading':
-        '../client/src/core/WebAuthnManager/LitComponents/PasskeyHaloLoading/index.ts',
+        '../client/src/core/signing/secureConfirm/ui/lit-components/PasskeyHaloLoading/index.ts',
     },
     output: {
       dir: BUILD_PATHS.BUILD.ESM,

@@ -3,7 +3,7 @@ import { setupBasicPasskeyTest } from '../setup';
 
 const IMPORT_PATHS = {
   indexedDBManager: '/sdk/esm/core/IndexedDBManager/index.js',
-  userPreferences: '/sdk/esm/core/WebAuthnManager/userPreferences.js',
+  userPreferences: '/sdk/esm/core/signing/api/userPreferences.js',
 } as const;
 
 test.describe('UserPreferences when IndexedDB is disabled', () => {

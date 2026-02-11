@@ -43,7 +43,7 @@ test.describe('confirm-ui inline confirmer', () => {
       const waitFor = eval(waitForSource) as typeof harnessWaitFor;
       const mod = await import(paths.confirmUi);
       const events = await import(paths.events);
-      const { awaitConfirmUIDecision } = mod as typeof import('@/core/WebAuthnManager/LitComponents/confirm-ui');
+      const { awaitConfirmUIDecision } = mod as typeof import('@/core/signing/secureConfirm/ui/lit-components/confirm-ui');
       const buildCtxStub = (overrides: Record<string, unknown> = {}) => ({
         userPreferencesManager: {
           getCurrentUserAccountId: () => 'alice.testnet',
@@ -88,7 +88,7 @@ test.describe('confirm-ui inline confirmer', () => {
       const waitFor = eval(waitForSource) as typeof harnessWaitFor;
       const mod = await import(paths.confirmUi);
       const events = await import(paths.events);
-      const { awaitConfirmUIDecision } = mod as typeof import('@/core/WebAuthnManager/LitComponents/confirm-ui');
+      const { awaitConfirmUIDecision } = mod as typeof import('@/core/signing/secureConfirm/ui/lit-components/confirm-ui');
       const buildCtxStub = (overrides: Record<string, unknown> = {}) => ({
         userPreferencesManager: {
           getCurrentUserAccountId: () => 'alice.testnet',
@@ -142,7 +142,7 @@ test.describe('confirm-ui inline confirmer', () => {
       const waitFor = eval(waitForSource) as typeof harnessWaitFor;
       const mod = await import(paths.confirmUi);
       const events = await import(paths.events);
-      const { awaitConfirmUIDecision } = mod as typeof import('@/core/WebAuthnManager/LitComponents/confirm-ui');
+      const { awaitConfirmUIDecision } = mod as typeof import('@/core/signing/secureConfirm/ui/lit-components/confirm-ui');
       const buildCtxStub = (overrides: Record<string, unknown> = {}) => ({
         userPreferencesManager: {
           getCurrentUserAccountId: () => 'alice.testnet',
@@ -192,7 +192,7 @@ test.describe('confirm-ui inline confirmer', () => {
       const waitFor = eval(waitForSource) as typeof harnessWaitFor;
       const mod = await import(paths.confirmUi);
       const events = await import(paths.events);
-      const { awaitConfirmUIDecision } = mod as typeof import('@/core/WebAuthnManager/LitComponents/confirm-ui');
+      const { awaitConfirmUIDecision } = mod as typeof import('@/core/signing/secureConfirm/ui/lit-components/confirm-ui');
       const buildCtxStub = (overrides: Record<string, unknown> = {}) => ({
         userPreferencesManager: {
           getCurrentUserAccountId: () => 'alice.testnet',
@@ -240,7 +240,7 @@ test.describe('confirm-ui inline confirmer', () => {
       const waitFor = eval(waitForSource) as typeof harnessWaitFor;
       const mod = await import(paths.confirmUi);
       const events = await import(paths.events);
-      const { awaitConfirmUIDecision } = mod as typeof import('@/core/WebAuthnManager/LitComponents/confirm-ui');
+      const { awaitConfirmUIDecision } = mod as typeof import('@/core/signing/secureConfirm/ui/lit-components/confirm-ui');
       const buildCtxStub = (overrides: Record<string, unknown> = {}) => ({
         userPreferencesManager: {
           getCurrentUserAccountId: () => 'alice.testnet',

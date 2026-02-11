@@ -139,7 +139,7 @@ export async function setupBasicPasskeyTest(
           try {
             const u = new URL(url, frameOrigin);
             const filename = (u.pathname.split('/').pop() || '').toLowerCase();
-            if (filename === 'passkey-secure-confirm.worker.js' || filename === 'near-signer.worker.js') {
+            if (filename === 'passkey-confirm.worker.js' || filename === 'near-signer.worker.js') {
               const patchedPath = `/sdk/workers/${filename}`;
               return new URL(patchedPath + u.search + u.hash, frameOrigin).toString();
             }

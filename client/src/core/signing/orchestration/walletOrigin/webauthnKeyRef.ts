@@ -2,7 +2,7 @@ import type { UnifiedIndexedDBManager } from '../../../IndexedDBManager';
 import { toAccountId } from '../../../types/accountIds';
 import { base64UrlDecode } from '../../../../../../shared/src/utils/base64';
 import type { KeyRef } from '../types';
-import { coseP256PublicKeyToXY } from '../../multichain/coseP256';
+import { coseP256PublicKeyToXY } from '../../webauthn/cose/coseP256';
 
 export async function resolveWebAuthnP256KeyRefForNearAccount(args: {
   indexedDB: UnifiedIndexedDBManager;

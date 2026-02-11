@@ -1,5 +1,5 @@
 import { getEmbeddedBase, setEmbeddedBase } from '../../runtimeAssetPaths';
-import { ensureKnownW3aElement } from '../../WebAuthnManager/LitComponents/ensure-defined';
+import { ensureKnownW3aElement } from '../../signing/secureConfirm/ui/ensure-defined';
 import { isDevHost } from '../shared/is-dev-host';
 
 interface GlobalThis {

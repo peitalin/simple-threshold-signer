@@ -1,7 +1,7 @@
 import type { ToggleColorProps } from './Toggle';
 import type { DeviceLinkingSSEEvent } from '@/core/types/sdkSentEvents';
 import type { LinkDeviceResult } from '@/core/types/linkDevice';
-import type { ThemeName } from '@/core/WebAuthnManager/LitComponents/confirm-ui-types';
+import type { ThemeName } from '@/core/signing/secureConfirm/ui/confirm-ui-types';
 import type { SignerMode } from '@/core/types/signer-worker';
 
 export interface ProfileDimensions {

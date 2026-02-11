@@ -3,7 +3,7 @@ import { EmailRecoveryPhase } from '../types/sdkSentEvents';
 import { EmailRecoveryStatus } from '../types/sdkSentEvents';
 import type { EmailRecoveryFlowOptions, PendingEmailRecovery } from '../types/emailRecovery';
 import { generateEmailRecoveryRequestId } from '../types/emailRecovery';
-import { removePrfOutputGuard, normalizeRegistrationCredential } from '../WebAuthnManager/credentialsHelpers';
+import { removePrfOutputGuard, normalizeRegistrationCredential } from '../signing/webauthn/credentials/helpers';
 import { toAccountId } from '../types/accountIds';
 import { buildThresholdEd25519Participants2pV1 } from '../../../../shared/src/threshold/participants';
 import { IndexedDBManager } from '../IndexedDBManager';

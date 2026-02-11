@@ -1,6 +1,6 @@
 import { RegistrationSSEEvent, RegistrationPhase, RegistrationStatus } from '../../types/sdkSentEvents';
 import { PasskeyManagerContext } from '..';
-import { removePrfOutputGuard, serializeRegistrationCredential, normalizeRegistrationCredential } from '../../WebAuthnManager/credentialsHelpers';
+import { removePrfOutputGuard, serializeRegistrationCredential, normalizeRegistrationCredential } from '../../signing/webauthn/credentials/helpers';
 import type { WebAuthnRegistrationCredential } from '../../types/webauthn';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
 import type { CreateAccountAndRegisterResult } from '@server/core/types';

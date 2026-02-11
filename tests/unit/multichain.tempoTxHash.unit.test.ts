@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 const IMPORT_PATHS = {
-  tempoSignerWasm: '/sdk/esm/core/signing/multichain/tempo/tempoSignerWasm.js',
+  tempoSignerWasm: '/sdk/esm/core/signing/chains/tempo/tempoSignerWasm.js',
 } as const;
 
 test.describe('TempoTransaction sender hash', () => {

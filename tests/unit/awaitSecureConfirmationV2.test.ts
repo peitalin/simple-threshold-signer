@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest } from '../setup';
 
 // awaitSecureConfirmationV2 is exposed from the SecureConfirm worker bundle.
-const WORKER_PATH = '/sdk/workers/passkey-secure-confirm.worker.js';
+const WORKER_PATH = '/sdk/workers/passkey-confirm.worker.js';
 
 test.describe('awaitSecureConfirmationV2 - error handling', () => {
   test.beforeEach(async ({ page }) => {
