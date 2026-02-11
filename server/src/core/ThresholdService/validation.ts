@@ -1,4 +1,4 @@
-import type { AccessKeyList } from '@/core/NearClient';
+import type { AccessKeyList } from '@/core/near/NearClient';
 import { alphabetizeStringify, sha256BytesUtf8 } from '@shared/utils/digests';
 import { ensureEd25519Prefix, toOptionalString, toTrimmedString } from '@shared/utils/validation';
 import {
@@ -397,6 +397,96 @@ export type ParsedThresholdEcdsaPresignatureRelayerShareRecord = {
   sigmaShareB64u: string;
   createdAtMs: number;
 };
+
+export type ParsedThresholdEcdsaPresignSessionStage =
+  | 'triples'
+  | 'triples_done'
+  | 'presign'
+  | 'done';
+
+export type ParsedThresholdEcdsaPresignSessionRecord = {
+  expiresAtMs: number;
+  userId: string;
+  rpId: string;
+  relayerKeyId: string;
+  participantIds: number[];
+  clientParticipantId: number;
+  relayerParticipantId: number;
+  stage: ParsedThresholdEcdsaPresignSessionStage;
+  version: number;
+  wasmSessionStateB64u: string;
+  createdAtMs: number;
+  updatedAtMs: number;
+};
+
+export function parseThresholdEcdsaPresignSessionRecord(
+  raw: unknown,
+): ParsedThresholdEcdsaPresignSessionRecord | null {
+  if (!isObject(raw)) return null;
+  const expiresAtMs = raw.expiresAtMs;
+  const userId = toOptionalString(raw.userId);
+  const rpId = toOptionalString(raw.rpId);
+  const relayerKeyId = toOptionalString(raw.relayerKeyId);
+  const participantIds =
+    normalizeThresholdEd25519ParticipantIds(raw.participantIds)
+    || [...THRESHOLD_ED25519_2P_PARTICIPANT_IDS];
+  const clientParticipantId = raw.clientParticipantId;
+  const relayerParticipantId = raw.relayerParticipantId;
+  const stageRaw = toOptionalString(raw.stage);
+  const version = raw.version;
+  const wasmSessionStateB64u = toOptionalString(raw.wasmSessionStateB64u);
+  const createdAtMs = raw.createdAtMs;
+  const updatedAtMs = raw.updatedAtMs;
+
+  const stage: ParsedThresholdEcdsaPresignSessionStage | null =
+    stageRaw === 'triples'
+      ? 'triples'
+      : stageRaw === 'triples_done'
+        ? 'triples_done'
+        : stageRaw === 'presign'
+          ? 'presign'
+          : stageRaw === 'done'
+            ? 'done'
+            : null;
+
+  if (!isValidNumber(expiresAtMs) || !isValidNumber(createdAtMs) || !isValidNumber(updatedAtMs)) {
+    return null;
+  }
+  if (
+    !userId ||
+    !rpId ||
+    !relayerKeyId ||
+    !stage ||
+    !wasmSessionStateB64u ||
+    !isValidNumber(clientParticipantId) ||
+    !isValidNumber(relayerParticipantId) ||
+    !isValidNumber(version)
+  ) {
+    return null;
+  }
+
+  const clientParticipantIdInt = Math.floor(clientParticipantId);
+  const relayerParticipantIdInt = Math.floor(relayerParticipantId);
+  const versionInt = Math.floor(version);
+  if (clientParticipantIdInt < 1 || relayerParticipantIdInt < 1 || versionInt < 1) {
+    return null;
+  }
+
+  return {
+    expiresAtMs,
+    userId,
+    rpId,
+    relayerKeyId,
+    participantIds,
+    clientParticipantId: clientParticipantIdInt,
+    relayerParticipantId: relayerParticipantIdInt,
+    stage,
+    version: versionInt,
+    wasmSessionStateB64u,
+    createdAtMs,
+    updatedAtMs,
+  };
+}
 
 export function parseThresholdEcdsaPresignatureRelayerShareRecord(
   raw: unknown,

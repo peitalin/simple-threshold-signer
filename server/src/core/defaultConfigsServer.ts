@@ -1,6 +1,6 @@
 // Server-only defaults and helpers.
 //
-// Keep this separate from `client/src/core/defaultConfigs.ts` so browser bundles don't
+// Keep this separate from `client/src/core/config/defaultConfigs.ts` so browser bundles don't
 // accidentally pull in server-oriented defaults/config.
 
 // Threshold node roles.

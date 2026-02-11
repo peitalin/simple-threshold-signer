@@ -1,12 +1,16 @@
 import type { NormalizedLogger } from '../logger';
 import { base64UrlDecode, base64UrlEncode } from '@shared/utils/encoders';
 import { toOptionalTrimmedString } from '@shared/utils/validation';
-import type { AccessKeyList } from '@/core/NearClient';
+import type { AccessKeyList } from '@/core/near/NearClient';
 import type { ThresholdEd25519KeyStore } from './stores/KeyStore';
 import type {
   ThresholdEd25519SessionStore,
 } from './stores/SessionStore';
-import type { ThresholdEcdsaPresignaturePool, ThresholdEcdsaSigningSessionStore } from './stores/EcdsaSigningStore';
+import type {
+  ThresholdEcdsaPresignSessionStore,
+  ThresholdEcdsaPresignaturePool,
+  ThresholdEcdsaSigningSessionStore,
+} from './stores/EcdsaSigningStore';
 import type {
   ThresholdEd25519AuthSessionStore,
   ThresholdEd25519AuthSessionRecord,
@@ -52,7 +56,7 @@ import {
   threshold_ed25519_compute_delegate_signing_digest,
   threshold_ed25519_compute_near_tx_signing_digests,
   threshold_ed25519_compute_nep413_signing_digest,
-} from '../../../../../wasm/near_signer/pkg/wasm_signer_worker.js';
+} from '../../../../wasm/near_signer/pkg/wasm_signer_worker.js';
 import {
   ensureRelayerKeyIsActiveAccessKey,
   extractAuthorizeSigningPublicKey,
@@ -389,6 +393,7 @@ export class ThresholdSigningService {
   private readonly keygenStrategy: ThresholdEd25519KeygenStrategy;
   private readonly signingHandlers: ThresholdEd25519SigningHandlers;
   private readonly ecdsaSigningSessionStore: ThresholdEcdsaSigningSessionStore;
+  private readonly ecdsaPresignSessionStore: ThresholdEcdsaPresignSessionStore;
   private readonly ecdsaPresignaturePool: ThresholdEcdsaPresignaturePool;
   private readonly ecdsaSigningHandlers: ThresholdEcdsaSigningHandlers;
   private readonly ensureReady: () => Promise<void>;
@@ -413,6 +418,7 @@ export class ThresholdSigningService {
     ecdsaSessionStore: ThresholdEd25519SessionStore;
     ecdsaAuthSessionStore: ThresholdEd25519AuthSessionStore;
     ecdsaSigningSessionStore: ThresholdEcdsaSigningSessionStore;
+    ecdsaPresignSessionStore: ThresholdEcdsaPresignSessionStore;
     ecdsaPresignaturePool: ThresholdEcdsaPresignaturePool;
     config?: ThresholdEd25519KeyStoreConfigInput | null;
     ensureReady: () => Promise<void>;
@@ -433,6 +439,7 @@ export class ThresholdSigningService {
     this.ecdsaSessionStore = input.ecdsaSessionStore;
     this.ecdsaAuthSessionStore = input.ecdsaAuthSessionStore;
     this.ecdsaSigningSessionStore = input.ecdsaSigningSessionStore;
+    this.ecdsaPresignSessionStore = input.ecdsaPresignSessionStore;
     this.ecdsaPresignaturePool = input.ecdsaPresignaturePool;
     const cfg = (isObject(input.config) ? input.config : {}) as Record<string, unknown>;
 
@@ -495,20 +502,21 @@ export class ThresholdSigningService {
       resolveRelayerKeyMaterial: (args) => this.resolveRelayerKeyMaterial(args),
     });
 
-	    this.ecdsaSigningHandlers = new ThresholdEcdsaSigningHandlers({
-	      logger: this.logger,
-	      nodeRole,
-	      participantIds2p: this.participantIds2p,
-	      clientParticipantId: this.clientParticipantId,
-	      relayerParticipantId: this.relayerParticipantId,
-	      secp256k1MasterSecretB64u: this.secp256k1MasterSecretB64u,
-	      sessionStore: this.ecdsaSessionStore,
-	      signingSessionStore: this.ecdsaSigningSessionStore,
-	      presignaturePool: this.ecdsaPresignaturePool,
-	      ensureReady: this.ensureReady,
-	      createSigningSessionId: () => this.createThresholdEcdsaSigningSessionId(),
-	      createPresignSessionId: () => this.createThresholdEcdsaPresignSessionId(),
-	    });
+    this.ecdsaSigningHandlers = new ThresholdEcdsaSigningHandlers({
+      logger: this.logger,
+      nodeRole,
+      participantIds2p: this.participantIds2p,
+      clientParticipantId: this.clientParticipantId,
+      relayerParticipantId: this.relayerParticipantId,
+      secp256k1MasterSecretB64u: this.secp256k1MasterSecretB64u,
+      sessionStore: this.ecdsaSessionStore,
+      signingSessionStore: this.ecdsaSigningSessionStore,
+      presignSessionStore: this.ecdsaPresignSessionStore,
+      presignaturePool: this.ecdsaPresignaturePool,
+      ensureReady: this.ensureReady,
+      createSigningSessionId: () => this.createThresholdEcdsaSigningSessionId(),
+      createPresignSessionId: () => this.createThresholdEcdsaPresignSessionId(),
+    });
   }
 
   getSchemeModule(schemeId: ThresholdSchemeId): ThresholdAnySchemeModule | null {

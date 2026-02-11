@@ -1,6 +1,6 @@
 import type { EmailRecoveryMode } from './types';
 import { normalizeForwardableEmailPayload, parseAccountIdFromSubject } from './zkEmail';
-import { ensureEd25519Prefix } from '@/core/nearCrypto';
+import { ensureEd25519Prefix } from '@/core/near/nearCrypto';
 
 export enum EmailRecoveryModeHint {
   ZkEmail = 'zk-email',

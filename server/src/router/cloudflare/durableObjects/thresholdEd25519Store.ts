@@ -25,12 +25,19 @@ type DoReq =
   | { op: 'getdel'; key: string }
   | { op: 'authConsumeUseCount'; key: string }
   | { op: 'ecdsaPresignPut'; listKey: string; value: unknown }
-  | { op: 'ecdsaPresignReserve'; listKey: string; reservedKeyPrefix: string; ttlMs?: number };
+  | { op: 'ecdsaPresignReserve'; listKey: string; reservedKeyPrefix: string; ttlMs?: number }
+  | { op: 'ecdsaPresignSessionCreate'; key: string; value: unknown; ttlMs?: number }
+  | { op: 'ecdsaPresignSessionAdvanceCas'; key: string; expectedVersion: number; value: unknown; ttlMs?: number };
 
 type AuthEntry = {
   record: { expiresAtMs: number; relayerKeyId: string; userId: string; rpId: string; participantIds: number[] };
   remainingUses: number;
   expiresAtMs: number;
+};
+
+type PresignSessionRecord = {
+  expiresAtMs: number;
+  version: number;
 };
 
 function json(body: unknown, init?: ResponseInit): Response {
@@ -81,6 +88,15 @@ function parseAuthEntry(raw: unknown): AuthEntry | null {
   if (typeof rec.expiresAtMs !== 'number' || !Number.isFinite(rec.expiresAtMs)) return null;
   if (!Array.isArray(rec.participantIds)) return null;
   return raw as AuthEntry;
+}
+
+function parsePresignSessionRecord(raw: unknown): PresignSessionRecord | null {
+  if (!isObject(raw)) return null;
+  const expiresAtMs = (raw as { expiresAtMs?: unknown }).expiresAtMs;
+  const version = (raw as { version?: unknown }).version;
+  if (typeof expiresAtMs !== 'number' || !Number.isFinite(expiresAtMs)) return null;
+  if (typeof version !== 'number' || !Number.isFinite(version)) return null;
+  return { expiresAtMs, version };
 }
 
 async function withTxn<T>(state: DurableObjectStateLike, fn: (store: DurableObjectStorageLike) => Promise<T>): Promise<T> {
@@ -204,6 +220,60 @@ export class ThresholdEd25519StoreDurableObject {
       });
 
       return json(ok(value));
+    }
+
+    if (op === 'ecdsaPresignSessionCreate') {
+      const key = toKey((req as { key?: unknown }).key);
+      const value = (req as { value?: unknown }).value;
+      const ttlSeconds = toTtlSeconds((req as { ttlMs?: unknown }).ttlMs);
+      if (!key) return json(err('invalid_body', 'Missing key'));
+      if (!parsePresignSessionRecord(value)) return json(err('invalid_body', 'Invalid presign session record'));
+
+      const result = await withTxn(this.state, async (store) => {
+        const nowMs = Date.now();
+        const existingRaw = await store.get(key);
+        if (existingRaw !== null && existingRaw !== undefined) {
+          const existing = parsePresignSessionRecord(existingRaw);
+          if (!existing || existing.expiresAtMs > nowMs) {
+            return { status: 'exists' };
+          }
+        }
+        await store.put(key, value, ttlSeconds ? { expirationTtl: ttlSeconds } : undefined);
+        return { status: 'ok' };
+      });
+
+      return json(ok(result));
+    }
+
+    if (op === 'ecdsaPresignSessionAdvanceCas') {
+      const key = toKey((req as { key?: unknown }).key);
+      const expectedVersionRaw = (req as { expectedVersion?: unknown }).expectedVersion;
+      const value = (req as { value?: unknown }).value;
+      const ttlSeconds = toTtlSeconds((req as { ttlMs?: unknown }).ttlMs);
+      if (!key) return json(err('invalid_body', 'Missing key'));
+      const expectedVersion = Math.floor(Number(expectedVersionRaw));
+      if (!Number.isFinite(expectedVersion) || expectedVersion < 1) {
+        return json(err('invalid_body', 'Invalid expectedVersion'));
+      }
+      const nextRecord = parsePresignSessionRecord(value);
+      if (!nextRecord) return json(err('invalid_body', 'Invalid presign session record'));
+
+      const result = await withTxn(this.state, async (store) => {
+        const nowMs = Date.now();
+        const existingRaw = await store.get(key);
+        if (existingRaw === null || existingRaw === undefined) return { status: 'not_found' };
+        const existing = parsePresignSessionRecord(existingRaw);
+        if (!existing) return { status: 'not_found' };
+        if (existing.expiresAtMs <= nowMs) {
+          await store.delete(key);
+          return { status: 'expired' };
+        }
+        if (existing.version !== expectedVersion) return { status: 'version_mismatch' };
+        await store.put(key, value, ttlSeconds ? { expirationTtl: ttlSeconds } : undefined);
+        return { status: 'ok', record: value };
+      });
+
+      return json(ok(result));
     }
 
     return json(err('invalid_body', `Unknown op: ${op}`));

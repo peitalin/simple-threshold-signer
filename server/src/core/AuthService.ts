@@ -1,5 +1,5 @@
 import { ActionType, type ActionArgsWasm, validateActionArgsWasm } from '@/core/types/actions';
-import { MinimalNearClient, SignedTransaction, type AccessKeyList } from '@/core/NearClient';
+import { MinimalNearClient, SignedTransaction, type AccessKeyList } from '@/core/near/NearClient';
 import type { FinalExecutionOutcome } from '@near-js/types';
 import { toPublicKeyStringFromSecretKey } from './nearKeys';
 import { createAuthServiceConfig } from './config';
@@ -18,7 +18,7 @@ import initSignerWasm, {
   type InitInput,
   type WasmTransaction,
   type WasmSignature,
-} from '../../../../wasm/near_signer/pkg/wasm_signer_worker.js';
+} from '../../../wasm/near_signer/pkg/wasm_signer_worker.js';
 
 import type {
   AuthServiceConfig,
@@ -31,7 +31,7 @@ import type {
   SignerWasmModuleSupplier,
 } from './types';
 
-import { DEFAULT_EMAIL_RECOVERY_CONTRACTS } from '@/core/defaultConfigs';
+import { DEFAULT_EMAIL_RECOVERY_CONTRACTS } from '@/core/config/defaultConfigs';
 import { EmailRecoveryService } from '../email-recovery';
 import { SignedDelegate } from '@/core/types/delegate';
 import {
@@ -134,7 +134,7 @@ function parseCacheControlMaxAgeSec(cacheControl: string | null): number | null 
 // =============================
 
 // Primary location (preserveModules output)
-const SIGNER_WASM_MAIN_PATH = '../../../../wasm/near_signer/pkg/wasm_signer_worker_bg.wasm';
+const SIGNER_WASM_MAIN_PATH = '../../../wasm/near_signer/pkg/wasm_signer_worker_bg.wasm';
 // Fallback location (dist/workers copy step)
 const SIGNER_WASM_FALLBACK_PATH = '../../../workers/wasm_signer_worker_bg.wasm';
 
@@ -923,7 +923,7 @@ export class AuthService {
         }
 
         // 2) Create the on-chain account as a subaccount of the relayer signer.
-        // In the VRF-free / lite architecture, account creation is done directly (no WebAuthn contract call).
+        // In the legacy-challenge-free / lite architecture, account creation is done directly (no WebAuthn contract call).
         const accountExists = await this.checkAccountExists(accountId);
         if (accountExists) {
           throw new Error(`Account ${accountId} already exists. Cannot create duplicate account.`);
@@ -1081,7 +1081,7 @@ export class AuthService {
    * - and that `clientDataJSON.origin` is within the RP ID domain.
    *
    * Notes:
-   * - This intentionally does not involve legacy VRF proofs or `verify_authentication_response`.
+   * - This intentionally does not involve legacy challenge proofs or `verify_authentication_response`.
    * - Replay protection is handled by upstream protocol bindings (e.g., unique sessionPolicyDigest32 via sessionId).
    */
   async verifyWebAuthnAuthenticationLite(input: {

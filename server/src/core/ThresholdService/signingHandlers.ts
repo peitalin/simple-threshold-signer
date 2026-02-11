@@ -1,4 +1,4 @@
-import type { AccessKeyList } from '@/core/NearClient';
+import type { AccessKeyList } from '@/core/near/NearClient';
 import { base64UrlDecode, base64UrlEncode } from '@shared/utils/encoders';
 import { toOptionalTrimmedString } from '@shared/utils/validation';
 import type { NormalizedLogger } from '../logger';
@@ -16,7 +16,7 @@ import {
   threshold_ed25519_round1_commit,
   threshold_ed25519_round2_sign,
   threshold_ed25519_round2_sign_cosigner,
-} from '../../../../../wasm/near_signer/pkg/wasm_signer_worker.js';
+} from '../../../../wasm/near_signer/pkg/wasm_signer_worker.js';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { ensureRelayerKeyIsActiveAccessKey } from './validation';
 import type {

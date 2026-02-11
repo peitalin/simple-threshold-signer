@@ -6,6 +6,7 @@ import type {
 import { toOptionalTrimmedString } from '@shared/utils/validation';
 import {
   isObject,
+  parseThresholdEcdsaPresignSessionRecord,
   parseThresholdEcdsaPresignatureRelayerShareRecord,
   parseThresholdEcdsaSigningSessionRecord,
   parseThresholdEd25519AuthSessionRecord,
@@ -37,6 +38,9 @@ import type {
   ThresholdEd25519SigningSessionRecord,
 } from './SessionStore';
 import type {
+  ThresholdEcdsaPresignSessionCasResult,
+  ThresholdEcdsaPresignSessionRecord,
+  ThresholdEcdsaPresignSessionStore,
   ThresholdEcdsaPresignaturePool,
   ThresholdEcdsaPresignatureRelayerShareRecord,
   ThresholdEcdsaSigningSessionRecord,
@@ -56,6 +60,14 @@ type DoGetDelRequest = { op: 'getdel'; key: string };
 type DoAuthConsumeUseCountRequest = { op: 'authConsumeUseCount'; key: string };
 type DoEcdsaPresignPutRequest = { op: 'ecdsaPresignPut'; listKey: string; value: unknown };
 type DoEcdsaPresignReserveRequest = { op: 'ecdsaPresignReserve'; listKey: string; reservedKeyPrefix: string; ttlMs?: number };
+type DoEcdsaPresignSessionCreateRequest = { op: 'ecdsaPresignSessionCreate'; key: string; value: unknown; ttlMs?: number };
+type DoEcdsaPresignSessionAdvanceCasRequest = {
+  op: 'ecdsaPresignSessionAdvanceCas';
+  key: string;
+  expectedVersion: number;
+  value: unknown;
+  ttlMs?: number;
+};
 type DoRequest =
   | DoGetRequest
   | DoSetRequest
@@ -63,7 +75,9 @@ type DoRequest =
   | DoGetDelRequest
   | DoAuthConsumeUseCountRequest
   | DoEcdsaPresignPutRequest
-  | DoEcdsaPresignReserveRequest;
+  | DoEcdsaPresignReserveRequest
+  | DoEcdsaPresignSessionCreateRequest
+  | DoEcdsaPresignSessionAdvanceCasRequest;
 
 type DoAuthEntry = {
   record: ThresholdEd25519AuthSessionRecord;
@@ -357,6 +371,99 @@ export class CloudflareDurableObjectThresholdEcdsaSigningSessionStore implements
   }
 }
 
+export class CloudflareDurableObjectThresholdEcdsaPresignSessionStore implements ThresholdEcdsaPresignSessionStore {
+  private readonly stub: DurableObjectStubLike;
+  private readonly keyPrefix: string;
+
+  constructor(input: {
+    namespace: CloudflareDurableObjectNamespaceLike;
+    objectName: string;
+    keyPrefix: string;
+  }) {
+    this.stub = resolveDoStub({ namespace: input.namespace, objectName: input.objectName });
+    this.keyPrefix = input.keyPrefix;
+  }
+
+  private key(id: string): string {
+    return `${this.keyPrefix}${id}`;
+  }
+
+  async createSession(
+    id: string,
+    record: ThresholdEcdsaPresignSessionRecord,
+    ttlMs: number,
+  ): Promise<{ ok: true } | { ok: false; code: 'exists' }> {
+    const key = toOptionalTrimmedString(id);
+    if (!key) throw new Error('Missing presignSessionId');
+    const parsed = parseThresholdEcdsaPresignSessionRecord(record);
+    if (!parsed) throw new Error('Invalid threshold-ecdsa presign session record');
+    const resp = await callDo<{ status?: unknown }>(this.stub, {
+      op: 'ecdsaPresignSessionCreate',
+      key: this.key(key),
+      value: parsed,
+      ttlMs: Math.max(0, Number(ttlMs) || 0),
+    });
+    if (!resp.ok) throw new Error(resp.message);
+    const status = toOptionalTrimmedString(resp.value?.status);
+    if (status === 'ok') return { ok: true };
+    if (status === 'exists') return { ok: false, code: 'exists' };
+    throw new Error(`[threshold-ecdsa] Durable Object presign session create returned unexpected status: ${String(status || 'null')}`);
+  }
+
+  async getSession(id: string): Promise<ThresholdEcdsaPresignSessionRecord | null> {
+    const key = toOptionalTrimmedString(id);
+    if (!key) return null;
+    const resp = await callDo<unknown | null>(this.stub, { op: 'get', key: this.key(key) });
+    if (!resp.ok) return null;
+    const parsed = parseThresholdEcdsaPresignSessionRecord(resp.value) as ThresholdEcdsaPresignSessionRecord | null;
+    if (!parsed) return null;
+    if (Date.now() > parsed.expiresAtMs) {
+      await this.deleteSession(key);
+      return null;
+    }
+    return parsed;
+  }
+
+  async advanceSessionCas(input: {
+    id: string;
+    expectedVersion: number;
+    nextRecord: ThresholdEcdsaPresignSessionRecord;
+    ttlMs: number;
+  }): Promise<ThresholdEcdsaPresignSessionCasResult> {
+    const key = toOptionalTrimmedString(input.id);
+    if (!key) return { ok: false, code: 'not_found' };
+    const expectedVersion = Math.floor(Number(input.expectedVersion));
+    if (!Number.isFinite(expectedVersion) || expectedVersion < 1) return { ok: false, code: 'version_mismatch' };
+    const parsed = parseThresholdEcdsaPresignSessionRecord(input.nextRecord);
+    if (!parsed) throw new Error('Invalid threshold-ecdsa presign session record');
+    const resp = await callDo<{ status?: unknown; record?: unknown }>(this.stub, {
+      op: 'ecdsaPresignSessionAdvanceCas',
+      key: this.key(key),
+      expectedVersion,
+      value: parsed,
+      ttlMs: Math.max(0, Number(input.ttlMs) || 0),
+    });
+    if (!resp.ok) throw new Error(resp.message);
+    const status = toOptionalTrimmedString(resp.value?.status);
+    if (status === 'not_found') return { ok: false, code: 'not_found' };
+    if (status === 'expired') return { ok: false, code: 'expired' };
+    if (status === 'version_mismatch') return { ok: false, code: 'version_mismatch' };
+    if (status !== 'ok') {
+      throw new Error(`[threshold-ecdsa] Durable Object presign session CAS returned unexpected status: ${String(status || 'null')}`);
+    }
+    const record = parseThresholdEcdsaPresignSessionRecord(resp.value?.record) as ThresholdEcdsaPresignSessionRecord | null;
+    if (!record) throw new Error('[threshold-ecdsa] Durable Object presign session CAS returned invalid record');
+    return { ok: true, record };
+  }
+
+  async deleteSession(id: string): Promise<void> {
+    const key = toOptionalTrimmedString(id);
+    if (!key) return;
+    const resp = await callDo<void>(this.stub, { op: 'del', key: this.key(key) });
+    if (!resp.ok) throw new Error(resp.message);
+  }
+}
+
 export class CloudflareDurableObjectThresholdEcdsaPresignaturePool implements ThresholdEcdsaPresignaturePool {
   private readonly stub: DurableObjectStubLike;
   private readonly keyPrefix: string;
@@ -469,6 +576,7 @@ export function createCloudflareDurableObjectThresholdEcdsaStores(input: {
   sessionStore: ThresholdEd25519SessionStore;
   authSessionStore: ThresholdEd25519AuthSessionStore;
   signingSessionStore: ThresholdEcdsaSigningSessionStore;
+  presignSessionStore: ThresholdEcdsaPresignSessionStore;
   presignaturePool: ThresholdEcdsaPresignaturePool;
 } | null {
   const config = (isObject(input.config) ? input.config : {}) as Record<string, unknown>;
@@ -497,6 +605,7 @@ export function createCloudflareDurableObjectThresholdEcdsaStores(input: {
     sessionStore: new CloudflareDurableObjectThresholdEd25519SessionStore({ namespace, objectName, keyPrefix: sessionPrefix }),
     authSessionStore: new CloudflareDurableObjectThresholdEd25519AuthSessionStore({ namespace, objectName, keyPrefix: authPrefix }),
     signingSessionStore: new CloudflareDurableObjectThresholdEcdsaSigningSessionStore({ namespace, objectName, keyPrefix: signingPrefix }),
+    presignSessionStore: new CloudflareDurableObjectThresholdEcdsaPresignSessionStore({ namespace, objectName, keyPrefix: presignPrefix }),
     presignaturePool: new CloudflareDurableObjectThresholdEcdsaPresignaturePool({ namespace, objectName, keyPrefix: presignPrefix }),
   };
 }

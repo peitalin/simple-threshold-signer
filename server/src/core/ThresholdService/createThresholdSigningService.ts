@@ -116,6 +116,7 @@ export function createThresholdSigningService(input: {
     ecdsaSessionStore,
     ecdsaAuthSessionStore,
     ecdsaSigningSessionStore: ecdsaSigningStores.signingSessionStore,
+    ecdsaPresignSessionStore: ecdsaSigningStores.presignSessionStore,
     ecdsaPresignaturePool: ecdsaSigningStores.presignaturePool,
     config,
     ensureReady,

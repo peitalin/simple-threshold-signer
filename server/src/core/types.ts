@@ -4,7 +4,7 @@ import {
   UserVerificationPolicy,
   OriginPolicyInput
 } from '@/core/types/authenticatorOptions';
-import type { InitInput } from '../../../../wasm/near_signer/pkg/wasm_signer_worker.js';
+import type { InitInput } from '../../../wasm/near_signer/pkg/wasm_signer_worker.js';
 import type { ZkEmailProverClientOptions } from '../email-recovery/zkEmail';
 import type { Logger } from './logger';
 

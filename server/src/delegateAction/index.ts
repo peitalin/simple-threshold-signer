@@ -1,5 +1,5 @@
 import type { FinalExecutionOutcome } from '@near-js/types';
-import type { NearClient, SignedTransaction } from '@/core/NearClient';
+import type { NearClient, SignedTransaction } from '@/core/near/NearClient';
 import { ActionType, type ActionArgsWasm, validateActionArgsWasm } from '@/core/types/actions';
 import type { SignedDelegate as CoreSignedDelegate } from '@/core/types/delegate';
 import { isObject } from '@shared/utils/validation';

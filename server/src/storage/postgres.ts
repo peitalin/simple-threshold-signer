@@ -177,6 +177,28 @@ export async function ensurePostgresSchema(input: {
     `);
 
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS threshold_ecdsa_presign_sessions (
+        namespace TEXT NOT NULL,
+        presign_session_id TEXT NOT NULL,
+        record_json JSONB NOT NULL,
+        stage TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        expires_at_ms BIGINT NOT NULL,
+        updated_at_ms BIGINT NOT NULL,
+        PRIMARY KEY (namespace, presign_session_id),
+        CHECK (stage IN ('triples', 'triples_done', 'presign', 'done'))
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS tatchi_threshold_ecdsa_presign_sessions_expires_idx
+      ON threshold_ecdsa_presign_sessions (expires_at_ms)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS tatchi_threshold_ecdsa_presign_sessions_stage_idx
+      ON threshold_ecdsa_presign_sessions (namespace, stage, updated_at_ms)
+    `);
+
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS threshold_ecdsa_presignatures (
         namespace TEXT NOT NULL,
         relayer_key_id TEXT NOT NULL,
