@@ -22,7 +22,13 @@ export type KeyRef =
       thresholdSessionId?: string;
       mpcSessionId?: string;
     }
-  | { type: 'webauthnP256'; credentialId: Uint8Array; pubKeyX: Uint8Array; pubKeyY: Uint8Array; rpId?: string };
+  | {
+      type: 'webauthnP256';
+      credentialId: Uint8Array;
+      pubKeyX: Uint8Array;
+      pubKeyY: Uint8Array;
+      rpId?: string;
+    };
 
 export type ThresholdEcdsaSecp256k1KeyRef = Extract<KeyRef, { type: 'threshold-ecdsa-secp256k1' }>;
 
@@ -66,14 +72,18 @@ export interface ChainAdapter<
   Signed = SignatureBytes,
 > {
   readonly chain: ChainNamespace;
-  buildIntent: (request: Request) => Promise<SigningIntent<UiModel, Result, SignRequestType, Signed>>;
+  buildIntent: (
+    request: Request,
+  ) => Promise<SigningIntent<UiModel, Result, SignRequestType, Signed>>;
 }
 
-export interface SigningEngine<
-  Request = SignRequest,
-  Key = KeyRef,
-  Signed = SignatureBytes,
-> {
+export interface SigningEngine<Request = SignRequest, Key = KeyRef, Signed = SignatureBytes> {
   readonly algorithm: SignatureAlgorithm;
   sign: (req: Request, keyRef: Key) => Promise<Signed>;
 }
+
+export type SigningEngineMap<
+  Request extends { algorithm: string } = SignRequest,
+  Key = KeyRef,
+  Signed = SignatureBytes,
+> = Partial<Record<Request['algorithm'] & string, SigningEngine<Request, Key, Signed>>>;

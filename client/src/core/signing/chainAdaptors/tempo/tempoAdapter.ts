@@ -1,8 +1,9 @@
 import type { ChainAdapter, SigningIntent, SignatureBytes } from '../../orchestration/types';
 import { bytesToHex } from '../evm/bytes';
 import { computeEip1559TxHashWasm, encodeEip1559SignedTxWasm } from '../evm/ethSignerWasm';
+import type { Eip1559UnsignedTx } from '../evm/types';
 import type { WorkerOperationContext } from '../handlers/executeSignerWorkerOperation';
-import type { TempoSigningRequest } from './types';
+import type { TempoSigningRequest, TempoUnsignedTx } from './types';
 import { computeTempoSenderHashWasm, encodeTempoSignedTxWasm } from './tempoSignerWasm';
 
 export type TempoSignedResult =
@@ -19,7 +20,21 @@ export type TempoSignedResult =
       rawTxHex: string;
     };
 
-function parseRecoveredSecp256k1Signature(sig65: Uint8Array): { r: Uint8Array; s: Uint8Array; recovery: number } {
+export type TempoIntentUiModel =
+  | {
+      kind: 'tempoTransaction';
+      tx: TempoUnsignedTx;
+    }
+  | {
+      kind: 'eip1559';
+      tx: Eip1559UnsignedTx;
+    };
+
+function parseRecoveredSecp256k1Signature(sig65: Uint8Array): {
+  r: Uint8Array;
+  s: Uint8Array;
+  recovery: number;
+} {
   if (sig65.length !== 65) throw new Error('secp256k1 recovered signature must be 65 bytes');
   return { r: sig65.slice(0, 32), s: sig65.slice(32, 64), recovery: sig65[64] };
 }
@@ -28,11 +43,22 @@ function assertTempoWebAuthnSignature(sig: Uint8Array): void {
   // Tempo WebAuthn signature encoding:
   // 0x02 || webauthn_data || r || s || pub_key_x || pub_key_y
   // Minimum length: 1 + 0 + 128 = 129 bytes; maximum: 2049 bytes (2KB + typeId).
-  if (sig.length < 129 || sig.length > 2049) throw new Error('[TempoAdapter] invalid WebAuthn signature length');
-  if (sig[0] !== 0x02) throw new Error('[TempoAdapter] invalid WebAuthn signature typeId (expected 0x02)');
+  if (sig.length < 129 || sig.length > 2049)
+    throw new Error('[TempoAdapter] invalid WebAuthn signature length');
+  if (sig[0] !== 0x02)
+    throw new Error('[TempoAdapter] invalid WebAuthn signature typeId (expected 0x02)');
 }
 
-export class TempoAdapter implements ChainAdapter<TempoSigningRequest, unknown, TempoSignedResult> {
+function getRlpValueLength(value: TempoUnsignedTx['aaAuthorizationList']): number {
+  if (value === undefined) return 0;
+  return Array.isArray(value) ? value.length : value.length;
+}
+
+export class TempoAdapter implements ChainAdapter<
+  TempoSigningRequest,
+  TempoIntentUiModel,
+  TempoSignedResult
+> {
   readonly chain = 'tempo' as const;
   private readonly workerCtx: WorkerOperationContext;
 
@@ -40,7 +66,9 @@ export class TempoAdapter implements ChainAdapter<TempoSigningRequest, unknown, 
     this.workerCtx = workerCtx;
   }
 
-  async buildIntent(request: TempoSigningRequest): Promise<SigningIntent<unknown, TempoSignedResult>> {
+  async buildIntent(
+    request: TempoSigningRequest,
+  ): Promise<SigningIntent<TempoIntentUiModel, TempoSignedResult>> {
     if (request.chain !== 'tempo') {
       throw new Error('[TempoAdapter] invalid chain');
     }
@@ -112,8 +140,10 @@ export class TempoAdapter implements ChainAdapter<TempoSigningRequest, unknown, 
           }
 
           // For MVP: enforce empty AA list and no key authorization until we explicitly support these fields.
-          if (request.tx.aaAuthorizationList && (request.tx.aaAuthorizationList as any[])?.length > 0) {
-            throw new Error('[TempoAdapter] aaAuthorizationList not supported in MVP (must be empty)');
+          if (getRlpValueLength(request.tx.aaAuthorizationList) > 0) {
+            throw new Error(
+              '[TempoAdapter] aaAuthorizationList not supported in MVP (must be empty)',
+            );
           }
           if (request.tx.keyAuthorization !== undefined) {
             throw new Error('[TempoAdapter] keyAuthorization not supported in MVP');
@@ -124,7 +154,12 @@ export class TempoAdapter implements ChainAdapter<TempoSigningRequest, unknown, 
             senderSignature,
             workerCtx: this.workerCtx,
           });
-          return { chain: 'tempo', kind: 'tempoTransaction', senderHashHex, rawTxHex: bytesToHex(raw) };
+          return {
+            chain: 'tempo',
+            kind: 'tempoTransaction',
+            senderHashHex,
+            rawTxHex: bytesToHex(raw),
+          };
         },
       };
     }

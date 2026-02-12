@@ -1182,12 +1182,13 @@ export class WebAuthnManager {
 
     if (schemes.includes('secp256k1')) {
       const prfSecondB64u = this.extractPrfSecondB64u(credential);
-      const { deriveSecp256k1KeypairFromPrfSecondB64u } = await import(
-        '../chainAdaptors/evm/deriveSecp256k1KeypairFromPrfSecond'
+      const { deriveSecp256k1KeypairFromPrfSecondWasm } = await import(
+        '../chainAdaptors/evm/ethSignerWasm'
       );
-      const derived = deriveSecp256k1KeypairFromPrfSecondB64u({
+      const derived = await deriveSecp256k1KeypairFromPrfSecondWasm({
         prfSecondB64u,
         nearAccountId: String(accountId),
+        workerCtx: this.signerWorkerManager.getContext(),
       });
       exportKeys.push({
         scheme: 'secp256k1',

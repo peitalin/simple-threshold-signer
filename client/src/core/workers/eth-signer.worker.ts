@@ -1,5 +1,6 @@
 import init, {
   compute_eip1559_tx_hash,
+  derive_secp256k1_keypair_from_prf_second,
   derive_threshold_secp256k1_client_share,
   encode_eip1559_signed_tx,
   init_eth_signer,
@@ -22,6 +23,14 @@ type EthSignerWorkerRequest =
         prfFirst32: any;
         userId: string;
         derivationPath?: number;
+      };
+    }
+  | {
+      id: string;
+      type: 'deriveSecp256k1KeypairFromPrfSecond';
+      payload: {
+        prfSecond: any;
+        nearAccountId: string;
       };
     }
   | {
@@ -222,6 +231,33 @@ self.addEventListener('message', async (event: MessageEvent) => {
             },
           },
           [signingShare32, verifyingShare33],
+        );
+        return;
+      }
+      case 'deriveSecp256k1KeypairFromPrfSecond': {
+        const prfSecond = toU8(msg.payload.prfSecond);
+        const nearAccountId = String(msg.payload.nearAccountId || '').trim();
+        const out = derive_secp256k1_keypair_from_prf_second(
+          prfSecond,
+          nearAccountId,
+        ) as Uint8Array;
+        if (out.length !== 85) {
+          throw new Error(`derive_secp256k1_keypair_from_prf_second must return 85 bytes (got ${out.length})`);
+        }
+        const privateKey32 = out.slice(0, 32).buffer;
+        const publicKey33 = out.slice(32, 65).buffer;
+        const ethereumAddress20 = out.slice(65, 85).buffer;
+        (self as any).postMessage(
+          {
+            id: msg.id,
+            ok: true,
+            result: {
+              privateKey32,
+              publicKey33,
+              ethereumAddress20,
+            },
+          },
+          [privateKey32, publicKey33, ethereumAddress20],
         );
         return;
       }

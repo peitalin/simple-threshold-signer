@@ -13,14 +13,15 @@ import type { TempoSigningRequest } from '../types';
 import { resolveWebAuthnP256KeyRefForNearAccount } from '../../../orchestration/walletOrigin/webauthnKeyRef';
 import { executeSigningIntent } from '../../../orchestration/executeSigningIntent';
 import type { SigningAuthMode } from '../../../secureConfirm/confirmTxFlow/types';
+import { normalizeAuthenticationCredential } from '../../../webauthn/credentials/helpers';
 
 function makeRequestId(prefix: string): string {
-  const c = (globalThis as any).crypto;
+  const c = globalThis.crypto;
   if (c?.randomUUID && typeof c.randomUUID === 'function') return c.randomUUID();
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function inferDigest32FromSignRequest(req: { kind: string; digest32?: Uint8Array; challenge32?: Uint8Array }): Uint8Array {
+function inferDigest32FromSignRequest(req: SignRequest): Uint8Array {
   const bytes = req.kind === 'digest' ? req.digest32 : req.challenge32;
   if (!bytes || bytes.length !== 32) throw new Error('[chains] expected 32-byte digest/challenge');
   return bytes;
@@ -36,10 +37,7 @@ function asThresholdEcdsaKeyRef(value: KeyRef | undefined): ThresholdEcdsaSecp25
 async function resolveSigningAuthMode(args: {
   needsWebAuthn: boolean;
   thresholdEcdsaKeyRef: ThresholdEcdsaSecp256k1KeyRef | null;
-  secureConfirmWorkerManager: Pick<
-    SecureConfirmWorkerManager,
-    'peekPrfFirstForThresholdSession'
-  >;
+  secureConfirmWorkerManager: Pick<SecureConfirmWorkerManager, 'peekPrfFirstForThresholdSession'>;
 }): Promise<SigningAuthMode> {
   if (args.needsWebAuthn) return 'webauthn';
 
@@ -66,7 +64,7 @@ export async function signTempoWithSecureConfirm(args: {
   nearAccountId: string;
   request: TempoSigningRequest;
   engines: Record<string, SigningEngine>;
-  keyRefsByAlgorithm?: Partial<Record<string, KeyRef>>;
+  keyRefsByAlgorithm?: Partial<Record<SignRequest['algorithm'], KeyRef>>;
   confirmationConfigOverride?: Partial<ConfirmationConfig>;
   workerCtx: WorkerOperationContext;
 }): Promise<TempoSignedResult> {
@@ -78,7 +76,11 @@ export async function signTempoWithSecureConfirm(args: {
     throw new Error('[chains] multiple WebAuthn sign requests are not supported yet');
   }
 
-  const firstDigest = inferDigest32FromSignRequest(intent.signRequests[0] as any);
+  const firstSignRequest = intent.signRequests[0];
+  if (!firstSignRequest) {
+    throw new Error('[chains] signing intent has no sign requests');
+  }
+  const firstDigest = inferDigest32FromSignRequest(firstSignRequest);
   const challengeB64u = base64UrlEncode(firstDigest);
   const intentDigestHex = bytesToHex(firstDigest);
   const needsWebAuthn = webauthnReqs.length === 1;
@@ -97,12 +99,16 @@ export async function signTempoWithSecureConfirm(args: {
     nearAccountId: args.nearAccountId,
     challengeB64u,
     intentDigest: intentDigestHex,
-    title: intent.chain === 'tempo'
-      ? (args.request.kind === 'tempoTransaction' ? 'Sign TempoTransaction (0x76)' : 'Sign EIP-1559 (0x02)')
-      : `Sign ${intent.chain} intent`,
-    body: args.request.kind === 'tempoTransaction'
-      ? 'Review and approve signing the Tempo sender hash.'
-      : 'Review and approve signing the transaction hash.',
+    title:
+      intent.chain === 'tempo'
+        ? args.request.kind === 'tempoTransaction'
+          ? 'Sign TempoTransaction (0x76)'
+          : 'Sign EIP-1559 (0x02)'
+        : `Sign ${intent.chain} intent`,
+    body:
+      args.request.kind === 'tempoTransaction'
+        ? 'Review and approve signing the Tempo sender hash.'
+        : 'Review and approve signing the transaction hash.',
     signingAuthMode,
     confirmationConfigOverride: args.confirmationConfigOverride,
   });
@@ -115,13 +121,14 @@ export async function signTempoWithSecureConfirm(args: {
         if (!confirmation.credential) {
           throw new Error('[chains] missing WebAuthn credential from SecureConfirm');
         }
+        const credential = normalizeAuthenticationCredential(confirmation.credential);
         const webauthnKeyRef = await resolveWebAuthnP256KeyRefForNearAccount({
           indexedDB: args.ctx.indexedDB,
           nearAccountId: args.nearAccountId,
           rpId: signReq.rpId,
         });
         return {
-          signReq: { ...signReq, credential: confirmation.credential as any },
+          signReq: { ...signReq, credential },
           keyRef: webauthnKeyRef,
         };
       }

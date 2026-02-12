@@ -1,4 +1,5 @@
 import type { Eip1559UnsignedTx } from './types';
+import { bytesToHex } from './bytes';
 import {
   executeSignerWorkerOperation,
   type WorkerOperationContext,
@@ -149,6 +150,56 @@ export async function deriveThresholdSecp256k1ClientShareWasm(args: {
     clientSigningShare32,
     clientVerifyingShareB64u: base64UrlEncode(clientVerifyingShareBytes),
     clientVerifyingShareBytes,
+  };
+}
+
+export async function deriveSecp256k1KeypairFromPrfSecondWasm(args: {
+  prfSecondB64u: string;
+  nearAccountId: string;
+  workerCtx: WorkerOperationContext;
+}): Promise<{ privateKeyHex: string; publicKeyHex: string; ethereumAddress: string }> {
+  const prfSecondB64u = String(args.prfSecondB64u || '').trim();
+  if (!prfSecondB64u) throw new Error('Missing prfSecondB64u');
+  const nearAccountId = String(args.nearAccountId || '').trim();
+  if (!nearAccountId) throw new Error('Missing nearAccountId');
+
+  const prfSecond = base64UrlDecode(prfSecondB64u);
+  if (prfSecond.length === 0) {
+    throw new Error('Invalid PRF.second: empty after base64url decode');
+  }
+  const prfSecondCopy = prfSecond.slice();
+
+  const raw = await executeSignerWorkerOperation({
+    ctx: args.workerCtx,
+    kind: ETH_SIGNER_WORKER_KIND,
+    request: {
+      type: 'deriveSecp256k1KeypairFromPrfSecond',
+      payload: {
+        prfSecond: prfSecondCopy.buffer,
+        nearAccountId,
+      },
+      transfer: [prfSecondCopy.buffer],
+    },
+  });
+
+  const privateKey32 = new Uint8Array(raw.privateKey32);
+  const publicKey33 = new Uint8Array(raw.publicKey33);
+  const ethereumAddress20 = new Uint8Array(raw.ethereumAddress20);
+
+  if (privateKey32.length !== 32) {
+    throw new Error(`deriveSecp256k1KeypairFromPrfSecond expected 32-byte private key (got ${privateKey32.length})`);
+  }
+  if (publicKey33.length !== 33) {
+    throw new Error(`deriveSecp256k1KeypairFromPrfSecond expected 33-byte public key (got ${publicKey33.length})`);
+  }
+  if (ethereumAddress20.length !== 20) {
+    throw new Error(`deriveSecp256k1KeypairFromPrfSecond expected 20-byte ethereum address (got ${ethereumAddress20.length})`);
+  }
+
+  return {
+    privateKeyHex: bytesToHex(privateKey32),
+    publicKeyHex: bytesToHex(publicKey33),
+    ethereumAddress: bytesToHex(ethereumAddress20),
   };
 }
 

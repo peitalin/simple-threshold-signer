@@ -14,16 +14,23 @@ type RpcErr = { id: string; ok: false; error: string };
 type RpcResp<T = unknown> = RpcOk<T> | RpcErr;
 
 function makeId(prefix: string): string {
-  const c = (globalThis as any).crypto;
+  const c = globalThis.crypto;
   if (c?.randomUUID && typeof c.randomUUID === 'function') return c.randomUUID();
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export class MultichainSignerWorkerBackend<K extends MultichainWorkerKind = MultichainWorkerKind>
-implements MultichainWorkerBackendContract<K> {
+export class MultichainSignerWorkerBackend<
+  K extends MultichainWorkerKind = MultichainWorkerKind,
+> implements MultichainWorkerBackendContract<K> {
   private readonly kind: K;
   private worker: Worker | null = null;
-  private readonly pending = new Map<string, { resolve: (value: any) => void; reject: (e: Error) => void }>();
+  private readonly pending = new Map<
+    string,
+    {
+      resolve: (value: unknown) => void;
+      reject: (e: Error) => void;
+    }
+  >();
 
   constructor(kind: K) {
     this.kind = kind;
@@ -49,7 +56,9 @@ implements MultichainWorkerBackendContract<K> {
     });
 
     worker.addEventListener('error', (event: ErrorEvent) => {
-      const err = new Error(`[${this.kind}] worker runtime error: ${event.message || 'unknown error'}`);
+      const err = new Error(
+        `[${this.kind}] worker runtime error: ${event.message || 'unknown error'}`,
+      );
       for (const [, pending] of this.pending) pending.reject(err);
       this.pending.clear();
     });
@@ -65,7 +74,10 @@ implements MultichainWorkerBackendContract<K> {
     const id = makeId(this.kind);
 
     return await new Promise<MultichainWorkerOperationResult<K, T>>((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      this.pending.set(id, {
+        resolve: (value) => resolve(value as MultichainWorkerOperationResult<K, T>),
+        reject,
+      });
       try {
         worker.postMessage({ id, type: args.type, payload: args.payload }, args.transfer || []);
       } catch (e) {
@@ -84,9 +96,14 @@ const multichainSignerWorkerBackends = new Map<
 export function getMultichainSignerWorkerBackend<K extends MultichainWorkerKind>(
   kind: K,
 ): MultichainSignerWorkerBackend<K> {
-  const existing = multichainSignerWorkerBackends.get(kind) as MultichainSignerWorkerBackend<K> | undefined;
+  const existing = multichainSignerWorkerBackends.get(kind) as
+    | MultichainSignerWorkerBackend<K>
+    | undefined;
   if (existing) return existing;
   const backend = new MultichainSignerWorkerBackend(kind);
-  multichainSignerWorkerBackends.set(kind, backend as MultichainSignerWorkerBackend<MultichainWorkerKind>);
+  multichainSignerWorkerBackends.set(
+    kind,
+    backend as MultichainSignerWorkerBackend<MultichainWorkerKind>,
+  );
   return backend;
 }

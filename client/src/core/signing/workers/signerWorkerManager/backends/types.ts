@@ -29,6 +29,14 @@ export interface EthSignerWorkerOperationMap {
     payload: { prfFirst32: ArrayBuffer; userId: string; derivationPath?: number };
     result: { clientSigningShare32: ArrayBuffer; clientVerifyingShare33: ArrayBuffer };
   };
+  deriveSecp256k1KeypairFromPrfSecond: {
+    payload: { prfSecond: ArrayBuffer; nearAccountId: string };
+    result: {
+      privateKey32: ArrayBuffer;
+      publicKey33: ArrayBuffer;
+      ethereumAddress20: ArrayBuffer;
+    };
+  };
   thresholdEcdsaPresignSessionInit: {
     payload: {
       sessionId: string;

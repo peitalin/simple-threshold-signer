@@ -93,3 +93,11 @@ pub fn derive_threshold_secp256k1_client_share(
 ) -> Result<Vec<u8>, JsValue> {
     derive::derive_threshold_secp256k1_client_share(prf_first32, user_id, derivation_path)
 }
+
+#[wasm_bindgen]
+pub fn derive_secp256k1_keypair_from_prf_second(
+    prf_second: Vec<u8>,
+    near_account_id: String,
+) -> Result<Vec<u8>, JsValue> {
+    derive::derive_secp256k1_keypair_from_prf_second(prf_second, near_account_id)
+}
