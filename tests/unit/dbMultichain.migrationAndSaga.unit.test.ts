@@ -147,25 +147,31 @@ test.describe('DB multichain migration + saga', () => {
         syncedAt: '',
       });
 
-      // Legacy rows intentionally conflict; V2 should be preferred by read paths.
-      await rawClient.put('users', {
-        nearAccountId: 'alice.testnet',
-        deviceNumber: 1,
-        clientNearPublicKey: 'ed25519:legacy-pk',
-        passkeyCredential: { id: 'legacy-cred', rawId: 'legacy-raw' },
-        version: 2,
-        registeredAt: now,
-        lastLogin: now,
-        lastUpdated: now,
-      });
-      await rawClient.put('authenticators', {
-        nearAccountId: 'alice.testnet',
-        deviceNumber: 1,
-        credentialId: 'legacy-cred',
-        credentialPublicKey: new Uint8Array([9]),
-        registered: '',
-        syncedAt: '',
-      });
+      // Legacy rows intentionally conflict when legacy stores exist; V2 should still be preferred.
+      const legacyUsersStorePresent = rawClient.objectStoreNames.contains('users');
+      const legacyAuthenticatorsStorePresent = rawClient.objectStoreNames.contains('authenticators');
+      if (legacyUsersStorePresent) {
+        await rawClient.put('users', {
+          nearAccountId: 'alice.testnet',
+          deviceNumber: 1,
+          clientNearPublicKey: 'ed25519:legacy-pk',
+          passkeyCredential: { id: 'legacy-cred', rawId: 'legacy-raw' },
+          version: 2,
+          registeredAt: now,
+          lastLogin: now,
+          lastUpdated: now,
+        });
+      }
+      if (legacyAuthenticatorsStorePresent) {
+        await rawClient.put('authenticators', {
+          nearAccountId: 'alice.testnet',
+          deviceNumber: 1,
+          credentialId: 'legacy-cred',
+          credentialPublicKey: new Uint8Array([9]),
+          registered: '',
+          syncedAt: '',
+        });
+      }
       await rawClient.put('appState', {
         key: 'lastUserAccountId',
         value: {
@@ -221,6 +227,8 @@ test.describe('DB multichain migration + saga', () => {
         : null;
 
       return {
+        legacyUsersStorePresent,
+        legacyAuthenticatorsStorePresent,
         authenticatorIds: auths.map((a: any) => a.credentialId),
         resolvedDeviceNumber,
         selectedEncryptedSk: String((key?.payload as any)?.encryptedSk || '') || null,
@@ -232,6 +240,8 @@ test.describe('DB multichain migration + saga', () => {
       };
     }, { paths: IMPORT_PATHS });
 
+    expect(result.legacyUsersStorePresent).toBe(false);
+    expect(result.legacyAuthenticatorsStorePresent).toBe(false);
     expect(result.authenticatorIds).toEqual(['v2-cred']);
     expect(result.resolvedDeviceNumber).toBe(9);
     expect(result.selectedEncryptedSk).toBe('v2-encrypted');
@@ -439,6 +449,58 @@ test.describe('DB multichain migration + saga', () => {
     expect(result.hasGetLocalKeyMaterial).toBe(false);
     expect(result.hasGetThresholdKeyMaterial).toBe(false);
     expect(result.v2PublicKey).toBe('ed25519:v2');
+  });
+
+  test('final cleanup migration drops legacy client stores on upgrade', async ({ page }) => {
+    const result = await page.evaluate(async ({ paths }) => {
+      const { PasskeyClientDBManager } = await import(paths.clientDB);
+      const now = Date.now();
+      const dbName = `PasskeyClientDB-legacy-store-drop-${now}-${Math.random().toString(16).slice(2)}`;
+
+      await new Promise<void>((resolve, reject) => {
+        const openReq = indexedDB.open(dbName, 1);
+        openReq.onupgradeneeded = () => {
+          const db = openReq.result;
+          const users = db.createObjectStore('users', { keyPath: ['nearAccountId', 'deviceNumber'] });
+          users.createIndex('nearAccountId', 'nearAccountId', { unique: false });
+          const authenticators = db.createObjectStore('authenticators', {
+            keyPath: ['nearAccountId', 'deviceNumber', 'credentialId'],
+          });
+          authenticators.createIndex('nearAccountId', 'nearAccountId', { unique: false });
+          db.createObjectStore('derivedAddresses', { keyPath: ['nearAccountId', 'contractId', 'path'] });
+          db.createObjectStore('recoveryEmails', { keyPath: ['nearAccountId', 'hashHex'] });
+          db.createObjectStore('appState', { keyPath: 'key' });
+        };
+        openReq.onsuccess = () => {
+          openReq.result.close();
+          resolve();
+        };
+        openReq.onerror = () => reject(openReq.error || new Error('failed to seed legacy client DB'));
+      });
+
+      const dbm = new PasskeyClientDBManager();
+      dbm.setDbName(dbName);
+      const upgraded = await (dbm as any).getDB();
+      return {
+        hasUsers: upgraded.objectStoreNames.contains('users'),
+        hasAuthenticators: upgraded.objectStoreNames.contains('authenticators'),
+        hasDerivedAddresses: upgraded.objectStoreNames.contains('derivedAddresses'),
+        hasRecoveryEmails: upgraded.objectStoreNames.contains('recoveryEmails'),
+        hasProfiles: upgraded.objectStoreNames.contains('profiles'),
+        hasChainAccounts: upgraded.objectStoreNames.contains('chainAccounts'),
+        hasAccountSigners: upgraded.objectStoreNames.contains('accountSigners'),
+        hasProfileAuthenticators: upgraded.objectStoreNames.contains('profileAuthenticators'),
+      };
+    }, { paths: IMPORT_PATHS });
+
+    expect(result.hasUsers).toBe(false);
+    expect(result.hasAuthenticators).toBe(false);
+    expect(result.hasDerivedAddresses).toBe(false);
+    expect(result.hasRecoveryEmails).toBe(false);
+    expect(result.hasProfiles).toBe(true);
+    expect(result.hasChainAccounts).toBe(true);
+    expect(result.hasAccountSigners).toBe(true);
+    expect(result.hasProfileAuthenticators).toBe(true);
   });
 
   test('write invariants enforce capability matrix + lifecycle transitions', async ({ page }) => {

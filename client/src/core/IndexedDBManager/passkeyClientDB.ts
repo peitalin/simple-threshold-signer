@@ -97,7 +97,7 @@ interface PasskeyClientDBConfig {
 // === CONSTANTS ===
 const DB_CONFIG: PasskeyClientDBConfig = {
   dbName: 'PasskeyClientDB',
-  dbVersion: 20, // v20: add migrationQuarantine invariant sink + post-migration validation
+  dbVersion: 21, // v21: final cleanup migration drops legacy NEAR-only stores
   userStore: 'users',
   appStateStore: 'appState',
   authenticatorStore: 'authenticators',
@@ -123,6 +123,12 @@ const DB_MULTICHAIN_MIGRATION_LOCK_TTL_MS = 2 * 60_000;
 const DB_MULTICHAIN_MIGRATION_HEARTBEAT_INTERVAL_MS = 5_000;
 const DB_MULTICHAIN_MIGRATION_SCHEMA_VERSION = 4 as const;
 const LEGACY_NEAR_PROFILE_PREFIX = 'legacy-near' as const;
+const LEGACY_CLIENT_STORES_TO_DROP = [
+  DB_CONFIG.userStore,
+  DB_CONFIG.authenticatorStore,
+  LEGACY_DERIVED_ADDRESS_STORE,
+  LEGACY_RECOVERY_EMAIL_STORE,
+] as const;
 
 function normalizeLastUserScope(scope: unknown): string | null {
   const normalized = typeof scope === 'string' ? scope.trim() : '';
@@ -686,18 +692,8 @@ export class PasskeyClientDBManager {
       this.db = await openDB(this.config.dbName, this.config.dbVersion, {
       upgrade: (db, oldVersion, _newVersion, transaction): void => {
           // Create stores if they don't exist
-          if (!db.objectStoreNames.contains(DB_CONFIG.userStore)) {
-            // Users table: composite key of [nearAccountId, deviceNumber]
-            const userStore = db.createObjectStore(DB_CONFIG.userStore, { keyPath: ['nearAccountId', 'deviceNumber'] });
-            userStore.createIndex('nearAccountId', 'nearAccountId', { unique: false });
-          }
           if (!db.objectStoreNames.contains(DB_CONFIG.appStateStore)) {
             db.createObjectStore(DB_CONFIG.appStateStore, { keyPath: 'key' });
-          }
-          if (!db.objectStoreNames.contains(DB_CONFIG.authenticatorStore)) {
-            // Authenticators table: composite key of [nearAccountId, deviceNumber, credentialId]
-            const authStore = db.createObjectStore(DB_CONFIG.authenticatorStore, { keyPath: ['nearAccountId', 'deviceNumber', 'credentialId'] });
-            authStore.createIndex('nearAccountId', 'nearAccountId', { unique: false });
           }
           {
             const profileAuthenticators = !db.objectStoreNames.contains(DB_CONFIG.profileAuthenticatorStore)
@@ -722,7 +718,7 @@ export class PasskeyClientDBManager {
               );
             } catch {}
           }
-          // --- V2 multichain stores (additive; legacy stores remain intact) ---
+          // --- V2 multichain stores ---
           {
             const profiles = !db.objectStoreNames.contains(DB_CONFIG.profilesStore)
               ? db.createObjectStore(DB_CONFIG.profilesStore, { keyPath: 'profileId' })
@@ -841,6 +837,15 @@ export class PasskeyClientDBManager {
               : transaction.objectStore(DB_CONFIG.migrationQuarantineStore);
             try { quarantine.createIndex('sourceStore', 'sourceStore', { unique: false }); } catch {}
             try { quarantine.createIndex('detectedAt', 'detectedAt', { unique: false }); } catch {}
+          }
+
+          // Final cutover: legacy NEAR-only stores are no longer used at runtime.
+          if (oldVersion < 21) {
+            for (const storeName of LEGACY_CLIENT_STORES_TO_DROP) {
+              if (db.objectStoreNames.contains(storeName)) {
+                db.deleteObjectStore(storeName);
+              }
+            }
           }
         },
         blocked() {
@@ -1659,62 +1664,64 @@ export class PasskeyClientDBManager {
         await persistRunningState();
 
         if (!checkpoints.legacyUsersToCoreV2) {
-          const userTx = db.transaction(DB_CONFIG.userStore, 'readonly');
-          let userCursor = await userTx.store.openCursor();
           let stepSuccess = 0;
           let stepFailures = 0;
-          while (userCursor) {
-            const current = userCursor;
-            await refreshHeartbeat();
-            counts.legacyUsersScanned += 1;
-            const raw = current.value as ClientUserDataWithOptionalDevice;
-            try {
-              const accountId = toAccountId((raw as any).nearAccountId);
-              const maybeDevice = Number((raw as any).deviceNumber);
-              const deviceNumber =
-                Number.isSafeInteger(maybeDevice) && maybeDevice >= 1 ? maybeDevice : 1;
-              const credentialRawId = String((raw as any)?.passkeyCredential?.rawId || '').trim();
-              const credentialId = String((raw as any)?.passkeyCredential?.id || '').trim();
-              const clientNearPublicKey = String((raw as any)?.clientNearPublicKey || '').trim();
-              if (!credentialRawId || !clientNearPublicKey) {
+          if (db.objectStoreNames.contains(DB_CONFIG.userStore)) {
+            const userTx = db.transaction(DB_CONFIG.userStore, 'readonly');
+            let userCursor = await userTx.store.openCursor();
+            while (userCursor) {
+              const current = userCursor;
+              await refreshHeartbeat();
+              counts.legacyUsersScanned += 1;
+              const raw = current.value as ClientUserDataWithOptionalDevice;
+              try {
+                const accountId = toAccountId((raw as any).nearAccountId);
+                const maybeDevice = Number((raw as any).deviceNumber);
+                const deviceNumber =
+                  Number.isSafeInteger(maybeDevice) && maybeDevice >= 1 ? maybeDevice : 1;
+                const credentialRawId = String((raw as any)?.passkeyCredential?.rawId || '').trim();
+                const credentialId = String((raw as any)?.passkeyCredential?.id || '').trim();
+                const clientNearPublicKey = String((raw as any)?.clientNearPublicKey || '').trim();
+                if (!credentialRawId || !clientNearPublicKey) {
+                  stepFailures += 1;
+                  counts.coreUserBackfillFailures += 1;
+                  userCursor = await current.continue();
+                  continue;
+                }
+                const normalized: ClientUserData = {
+                  nearAccountId: accountId,
+                  deviceNumber,
+                  version:
+                    Number.isFinite((raw as any)?.version) && (raw as any).version > 0
+                      ? Math.floor((raw as any).version)
+                      : 2,
+                  ...(typeof (raw as any)?.registeredAt === 'number'
+                    ? { registeredAt: (raw as any).registeredAt }
+                    : {}),
+                  ...(typeof (raw as any)?.lastLogin === 'number'
+                    ? { lastLogin: (raw as any).lastLogin }
+                    : {}),
+                  ...(typeof (raw as any)?.lastUpdated === 'number'
+                    ? { lastUpdated: (raw as any).lastUpdated }
+                    : {}),
+                  clientNearPublicKey,
+                  passkeyCredential: {
+                    id: credentialId || credentialRawId,
+                    rawId: credentialRawId,
+                  },
+                  ...(raw?.preferences ? { preferences: raw.preferences } : {}),
+                };
+                await this.backfillCoreFromLegacyUserRecord(normalized, db);
+                stepSuccess += 1;
+                counts.coreUserBackfillSuccess += 1;
+              } catch {
                 stepFailures += 1;
                 counts.coreUserBackfillFailures += 1;
-                userCursor = await current.continue();
-                continue;
               }
-              const normalized: ClientUserData = {
-                nearAccountId: accountId,
-                deviceNumber,
-                version:
-                  Number.isFinite((raw as any)?.version) && (raw as any).version > 0
-                    ? Math.floor((raw as any).version)
-                    : 2,
-                ...(typeof (raw as any)?.registeredAt === 'number'
-                  ? { registeredAt: (raw as any).registeredAt }
-                  : {}),
-                ...(typeof (raw as any)?.lastLogin === 'number'
-                  ? { lastLogin: (raw as any).lastLogin }
-                  : {}),
-                ...(typeof (raw as any)?.lastUpdated === 'number'
-                  ? { lastUpdated: (raw as any).lastUpdated }
-                  : {}),
-                clientNearPublicKey,
-                passkeyCredential: {
-                  id: credentialId || credentialRawId,
-                  rawId: credentialRawId,
-                },
-                ...(raw?.preferences ? { preferences: raw.preferences } : {}),
-              };
-              await this.backfillCoreFromLegacyUserRecord(normalized, db);
-              stepSuccess += 1;
-              counts.coreUserBackfillSuccess += 1;
-            } catch {
-              stepFailures += 1;
-              counts.coreUserBackfillFailures += 1;
+              userCursor = await current.continue();
             }
-            userCursor = await current.continue();
+            await userTx.done;
           }
-          await userTx.done;
           await markCheckpoint('legacyUsersToCoreV2', {
             success: stepSuccess,
             failures: stepFailures,
@@ -1722,50 +1729,52 @@ export class PasskeyClientDBManager {
         }
 
         if (!checkpoints.legacyAuthenticatorsToProfileAuthenticators) {
-          const authTx = db.transaction(DB_CONFIG.authenticatorStore, 'readonly');
-          let authCursor = await authTx.store.openCursor();
           let stepUpserts = 0;
           let stepFailures = 0;
-          while (authCursor) {
-            const current = authCursor;
-            await refreshHeartbeat();
-            counts.legacyAuthenticatorsScanned += 1;
-            const legacy = current.value as ClientAuthenticatorData;
-            try {
-              const accountId = toAccountId(legacy.nearAccountId);
-              const maybeDevice = Number((legacy as any).deviceNumber);
-              const deviceNumber =
-                Number.isSafeInteger(maybeDevice) && maybeDevice >= 1 ? maybeDevice : 1;
-              const credentialId = String((legacy as any)?.credentialId || '').trim();
-              const credentialPublicKey = (legacy as any)?.credentialPublicKey;
-              if (!credentialId || !(credentialPublicKey instanceof Uint8Array)) {
+          if (db.objectStoreNames.contains(DB_CONFIG.authenticatorStore)) {
+            const authTx = db.transaction(DB_CONFIG.authenticatorStore, 'readonly');
+            let authCursor = await authTx.store.openCursor();
+            while (authCursor) {
+              const current = authCursor;
+              await refreshHeartbeat();
+              counts.legacyAuthenticatorsScanned += 1;
+              const legacy = current.value as ClientAuthenticatorData;
+              try {
+                const accountId = toAccountId(legacy.nearAccountId);
+                const maybeDevice = Number((legacy as any).deviceNumber);
+                const deviceNumber =
+                  Number.isSafeInteger(maybeDevice) && maybeDevice >= 1 ? maybeDevice : 1;
+                const credentialId = String((legacy as any)?.credentialId || '').trim();
+                const credentialPublicKey = (legacy as any)?.credentialPublicKey;
+                if (!credentialId || !(credentialPublicKey instanceof Uint8Array)) {
+                  stepFailures += 1;
+                  counts.profileAuthenticatorFailures += 1;
+                  authCursor = await current.continue();
+                  continue;
+                }
+                await this.backfillProfileAuthenticatorFromLegacyRecord(
+                  {
+                    nearAccountId: accountId,
+                    deviceNumber,
+                    credentialId,
+                    credentialPublicKey,
+                    transports: legacy.transports,
+                    name: legacy.name,
+                    registered: String((legacy as any)?.registered || ''),
+                    syncedAt: String((legacy as any)?.syncedAt || ''),
+                  },
+                  db,
+                );
+                stepUpserts += 1;
+                counts.profileAuthenticatorUpserts += 1;
+              } catch {
                 stepFailures += 1;
                 counts.profileAuthenticatorFailures += 1;
-                authCursor = await current.continue();
-                continue;
               }
-              await this.backfillProfileAuthenticatorFromLegacyRecord(
-                {
-                  nearAccountId: accountId,
-                  deviceNumber,
-                  credentialId,
-                  credentialPublicKey,
-                  transports: legacy.transports,
-                  name: legacy.name,
-                  registered: String((legacy as any)?.registered || ''),
-                  syncedAt: String((legacy as any)?.syncedAt || ''),
-                },
-                db,
-              );
-              stepUpserts += 1;
-              counts.profileAuthenticatorUpserts += 1;
-            } catch {
-              stepFailures += 1;
-              counts.profileAuthenticatorFailures += 1;
+              authCursor = await current.continue();
             }
-            authCursor = await current.continue();
+            await authTx.done;
           }
-          await authTx.done;
           await markCheckpoint('legacyAuthenticatorsToProfileAuthenticators', {
             upserts: stepUpserts,
             failures: stepFailures,
