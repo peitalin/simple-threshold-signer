@@ -1,5 +1,5 @@
 import type { Eip1559UnsignedTx } from './types';
-import { WasmSignerWorkerRpc } from '../../workers/workerRpc';
+import { executeMultichainWorkerOperation } from '../handlers/executeMultichainWorkerOperation';
 import { base64UrlDecode, base64UrlEncode } from '../../../../../../shared/src/utils/encoders';
 
 type Eip1559TxWasmJson = {
@@ -36,7 +36,7 @@ function toWasmTx(tx: Eip1559UnsignedTx): Eip1559TxWasmJson {
   };
 }
 
-const rpc = new WasmSignerWorkerRpc('ethSigner');
+const ETH_SIGNER_WORKER_KIND = 'ethSigner' as const;
 
 type ThresholdSecp256k1ClientShareWasmRaw = {
   clientSigningShare32: ArrayBuffer;
@@ -44,7 +44,10 @@ type ThresholdSecp256k1ClientShareWasmRaw = {
 };
 
 export async function computeEip1559TxHashWasm(tx: Eip1559UnsignedTx): Promise<Uint8Array> {
-  const ab = await rpc.request<ArrayBuffer>({ type: 'computeEip1559TxHash', payload: { tx: toWasmTx(tx) } });
+  const ab = await executeMultichainWorkerOperation({
+    kind: ETH_SIGNER_WORKER_KIND,
+    request: { type: 'computeEip1559TxHash', payload: { tx: toWasmTx(tx) } },
+  });
   return new Uint8Array(ab);
 }
 
@@ -56,10 +59,13 @@ export async function encodeEip1559SignedTxWasm(args: {
 }): Promise<Uint8Array> {
   const rBuf = args.r.slice().buffer;
   const sBuf = args.s.slice().buffer;
-  const ab = await rpc.request<ArrayBuffer>({
-    type: 'encodeEip1559SignedTx',
-    payload: { tx: toWasmTx(args.tx), yParity: args.yParity, r: rBuf, s: sBuf },
-    transfer: [rBuf, sBuf],
+  const ab = await executeMultichainWorkerOperation({
+    kind: ETH_SIGNER_WORKER_KIND,
+    request: {
+      type: 'encodeEip1559SignedTx',
+      payload: { tx: toWasmTx(args.tx), yParity: args.yParity, r: rBuf, s: sBuf },
+      transfer: [rBuf, sBuf],
+    },
   });
   return new Uint8Array(ab);
 }
@@ -70,10 +76,13 @@ export async function signSecp256k1RecoverableWasm(args: {
 }): Promise<Uint8Array> {
   const digestBuf = args.digest32.slice().buffer;
   const pkBuf = args.privateKey32.slice().buffer;
-  const ab = await rpc.request<ArrayBuffer>({
-    type: 'signSecp256k1Recoverable',
-    payload: { digest32: digestBuf, privateKey32: pkBuf },
-    transfer: [digestBuf, pkBuf],
+  const ab = await executeMultichainWorkerOperation({
+    kind: ETH_SIGNER_WORKER_KIND,
+    request: {
+      type: 'signSecp256k1Recoverable',
+      payload: { digest32: digestBuf, privateKey32: pkBuf },
+      transfer: [digestBuf, pkBuf],
+    },
   });
   return new Uint8Array(ab);
 }
@@ -101,14 +110,17 @@ export async function deriveThresholdSecp256k1ClientShareWasm(args: {
   }
   const prfFirst32Copy = prfFirst32.slice();
 
-  const raw = await rpc.request<ThresholdSecp256k1ClientShareWasmRaw>({
-    type: 'deriveThresholdSecp256k1ClientShare',
-    payload: {
-      prfFirst32: prfFirst32Copy.buffer,
-      userId,
-      derivationPath,
+  const raw = await executeMultichainWorkerOperation({
+    kind: ETH_SIGNER_WORKER_KIND,
+    request: {
+      type: 'deriveThresholdSecp256k1ClientShare',
+      payload: {
+        prfFirst32: prfFirst32Copy.buffer,
+        userId,
+        derivationPath,
+      },
+      transfer: [prfFirst32Copy.buffer],
     },
-    transfer: [prfFirst32Copy.buffer],
   });
 
   const clientSigningShare32 = new Uint8Array(raw.clientSigningShare32);
@@ -175,17 +187,20 @@ export async function thresholdEcdsaPresignSessionInitWasm(args: {
   const clientThresholdSigningShare32 = args.clientThresholdSigningShare32.slice();
   const groupPublicKey33 = args.groupPublicKey33.slice();
 
-  const raw = await rpc.request<ThresholdEcdsaPresignProgressWasmRaw>({
-    type: 'thresholdEcdsaPresignSessionInit',
-    payload: {
-      sessionId: args.sessionId,
-      participantIds: [...args.participantIds],
-      clientParticipantId: args.clientParticipantId,
-      threshold: args.threshold,
-      clientThresholdSigningShare32: clientThresholdSigningShare32.buffer,
-      groupPublicKey33: groupPublicKey33.buffer,
+  const raw = await executeMultichainWorkerOperation({
+    kind: ETH_SIGNER_WORKER_KIND,
+    request: {
+      type: 'thresholdEcdsaPresignSessionInit',
+      payload: {
+        sessionId: args.sessionId,
+        participantIds: [...args.participantIds],
+        clientParticipantId: args.clientParticipantId,
+        threshold: args.threshold,
+        clientThresholdSigningShare32: clientThresholdSigningShare32.buffer,
+        groupPublicKey33: groupPublicKey33.buffer,
+      },
+      transfer: [clientThresholdSigningShare32.buffer, groupPublicKey33.buffer],
     },
-    transfer: [clientThresholdSigningShare32.buffer, groupPublicKey33.buffer],
   });
 
   return asPresignProgress(raw);
@@ -200,24 +215,30 @@ export async function thresholdEcdsaPresignSessionStepWasm(args: {
   const incomingMessages = (args.incomingMessages || []).map((entry) => entry.slice());
   const transfer = incomingMessages.map((entry) => entry.buffer);
 
-  const raw = await rpc.request<ThresholdEcdsaPresignProgressWasmRaw>({
-    type: 'thresholdEcdsaPresignSessionStep',
-    payload: {
-      sessionId: args.sessionId,
-      relayerParticipantId: args.relayerParticipantId,
-      stage: args.stage,
-      incomingMessages: incomingMessages.map((entry) => entry.buffer),
+  const raw = await executeMultichainWorkerOperation({
+    kind: ETH_SIGNER_WORKER_KIND,
+    request: {
+      type: 'thresholdEcdsaPresignSessionStep',
+      payload: {
+        sessionId: args.sessionId,
+        relayerParticipantId: args.relayerParticipantId,
+        stage: args.stage,
+        incomingMessages: incomingMessages.map((entry) => entry.buffer),
+      },
+      transfer,
     },
-    transfer,
   });
 
   return asPresignProgress(raw);
 }
 
 export async function thresholdEcdsaPresignSessionAbortWasm(args: { sessionId: string }): Promise<void> {
-  await rpc.request<{ ok: boolean }>({
-    type: 'thresholdEcdsaPresignSessionAbort',
-    payload: { sessionId: args.sessionId },
+  await executeMultichainWorkerOperation({
+    kind: ETH_SIGNER_WORKER_KIND,
+    request: {
+      type: 'thresholdEcdsaPresignSessionAbort',
+      payload: { sessionId: args.sessionId },
+    },
   });
 }
 
@@ -238,26 +259,29 @@ export async function thresholdEcdsaComputeSignatureShareWasm(args: {
   const digest32 = args.digest32.slice();
   const entropy32 = args.entropy32.slice();
 
-  const ab = await rpc.request<ArrayBuffer>({
-    type: 'thresholdEcdsaComputeSignatureShare',
-    payload: {
-      participantIds: [...args.participantIds],
-      clientParticipantId: args.clientParticipantId,
-      groupPublicKey33: groupPublicKey33.buffer,
-      presignBigR33: presignBigR33.buffer,
-      presignKShare32: presignKShare32.buffer,
-      presignSigmaShare32: presignSigmaShare32.buffer,
-      digest32: digest32.buffer,
-      entropy32: entropy32.buffer,
+  const ab = await executeMultichainWorkerOperation({
+    kind: ETH_SIGNER_WORKER_KIND,
+    request: {
+      type: 'thresholdEcdsaComputeSignatureShare',
+      payload: {
+        participantIds: [...args.participantIds],
+        clientParticipantId: args.clientParticipantId,
+        groupPublicKey33: groupPublicKey33.buffer,
+        presignBigR33: presignBigR33.buffer,
+        presignKShare32: presignKShare32.buffer,
+        presignSigmaShare32: presignSigmaShare32.buffer,
+        digest32: digest32.buffer,
+        entropy32: entropy32.buffer,
+      },
+      transfer: [
+        groupPublicKey33.buffer,
+        presignBigR33.buffer,
+        presignKShare32.buffer,
+        presignSigmaShare32.buffer,
+        digest32.buffer,
+        entropy32.buffer,
+      ],
     },
-    transfer: [
-      groupPublicKey33.buffer,
-      presignBigR33.buffer,
-      presignKShare32.buffer,
-      presignSigmaShare32.buffer,
-      digest32.buffer,
-      entropy32.buffer,
-    ],
   });
   return new Uint8Array(ab);
 }

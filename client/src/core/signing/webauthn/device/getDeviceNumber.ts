@@ -23,6 +23,22 @@ export async function getLastLoggedInDeviceNumber(
   clientDB: PasskeyClientDBManager,
 ): Promise<number> {
   const accountId = toAccountId(nearAccountId);
+
+  // V2-first: use profile-scoped last-user pointer when available.
+  const lastProfile = await clientDB.getLastProfileState().catch(() => null);
+  if (lastProfile?.profileId) {
+    const expectedProfileId = `legacy-near:${String(accountId)}`;
+    const profileDevice = parseDeviceNumber(lastProfile.deviceNumber, { min: 1 });
+    if (lastProfile.profileId === expectedProfileId && profileDevice !== null) {
+      return profileDevice;
+    }
+    const fromV2 = await clientDB.getUserByDevice(accountId, lastProfile.deviceNumber).catch(() => null);
+    if (fromV2 && fromV2.nearAccountId === accountId) {
+      const deviceNumber = parseDeviceNumber(fromV2.deviceNumber, { min: 1 });
+      if (deviceNumber !== null) return deviceNumber;
+    }
+  }
+
   const last = await clientDB.getLastUser();
   if (last && last.nearAccountId === accountId) {
     const deviceNumber = parseDeviceNumber(last.deviceNumber, { min: 1 });

@@ -30,7 +30,7 @@ import type { ThresholdEcdsaSessionKind } from '../session/thresholdEcdsaAuthSes
 export async function connectThresholdEcdsaSessionLite(args: {
   indexedDB: ThresholdIndexedDbPort;
   touchIdPrompt: ThresholdWebAuthnPromptPort;
-  signerWorkerManager?: ThresholdSignerWorkerPort;
+  signingWorkerManager?: ThresholdSignerWorkerPort;
   prfFirstCache?: ThresholdPrfFirstCachePort;
   relayerUrl: string;
   relayerKeyId: string;
@@ -115,7 +115,7 @@ export async function connectThresholdEcdsaSessionLite(args: {
   const expiresAtMs = minted.expiresAtMs ?? (Date.now() + policy.ttlMs);
   const remainingUses = minted.remainingUses ?? policy.remainingUses;
   const prfFirstCache =
-    args.prfFirstCache || getThresholdPrfFirstCachePortFromSignerWorker(args.signerWorkerManager);
+    args.prfFirstCache || getThresholdPrfFirstCachePortFromSignerWorker(args.signingWorkerManager);
   if (prfFirstCache) {
     await prfFirstCache.putPrfFirstForThresholdSession({
       sessionId,

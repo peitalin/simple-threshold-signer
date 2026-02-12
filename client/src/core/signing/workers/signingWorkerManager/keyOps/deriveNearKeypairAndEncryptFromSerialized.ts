@@ -7,7 +7,7 @@ import {
 } from '../../../../types/signer-worker';
 import { AccountId, toAccountId } from "../../../../types/accountIds";
 import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
-import { SignerWorkerManagerContext } from '..';
+import { SigningWorkerManagerContext } from '..';
 import type { WebAuthnRegistrationCredential } from '../../../../types/webauthn';
 import { toEnumUserVerificationPolicy } from '../../../../types/authenticatorOptions';
 import { withSessionId } from '../internal/session';
@@ -24,7 +24,7 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
   options,
   sessionId,
 }: {
-  ctx: SignerWorkerManagerContext,
+  ctx: SigningWorkerManagerContext,
   credential: WebAuthnRegistrationCredential;
   nearAccountId: AccountId,
   options?: {

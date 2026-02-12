@@ -52,9 +52,9 @@ WORKER_WASM_TEMPO_SIGNER_WASM="tempo_signer.wasm"
 # Critical files to check for build freshness
 CRITICAL_FILES=(
     "../client/src/core/signing/secureConfirm/index.ts"
-    "../client/src/core/signing/workers/signerWorkerManager/index.ts"
-    "../client/src/core/signing/workers/signerWorkerManager/internal"
-    "../client/src/core/signing/workers/signerWorkerManager/keyOps"
+    "../client/src/core/signing/workers/signingWorkerManager/index.ts"
+    "../client/src/core/signing/workers/signingWorkerManager/internal"
+    "../client/src/core/signing/workers/signingWorkerManager/keyOps"
     "../client/src/core/signing/chains/near"
     "../client/src/core/signing/chains/tempo"
     "../client/src/core/signing/chains"

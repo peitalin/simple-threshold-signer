@@ -17,8 +17,9 @@ This folder is the signing runtime for NEAR + Tempo/EVM flows.
   - User confirmation flow + WebAuthn credential collection.
 - `workers/`
   - Worker transports:
-  - `signerWorkerManager`: NEAR signer worker bridge + key operations.
-  - `workerRpc`: RPC transport for `ethSigner` / `tempoSigner` workers.
+  - `signingWorkerManager`: unified worker architecture layer.
+  - `signingWorkerManager/backends/nearWorkerBackend`: NEAR signer worker backend.
+  - `signingWorkerManager/backends/multichainWorkerBackend`: EVM/Tempo worker backend.
 - `threshold/`
   - Threshold session, authorization, and signing workflows.
 - `webauthn/`
@@ -53,12 +54,13 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  NH["NEAR handlers"] --> SWM["SignerWorkerManager"]
-  SWM --> NSW["near-signer.worker"]
+  NH["NEAR handlers"] --> SWM["SigningWorkerManager"]
+  SWM --> NB["NearSignerWorkerBackend"]
+  NB --> NSW["near-signer.worker"]
 
-  WASM["ethSignerWasm / tempoSignerWasm"] --> RPC["WasmSignerWorkerRpc"]
-  RPC --> EWK["eth-signer.worker"]
-  RPC --> TWK["tempo-signer.worker"]
+  WASM["ethSignerWasm / tempoSignerWasm"] --> MB["MultichainSignerWorkerBackend"]
+  MB --> EWK["eth-signer.worker"]
+  MB --> TWK["tempo-signer.worker"]
 ```
 
 ## Core Flows
@@ -71,7 +73,7 @@ flowchart LR
    - input normalization (`NearAdapter` for transactions),
    - SecureConfirm handshake (`SecureConfirmWorkerManager.confirmAndPrepareSigningSession`),
    - signer worker call via `ctx.sendMessage(...)`.
-4. `SignerWorkerManager.sendMessage` sends request to `near-signer.worker`.
+4. `SigningWorkerManager.sendMessage` sends request to `near-signer.worker`.
 5. Worker response returns signed payload back through handler -> engine -> `finalize`.
 
 ### 2) Tempo Signing (`eip1559` / `tempoTransaction`)
@@ -100,10 +102,11 @@ flowchart LR
 
 ### 4) Worker RPC Path (`ethSigner` / `tempoSigner`)
 
-1. Chain wasm wrapper (`ethSignerWasm` or `tempoSignerWasm`) calls `WasmSignerWorkerRpc.request`.
-2. `WasmSignerWorkerRpc` lazily creates a dedicated module worker by kind.
-3. Request/response is correlated by message `id`.
-4. Returned `ArrayBuffer` is decoded to `Uint8Array` in caller.
+1. Chain wasm wrapper (`ethSignerWasm` or `tempoSignerWasm`) calls `executeMultichainWorkerOperation(...)`.
+2. That helper dispatches to `getMultichainSignerWorkerBackend(kind).requestOperation(...)`.
+3. `MultichainSignerWorkerBackend` lazily creates a dedicated module worker by kind.
+4. Request/response is correlated by message `id`.
+5. Returned `ArrayBuffer` is decoded to `Uint8Array` in caller.
 
 ## Practical Rule of Thumb
 

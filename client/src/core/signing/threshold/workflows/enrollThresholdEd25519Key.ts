@@ -11,7 +11,7 @@ type DeriveThresholdClientShareResult = {
 };
 
 export type EnrollThresholdEd25519KeyHandlerContext = {
-  signerWorkerManager: {
+  signingWorkerManager: {
     deriveThresholdEd25519ClientVerifyingShare: (args: {
       sessionId: string;
       nearAccountId: AccountId;
@@ -60,7 +60,7 @@ export async function enrollThresholdEd25519KeyHandler(
     if (!args.prfFirstB64u) throw new Error('Missing PRF.first output for threshold keygen');
     if (!args.wrapKeySalt) throw new Error('Missing wrapKeySalt for threshold keygen');
 
-    const derived = await ctx.signerWorkerManager.deriveThresholdEd25519ClientVerifyingShare({
+    const derived = await ctx.signingWorkerManager.deriveThresholdEd25519ClientVerifyingShare({
       sessionId,
       nearAccountId,
       prfFirstB64u: args.prfFirstB64u,

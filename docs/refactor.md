@@ -71,7 +71,7 @@ Completed so far:
   - `signing/webauthn/device/*`
   - `signing/webauthn/cose/*`
 - Legacy WebAuthnManager/threshold callsites updated to use canonical WebAuthn helpers.
-- `signing/engines/*` and `signing/workers/workerRpc.ts` added.
+- `signing/engines/*` and `signing/workers/signingWorkerManager/backends/multichainWorkerBackend.ts` added.
 - `signing/chains/{near,tempo,evm}/*` is now canonical implementation (including NEAR handlers, Tempo adapter/wasm, and EVM helpers/wasm).
 - `signing/chains/orchestrator.ts` and `signing/chains/types.ts` are canonical.
 - `signing/threshold/**` is now canonical implementation for threshold crypto/ports/session/workflows/validation.
@@ -122,7 +122,7 @@ Hard rules:
 - `client/src/core/signing/multichain/evm/**` -> `client/src/core/signing/chains/evm/**`
 - `client/src/core/signing/multichain/engines/*` -> `client/src/core/signing/engines/*`
 - `client/src/core/signing/multichain/webauthn/coseP256.ts` -> `client/src/core/signing/webauthn/cose/coseP256.ts`
-- `client/src/core/signing/multichain/wasmWorkers/workerRpc.ts` -> `client/src/core/signing/workers/workerRpc.ts`
+- `client/src/core/signing/multichain/wasmWorkers/workerRpc.ts` -> `client/src/core/signing/workers/signingWorkerManager/backends/multichainWorkerBackend.ts`
 - `client/src/core/signing/multichain/shared/orchestrator.ts` -> `client/src/core/signing/chains/orchestrator.ts`
 - `client/src/core/signing/multichain/shared/types.ts` -> `client/src/core/signing/chains/types.ts`
 

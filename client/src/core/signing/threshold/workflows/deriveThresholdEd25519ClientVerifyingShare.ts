@@ -1,1 +1,1 @@
-export * from '../../workers/signerWorkerManager/keyOps/deriveThresholdEd25519ClientVerifyingShare';
+export * from '../../workers/signingWorkerManager/keyOps/deriveThresholdEd25519ClientVerifyingShare';

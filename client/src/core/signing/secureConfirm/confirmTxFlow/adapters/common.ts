@@ -10,7 +10,7 @@ export function parseTransactionSummary(summaryData: unknown): TransactionSummar
       const parsed = JSON.parse(summaryData) as unknown;
       return isObject(parsed) ? (parsed as TransactionSummary) : {};
     } catch (parseError) {
-      console.warn('[SignerWorkerManager]: Failed to parse summary string:', parseError);
+      console.warn('[SigningWorkerManager]: Failed to parse summary string:', parseError);
       return {};
     }
   }
@@ -62,4 +62,3 @@ export function isUserCancelledSecureConfirm(error: unknown): boolean {
     })()
   );
 }
-

@@ -2,13 +2,22 @@ import {
   IndexedDBManager,
   type ClientUserData,
   type ClientAuthenticatorData,
+  type ProfileRecord,
+  type ChainAccountRecord,
+  type AccountSignerRecord,
+  type SignerOpOutboxRecord,
+  type UpsertProfileInput,
+  type UpsertChainAccountInput,
+  type UpsertAccountSignerInput,
+  type EnqueueSignerOperationInput,
+  type AccountSignerStatus,
   type UnifiedIndexedDBManager,
 } from '../../IndexedDBManager';
 import { StoreUserDataInput } from '../../IndexedDBManager/passkeyClientDB';
 import type { ThresholdEd25519_2p_V1Material } from '../../IndexedDBManager/passkeyNearKeysDB';
 import { buildThresholdEd25519Participants2pV1 } from '../../../../../shared/src/threshold/participants';
 import { type NearClient, SignedTransaction } from '../../near/NearClient';
-import { SignerWorkerManager } from '../workers/signerWorkerManager';
+import { SigningWorkerManager } from '../workers/signingWorkerManager';
 import { SecureConfirmWorkerManager } from '../secureConfirm/manager';
 import { AllowCredential, TouchIdPrompt } from '../webauthn/prompt/touchIdPrompt';
 import { toAccountId } from '../../types/accountIds';
@@ -42,7 +51,7 @@ import {
   type WasmSignedDelegate,
 } from '../../types/signer-worker';
 import { WebAuthnRegistrationCredential, WebAuthnAuthenticationCredential } from '../../types';
-import { RegistrationCredentialConfirmationPayload } from '../workers/signerWorkerManager/internal/validation';
+import { RegistrationCredentialConfirmationPayload } from '../workers/signingWorkerManager/internal/validation';
 import { resolveWorkerBaseOrigin, onEmbeddedBaseChange } from '../../runtimeAssetPaths';
 import { DEFAULT_WAIT_STATUS, type TransactionContext } from '../../types/rpc';
 import { getLastLoggedInDeviceNumber } from '../webauthn/device/getDeviceNumber';
@@ -69,6 +78,7 @@ import type {
 } from '../chains/tempo/types';
 import type { TempoSignedResult } from '../chains/tempo/tempoAdapter';
 import type { ThresholdEcdsaSecp256k1KeyRef } from '../orchestration/types';
+import type { NearEd25519SignOutput, NearEd25519SignRequest } from '../engines/ed25519';
 
 type ThresholdEcdsaKeygenLiteResult = Awaited<ReturnType<typeof keygenThresholdEcdsaLite>>;
 type ThresholdEcdsaSessionLiteResult = Awaited<ReturnType<typeof connectThresholdEcdsaSessionLite>>;
@@ -88,13 +98,13 @@ const DUMMY_WRAP_KEY_SALT_B64U = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
  *
  * Architecture:
  * - index.ts (this file): Main class orchestrating everything
- * - signerWorkerManager: signer-worker runtime bridge + key operations
+ * - signingWorkerManager: signer-worker runtime bridge + key operations
  * - secureConfirmWorkerManager: wallet-origin confirmations + WebAuthn credential collection
  * - touchIdPrompt: TouchID prompt for biometric authentication
  */
 export class WebAuthnManager {
   private readonly secureConfirmWorkerManager: SecureConfirmWorkerManager;
-  private readonly signerWorkerManager: SignerWorkerManager;
+  private readonly signingWorkerManager: SigningWorkerManager;
   private readonly touchIdPrompt: TouchIdPrompt;
   private readonly userPreferencesManager: UserPreferencesManager;
   private readonly nearClient: NearClient;
@@ -129,7 +139,7 @@ export class WebAuthnManager {
         getTheme: () => this.theme,
       },
     );
-    this.signerWorkerManager = new SignerWorkerManager(
+    this.signingWorkerManager = new SigningWorkerManager(
       this.secureConfirmWorkerManager,
       nearClient,
       this.userPreferencesManager,
@@ -144,7 +154,7 @@ export class WebAuthnManager {
     // Compute initial worker base origin once
     this.workerBaseOrigin =
       resolveWorkerBaseOrigin() || (typeof window !== 'undefined' ? window.location.origin : '');
-    this.signerWorkerManager.setWorkerBaseOrigin(this.workerBaseOrigin);
+    this.signingWorkerManager.setWorkerBaseOrigin(this.workerBaseOrigin);
     this.secureConfirmWorkerManager.setWorkerBaseOrigin?.(this.workerBaseOrigin as any);
 
     // Keep base origin updated if the wallet sets a new embedded base
@@ -153,7 +163,7 @@ export class WebAuthnManager {
         const origin = new URL(url, window.location.origin).origin;
         if (origin && origin !== this.workerBaseOrigin) {
           this.workerBaseOrigin = origin;
-          this.signerWorkerManager.setWorkerBaseOrigin(origin);
+          this.signingWorkerManager.setWorkerBaseOrigin(origin);
           this.secureConfirmWorkerManager.setWorkerBaseOrigin?.(origin as any);
         }
       });
@@ -176,7 +186,7 @@ export class WebAuthnManager {
     if (typeof window === 'undefined' || typeof (window as any).Worker === 'undefined') return;
     // Avoid noisy SecurityError in cross‑origin dev: only prewarm when same‑origin
     if (this.workerBaseOrigin && this.workerBaseOrigin !== window.location.origin) return;
-    this.signerWorkerManager.preWarmWorkerPool().catch(() => {});
+    this.signingWorkerManager.preWarmWorkerPool().catch(() => {});
   }
 
   /**
@@ -348,7 +358,7 @@ export class WebAuthnManager {
     error?: string;
   }> {
     const sessionId = this.generateSessionId('reg');
-    return this.signerWorkerManager.deriveNearKeypairAndEncryptFromSerialized({
+    return this.signingWorkerManager.deriveNearKeypairAndEncryptFromSerialized({
       credential,
       nearAccountId: toAccountId(nearAccountId),
       options,
@@ -366,6 +376,50 @@ export class WebAuthnManager {
       deviceNumber: userData.deviceNumber ?? 1,
       version: userData.version || 2,
     });
+  }
+
+  // === V2 MULTICHAIN INDEXEDDB OPERATIONS ===
+
+  async getProfile(profileId: string): Promise<ProfileRecord | null> {
+    return await IndexedDBManager.getProfile(profileId);
+  }
+
+  async upsertProfile(input: UpsertProfileInput): Promise<ProfileRecord> {
+    return await IndexedDBManager.upsertProfile(input);
+  }
+
+  async upsertChainAccount(input: UpsertChainAccountInput): Promise<ChainAccountRecord> {
+    return await IndexedDBManager.upsertChainAccount(input);
+  }
+
+  async getProfileByAccount(chainId: string, accountAddress: string): Promise<ProfileRecord | null> {
+    return await IndexedDBManager.getProfileByAccount(chainId, accountAddress);
+  }
+
+  async upsertAccountSigner(input: UpsertAccountSignerInput): Promise<AccountSignerRecord> {
+    return await IndexedDBManager.upsertAccountSigner(input);
+  }
+
+  async listAccountSigners(args: {
+    chainId: string;
+    accountAddress: string;
+    status?: AccountSignerStatus;
+  }): Promise<AccountSignerRecord[]> {
+    return await IndexedDBManager.listAccountSigners(args);
+  }
+
+  async setAccountSignerStatus(args: {
+    chainId: string;
+    accountAddress: string;
+    signerId: string;
+    status: AccountSignerStatus;
+    removedAt?: number;
+  }): Promise<AccountSignerRecord | null> {
+    return await IndexedDBManager.setAccountSignerStatus(args);
+  }
+
+  async enqueueSignerOperation(input: EnqueueSignerOperationInput): Promise<SignerOpOutboxRecord> {
+    return await IndexedDBManager.enqueueSignerOperation(input);
   }
 
   async getAllUsers(): Promise<ClientUserData[]> {
@@ -424,9 +478,7 @@ export class WebAuthnManager {
     }
 
     if (deviceNumberToUse === null) {
-      const userForAccount = await IndexedDBManager.clientDB
-        .getUserByDevice(accountId, 1)
-        .catch(() => null);
+      const userForAccount = await this.getUserByDevice(accountId, 1).catch(() => null);
       if (userForAccount && Number.isFinite(userForAccount.deviceNumber)) {
         deviceNumberToUse = userForAccount.deviceNumber;
       }
@@ -444,9 +496,7 @@ export class WebAuthnManager {
     await this.userPreferencesManager.reloadUserSettings().catch(() => undefined);
 
     // Initialize NonceManager with the selected user's public key (best-effort)
-    const userData = await IndexedDBManager.clientDB
-      .getUserByDevice(accountId, deviceNumberToUse)
-      .catch(() => null);
+    const userData = await this.getUserByDevice(accountId, deviceNumberToUse).catch(() => null);
     if (userData && userData.clientNearPublicKey) {
       this.nonceManager.initializeUser(accountId, userData.clientNearPublicKey);
     }
@@ -554,6 +604,44 @@ export class WebAuthnManager {
   // SIGNER WASM WORKER OPERATIONS
   ///////////////////////////////////////
 
+  private async executeNearEd25519Intent(args: {
+    request: NearEd25519SignRequest;
+    expectedKind: NearEd25519SignOutput['kind'];
+    uiKind: 'transactionsWithActions' | 'delegateAction' | 'nep413';
+    errorScope: 'transactions' | 'delegate' | 'nep413';
+  }): Promise<NearEd25519SignOutput['result']> {
+    const [{ executeSigningIntent }, { NearEd25519Engine, NEAR_ED25519_KEY_REF }] =
+      await Promise.all([
+        import('../orchestration/executeSigningIntent'),
+        import('../engines/ed25519'),
+      ]);
+
+    const engine = new NearEd25519Engine();
+    return await executeSigningIntent({
+      intent: {
+        chain: 'near',
+        uiModel: { kind: args.uiKind },
+        signRequests: [args.request],
+        finalize: async (signed) => {
+          if (signed.length !== 1) {
+            throw new Error(
+              `[WebAuthnManager][${args.errorScope}] expected one engine output, got ${signed.length}`,
+            );
+          }
+          const first = signed[0];
+          if (first.kind !== args.expectedKind) {
+            throw new Error(
+              `[WebAuthnManager][${args.errorScope}] unexpected engine output kind: ${first.kind}`,
+            );
+          }
+          return first.result;
+        },
+      },
+      engines: { ed25519: engine },
+      resolveSignInput: async (signReq) => ({ signReq, keyRef: NEAR_ED25519_KEY_REF }),
+    });
+  }
+
   /**
    * Transaction signing with contract verification and progress updates.
    * Demonstrates the "streaming" worker pattern similar to SSE.
@@ -598,55 +686,30 @@ export class WebAuthnManager {
     const resolvedSessionId =
       String(sessionId || '').trim() ||
       this.getOrCreateActiveSigningSessionId(toAccountId(rpcCall.nearAccountId));
-    const [{ executeSigningIntent }, { NearEd25519Engine, NEAR_ED25519_KEY_REF }] =
-      await Promise.all([
-        import('../orchestration/executeSigningIntent'),
-        import('../engines/ed25519'),
-      ]);
-    const ctx = this.signerWorkerManager.getContext();
-    const engine = new NearEd25519Engine();
-    return await executeSigningIntent({
-      intent: {
-        chain: 'near',
-        uiModel: { kind: 'transactionsWithActions' as const },
-        signRequests: [
-          {
-            kind: 'near-transactions-with-actions' as const,
-            algorithm: 'ed25519' as const,
-            payload: {
-              ctx,
-              transactions,
-              rpcCall,
-              deviceNumber,
-              signerMode,
-              confirmationConfigOverride,
-              title,
-              body,
-              onEvent,
-              signingSessionTtlMs: signingSessionPolicy.ttlMs,
-              signingSessionRemainingUses: signingSessionPolicy.remainingUses,
-              sessionId: resolvedSessionId,
-            },
-          },
-        ],
-        finalize: async (signed) => {
-          if (signed.length !== 1) {
-            throw new Error(
-              `[WebAuthnManager][transactions] expected one engine output, got ${signed.length}`,
-            );
-          }
-          const first = signed[0];
-          if (first.kind !== 'near-transactions-with-actions') {
-            throw new Error(
-              `[WebAuthnManager][transactions] unexpected engine output kind: ${first.kind}`,
-            );
-          }
-          return first.result;
+    const ctx = this.signingWorkerManager.getContext();
+    return await this.executeNearEd25519Intent({
+      request: {
+        kind: 'near-transactions-with-actions',
+        algorithm: 'ed25519',
+        payload: {
+          ctx,
+          transactions,
+          rpcCall,
+          deviceNumber,
+          signerMode,
+          confirmationConfigOverride,
+          title,
+          body,
+          onEvent,
+          signingSessionTtlMs: signingSessionPolicy.ttlMs,
+          signingSessionRemainingUses: signingSessionPolicy.remainingUses,
+          sessionId: resolvedSessionId,
         },
       },
-      engines: { ed25519: engine },
-      resolveSignInput: async (signReq) => ({ signReq, keyRef: NEAR_ED25519_KEY_REF }),
-    });
+      expectedKind: 'near-transactions-with-actions',
+      uiKind: 'transactionsWithActions',
+      errorScope: 'transactions',
+    }) as SignTransactionResult[];
   }
 
   /**
@@ -707,7 +770,7 @@ export class WebAuthnManager {
     const prfFirstB64u = this.extractPrfFirstB64u(args.credential);
     const sessionId = this.generateSessionId('no-prompt-add-threshold-key');
 
-    const response = await this.signerWorkerManager.getContext().sendMessage({
+    const response = await this.signingWorkerManager.getContext().sendMessage({
       sessionId,
       message: {
         type: INTERNAL_WORKER_REQUEST_TYPE_SIGN_ADD_KEY_THRESHOLD_PUBLIC_KEY_NO_PROMPT,
@@ -795,51 +858,35 @@ export class WebAuthnManager {
     try {
       const activeSessionId = this.getOrCreateActiveSigningSessionId(nearAccountId);
       console.debug('[WebAuthnManager][delegate] session created', { sessionId: activeSessionId });
-      const [{ executeSigningIntent }, { NearEd25519Engine, NEAR_ED25519_KEY_REF }] =
-        await Promise.all([
-          import('../orchestration/executeSigningIntent'),
-          import('../engines/ed25519'),
-        ]);
-      const ctx = this.signerWorkerManager.getContext();
-      const engine = new NearEd25519Engine();
-      return await executeSigningIntent({
-        intent: {
-          chain: 'near',
-          uiModel: { kind: 'delegateAction' as const },
-          signRequests: [
-            {
-              kind: 'near-delegate-action' as const,
-              algorithm: 'ed25519' as const,
-              payload: {
-                ctx,
-                delegate,
-                rpcCall: normalizedRpcCall,
-                deviceNumber,
-                signerMode,
-                confirmationConfigOverride,
-                title,
-                body,
-                onEvent,
-                signingSessionTtlMs: signingSessionPolicy.ttlMs,
-                signingSessionRemainingUses: signingSessionPolicy.remainingUses,
-                sessionId: activeSessionId,
-              },
-            },
-          ],
-          finalize: async (signed) => {
-            if (signed.length !== 1) {
-              throw new Error(`[WebAuthnManager][delegate] expected one engine output, got ${signed.length}`);
-            }
-            const first = signed[0];
-            if (first.kind !== 'near-delegate-action') {
-              throw new Error(`[WebAuthnManager][delegate] unexpected engine output kind: ${first.kind}`);
-            }
-            return first.result;
+      const ctx = this.signingWorkerManager.getContext();
+      return await this.executeNearEd25519Intent({
+        request: {
+          kind: 'near-delegate-action',
+          algorithm: 'ed25519',
+          payload: {
+            ctx,
+            delegate,
+            rpcCall: normalizedRpcCall,
+            deviceNumber,
+            signerMode,
+            confirmationConfigOverride,
+            title,
+            body,
+            onEvent,
+            signingSessionTtlMs: signingSessionPolicy.ttlMs,
+            signingSessionRemainingUses: signingSessionPolicy.remainingUses,
+            sessionId: activeSessionId,
           },
         },
-        engines: { ed25519: engine },
-        resolveSignInput: async (signReq) => ({ signReq, keyRef: NEAR_ED25519_KEY_REF }),
-      });
+        expectedKind: 'near-delegate-action',
+        uiKind: 'delegateAction',
+        errorScope: 'delegate',
+      }) as {
+        signedDelegate: WasmSignedDelegate;
+        hash: string;
+        nearAccountId: AccountId;
+        logs?: string[];
+      };
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('[WebAuthnManager][delegate] failed', err);
@@ -872,48 +919,34 @@ export class WebAuthnManager {
       const contractId = this.tatchiPasskeyConfigs.contractId;
       const nearRpcUrl =
         this.tatchiPasskeyConfigs.nearRpcUrl.split(',')[0] || this.tatchiPasskeyConfigs.nearRpcUrl;
-      const [{ executeSigningIntent }, { NearEd25519Engine, NEAR_ED25519_KEY_REF }] =
-        await Promise.all([
-          import('../orchestration/executeSigningIntent'),
-          import('../engines/ed25519'),
-        ]);
-      const ctx = this.signerWorkerManager.getContext();
-      const engine = new NearEd25519Engine();
-      const result = await executeSigningIntent({
-        intent: {
-          chain: 'near',
-          uiModel: { kind: 'nep413' as const },
-          signRequests: [
-            {
-              kind: 'near-nep413-message' as const,
-              algorithm: 'ed25519' as const,
-              payload: {
-                ctx,
-                payload: {
-                  ...payload,
-                  sessionId: activeSessionId,
-                  contractId,
-                  nearRpcUrl,
-                  signingSessionTtlMs: signingSessionPolicy.ttlMs,
-                  signingSessionRemainingUses: signingSessionPolicy.remainingUses,
-                },
-              },
+      const ctx = this.signingWorkerManager.getContext();
+      const result = await this.executeNearEd25519Intent({
+        request: {
+          kind: 'near-nep413-message',
+          algorithm: 'ed25519',
+          payload: {
+            ctx,
+            payload: {
+              ...payload,
+              sessionId: activeSessionId,
+              contractId,
+              nearRpcUrl,
+              signingSessionTtlMs: signingSessionPolicy.ttlMs,
+              signingSessionRemainingUses: signingSessionPolicy.remainingUses,
             },
-          ],
-          finalize: async (signed) => {
-            if (signed.length !== 1) {
-              throw new Error(`[WebAuthnManager][nep413] expected one engine output, got ${signed.length}`);
-            }
-            const first = signed[0];
-            if (first.kind !== 'near-nep413-message') {
-              throw new Error(`[WebAuthnManager][nep413] unexpected engine output kind: ${first.kind}`);
-            }
-            return first.result;
           },
         },
-        engines: { ed25519: engine },
-        resolveSignInput: async (signReq) => ({ signReq, keyRef: NEAR_ED25519_KEY_REF }),
-      });
+        expectedKind: 'near-nep413-message',
+        uiKind: 'nep413',
+        errorScope: 'nep413',
+      }) as {
+        success: boolean;
+        accountId: string;
+        publicKey: string;
+        signature: string;
+        state?: string;
+        error?: string;
+      };
       if (result.success) {
         return result;
       } else {
@@ -996,7 +1029,7 @@ export class WebAuthnManager {
    * Extract COSE public key from WebAuthn attestation object using WASM worker
    */
   async extractCosePublicKey(attestationObjectBase64url: string): Promise<Uint8Array> {
-    return await this.signerWorkerManager.extractCosePublicKey(attestationObjectBase64url);
+    return await this.signingWorkerManager.extractCosePublicKey(attestationObjectBase64url);
   }
 
   ///////////////////////////////////////
@@ -1076,7 +1109,7 @@ export class WebAuthnManager {
       const sessionId = requestId;
 
       // Phase 2 + 3: decrypt in signer worker using direct PRF, then show UI.
-      await this.signerWorkerManager.exportNearKeypairUi({
+      await this.signingWorkerManager.exportNearKeypairUi({
         nearAccountId,
         variant: options?.variant,
         theme: resolvedTheme,
@@ -1273,7 +1306,7 @@ export class WebAuthnManager {
       const localWrapKeySalt = String(keyMaterial?.wrapKeySalt || '').trim();
       if (keyMaterial && localWrapKeySalt) {
         const prfFirstB64u = this.extractPrfFirstB64u(credential);
-        const decrypted = await this.signerWorkerManager.decryptPrivateKeyWithPrf({
+        const decrypted = await this.signingWorkerManager.decryptPrivateKeyWithPrf({
           nearAccountId: accountId,
           authenticators: [],
           sessionId: `${requestId}:ed25519`,
@@ -1418,7 +1451,7 @@ export class WebAuthnManager {
       // Orchestrate a SecureConfirm-owned signing session with WrapKeySeed derivation, then ask
       // the signer to recover and re-encrypt the NEAR keypair.
       const sessionId = this.generateSessionId('recover');
-      const result = await this.signerWorkerManager.recoverKeypairFromPasskey({
+      const result = await this.signingWorkerManager.recoverKeypairFromPasskey({
         credential: authenticationCredential,
         accountIdHint,
         sessionId,
@@ -1475,7 +1508,7 @@ export class WebAuthnManager {
     signedTransaction: SignedTransaction;
     logs?: string[];
   }> {
-    return await this.signerWorkerManager.signTransactionWithKeyPair({
+    return await this.signingWorkerManager.signTransactionWithKeyPair({
       nearPrivateKey,
       signerAccountId,
       receiverId,
@@ -1516,7 +1549,7 @@ export class WebAuthnManager {
     return await connectThresholdEd25519SessionLite({
       indexedDB: IndexedDBManager,
       touchIdPrompt: this.touchIdPrompt,
-      signerWorkerManager: this.signerWorkerManager,
+      signingWorkerManager: this.signingWorkerManager,
       relayerUrl,
       relayerKeyId: args.relayerKeyId,
       nearAccountId: toAccountId(args.nearAccountId),
@@ -1575,7 +1608,7 @@ export class WebAuthnManager {
     const session = await connectThresholdEcdsaSessionLite({
       indexedDB: IndexedDBManager,
       touchIdPrompt: this.touchIdPrompt,
-      signerWorkerManager: this.signerWorkerManager,
+      signingWorkerManager: this.signingWorkerManager,
       relayerUrl,
       relayerKeyId,
       userId: nearAccountId,
@@ -1677,7 +1710,7 @@ export class WebAuthnManager {
     try {
       const prfFirstB64u = this.extractPrfFirstB64u(args.credential);
       const sessionId = this.generateSessionId('threshold-client-share');
-      return await this.signerWorkerManager.deriveThresholdEd25519ClientVerifyingShare({
+      return await this.signingWorkerManager.deriveThresholdEd25519ClientVerifyingShare({
         sessionId,
         nearAccountId,
         prfFirstB64u,
@@ -1881,7 +1914,7 @@ export class WebAuthnManager {
       const prfFirstB64u = this.extractPrfFirstB64u(args.credential);
       const keygen = await enrollThresholdEd25519KeyHandler(
         {
-          signerWorkerManager: this.signerWorkerManager,
+          signingWorkerManager: this.signingWorkerManager,
           touchIdPrompt: this.touchIdPrompt,
           relayerUrl,
         },

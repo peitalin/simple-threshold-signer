@@ -1,6 +1,6 @@
 
 import { WorkerRequestType, isExtractCosePublicKeySuccess } from '../../../../types/signer-worker';
-import { SignerWorkerManagerContext } from '..';
+import { SigningWorkerManagerContext } from '..';
 
 
 /**
@@ -8,7 +8,7 @@ import { SignerWorkerManagerContext } from '..';
  * Simple operation that doesn't require TouchID or progress updates
  */
 export async function extractCosePublicKey({ ctx, attestationObjectBase64url }: {
-  ctx: SignerWorkerManagerContext;
+  ctx: SigningWorkerManagerContext;
   attestationObjectBase64url: string;
 }): Promise<Uint8Array> {
   try {

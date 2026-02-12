@@ -1,1 +1,1 @@
-export * from '../workers/signerWorkerManager/internal/validation';
+export * from '../workers/signingWorkerManager/internal/validation';

@@ -1,5 +1,5 @@
 import type { TempoUnsignedTx } from './types';
-import { WasmSignerWorkerRpc } from '../../workers/workerRpc';
+import { executeMultichainWorkerOperation } from '../handlers/executeMultichainWorkerOperation';
 
 type TempoTxWasmJson = {
   chainId: string;
@@ -44,10 +44,13 @@ function toWasmTx(tx: TempoUnsignedTx): TempoTxWasmJson {
   };
 }
 
-const rpc = new WasmSignerWorkerRpc('tempoSigner');
+const TEMPO_SIGNER_WORKER_KIND = 'tempoSigner' as const;
 
 export async function computeTempoSenderHashWasm(tx: TempoUnsignedTx): Promise<Uint8Array> {
-  const ab = await rpc.request({ type: 'computeTempoSenderHash', payload: { tx: toWasmTx(tx) } });
+  const ab = await executeMultichainWorkerOperation({
+    kind: TEMPO_SIGNER_WORKER_KIND,
+    request: { type: 'computeTempoSenderHash', payload: { tx: toWasmTx(tx) } },
+  });
   return new Uint8Array(ab);
 }
 
@@ -56,10 +59,13 @@ export async function encodeTempoSignedTxWasm(args: {
   senderSignature: Uint8Array; // TempoSignature bytes
 }): Promise<Uint8Array> {
   const sigBuf = args.senderSignature.slice().buffer;
-  const ab = await rpc.request({
-    type: 'encodeTempoSignedTx',
-    payload: { tx: toWasmTx(args.tx), senderSignature: sigBuf },
-    transfer: [sigBuf],
+  const ab = await executeMultichainWorkerOperation({
+    kind: TEMPO_SIGNER_WORKER_KIND,
+    request: {
+      type: 'encodeTempoSignedTx',
+      payload: { tx: toWasmTx(args.tx), senderSignature: sigBuf },
+      transfer: [sigBuf],
+    },
   });
   return new Uint8Array(ab);
 }

@@ -6,7 +6,7 @@ import {
   WorkerResponseType,
   WasmTransactionSignResult,
 } from '../../../../types/signer-worker';
-import { SignerWorkerManagerContext } from '..';
+import { SigningWorkerManagerContext } from '..';
 
 /**
  * Sign transaction with raw private key (for key replacement in Option D device linking)
@@ -21,7 +21,7 @@ export async function signTransactionWithKeyPair({
   blockHash,
   actions
 }: {
-  ctx: SignerWorkerManagerContext;
+  ctx: SigningWorkerManagerContext;
   nearPrivateKey: string;
   signerAccountId: string;
   receiverId: string;
@@ -33,7 +33,7 @@ export async function signTransactionWithKeyPair({
   logs?: string[];
 }> {
   try {
-    console.info('SignerWorkerManager: Starting transaction signing with provided private key');
+    console.info('SigningWorkerManager: Starting transaction signing with provided private key');
     // Validate actions
     actions.forEach(action => {
       validateActionArgsWasm(action);
@@ -54,7 +54,7 @@ export async function signTransactionWithKeyPair({
     });
 
     if (response.type !== WorkerResponseType.SignTransactionWithKeyPairSuccess) {
-      console.error('SignerWorkerManager: Transaction signing with private key failed:', response);
+      console.error('SigningWorkerManager: Transaction signing with private key failed:', response);
       throw new Error('Transaction signing with private key failed');
     }
 
@@ -81,11 +81,11 @@ export async function signTransactionWithKeyPair({
       logs: wasmResult.logs
     };
 
-    console.debug('SignerWorkerManager: Transaction signing with private key successful');
+    console.debug('SigningWorkerManager: Transaction signing with private key successful');
     return result;
 
   } catch (error: unknown) {
-    console.error('SignerWorkerManager: Transaction signing with private key error:', error);
+    console.error('SigningWorkerManager: Transaction signing with private key error:', error);
     throw error;
   }
 }

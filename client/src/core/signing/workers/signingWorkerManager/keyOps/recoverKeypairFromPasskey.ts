@@ -3,7 +3,7 @@ import {
   isRecoverKeypairFromPasskeySuccess,
 } from '../../../../types/signer-worker';
 import type { WebAuthnAuthenticationCredential } from '../../../../types/webauthn';
-import { SignerWorkerManagerContext } from '..';
+import { SigningWorkerManagerContext } from '..';
 import { withSessionId } from '../internal/session';
 import { base64UrlEncode } from '../../../../../../../shared/src/utils/encoders';
 
@@ -17,7 +17,7 @@ export async function recoverKeypairFromPasskey({
   accountIdHint,
   sessionId,
 }: {
-  ctx: SignerWorkerManagerContext;
+  ctx: SigningWorkerManagerContext;
   credential: WebAuthnAuthenticationCredential;
   accountIdHint?: string;
   sessionId: string;
@@ -32,7 +32,7 @@ export async function recoverKeypairFromPasskey({
   wrapKeySalt: string;
 }> {
   try {
-    console.info('SignerWorkerManager: Starting dual PRF-based keypair recovery from authentication credential');
+    console.info('SigningWorkerManager: Starting dual PRF-based keypair recovery from authentication credential');
     // Accept either live PublicKeyCredential or already-serialized auth credential
 
     const prfFirstB64u = String(credential.clientExtensionResults?.prf?.results?.first || '').trim();
@@ -81,7 +81,7 @@ export async function recoverKeypairFromPasskey({
     };
 
   } catch (error: unknown) {
-    console.error('SignerWorkerManager: Dual PRF keypair recovery error:', error);
+    console.error('SigningWorkerManager: Dual PRF keypair recovery error:', error);
     throw error;
   }
 }

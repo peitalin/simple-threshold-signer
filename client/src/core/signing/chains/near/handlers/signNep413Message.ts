@@ -499,7 +499,7 @@ export async function signNep413Message({ ctx, payload }: {
     };
   } catch (error: unknown) {
     // eslint-disable-next-line no-console
-    console.error('SignerWorkerManager: NEP-413 signing error:', error);
+    console.error('SigningWorkerManager: NEP-413 signing error:', error);
     return {
       success: false,
       accountId: '',

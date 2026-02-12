@@ -1,7 +1,13 @@
-import { errorMessage } from '../../../../../shared/src/utils/errors';
-import type { MultichainWorkerKind } from '../../runtimeAssetPaths/multichainWorkers';
-import { resolveMultichainWorkerUrl } from '../../runtimeAssetPaths/multichainWorkers';
-import { WorkerControlMessage } from '../../workers/workerControlMessages';
+import { errorMessage } from '../../../../../../../shared/src/utils/errors';
+import type { MultichainWorkerKind } from '../../../../runtimeAssetPaths/multichainWorkers';
+import { resolveMultichainWorkerUrl } from '../../../../runtimeAssetPaths/multichainWorkers';
+import { WorkerControlMessage } from '../../../../workers/workerControlMessages';
+import type {
+  MultichainOperationType,
+  MultichainWorkerBackendContract,
+  MultichainWorkerOperationRequest,
+  MultichainWorkerOperationResult,
+} from './types';
 
 type RpcOk<T = unknown> = { id: string; ok: true; result: T };
 type RpcErr = { id: string; ok: false; error: string };
@@ -13,12 +19,13 @@ function makeId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export class WasmSignerWorkerRpc {
-  private readonly kind: MultichainWorkerKind;
+export class MultichainSignerWorkerBackend<K extends MultichainWorkerKind = MultichainWorkerKind>
+implements MultichainWorkerBackendContract<K> {
+  private readonly kind: K;
   private worker: Worker | null = null;
   private readonly pending = new Map<string, { resolve: (value: any) => void; reject: (e: Error) => void }>();
 
-  constructor(kind: MultichainWorkerKind) {
+  constructor(kind: K) {
     this.kind = kind;
   }
 
@@ -51,11 +58,13 @@ export class WasmSignerWorkerRpc {
     return worker;
   }
 
-  async request<T = ArrayBuffer>(args: { type: string; payload: any; transfer?: Transferable[] }): Promise<T> {
+  async requestOperation<T extends MultichainOperationType<K>>(
+    args: MultichainWorkerOperationRequest<K, T>,
+  ): Promise<MultichainWorkerOperationResult<K, T>> {
     const worker = this.getOrCreateWorker();
     const id = makeId(this.kind);
 
-    return await new Promise<T>((resolve, reject) => {
+    return await new Promise<MultichainWorkerOperationResult<K, T>>((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
       try {
         worker.postMessage({ id, type: args.type, payload: args.payload }, args.transfer || []);
@@ -65,4 +74,19 @@ export class WasmSignerWorkerRpc {
       }
     });
   }
+}
+
+const multichainSignerWorkerBackends = new Map<
+  MultichainWorkerKind,
+  MultichainSignerWorkerBackend<MultichainWorkerKind>
+>();
+
+export function getMultichainSignerWorkerBackend<K extends MultichainWorkerKind>(
+  kind: K,
+): MultichainSignerWorkerBackend<K> {
+  const existing = multichainSignerWorkerBackends.get(kind) as MultichainSignerWorkerBackend<K> | undefined;
+  if (existing) return existing;
+  const backend = new MultichainSignerWorkerBackend(kind);
+  multichainSignerWorkerBackends.set(kind, backend as MultichainSignerWorkerBackend<MultichainWorkerKind>);
+  return backend;
 }

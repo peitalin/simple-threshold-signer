@@ -188,7 +188,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     setTimeout(() => { this._backdropArmed = true; }, 0);
     // Listen globally so Escape works regardless of focus target
     window.addEventListener('keydown', this._onKeyDown);
-    // Listen for global timeout notification (posted by SignerWorkerManager on operation timeout)
+    // Listen for global timeout notification (posted by SigningWorkerManager on operation timeout)
     window.addEventListener('message', this._onWindowMessage as EventListener);
     // Ensure this iframe/host receives keyboard focus so ESC works immediately
     // Make host focusable and focus it without scrolling

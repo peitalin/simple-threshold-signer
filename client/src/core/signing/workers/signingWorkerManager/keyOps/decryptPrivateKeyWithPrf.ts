@@ -6,7 +6,7 @@ import {
 } from '../../../../types/signer-worker';
 import { AccountId, toAccountId } from "../../../../types/accountIds";
 
-import { SignerWorkerManagerContext } from '..';
+import { SigningWorkerManagerContext } from '..';
 import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 import { isObject } from '../../../../../../../shared/src/utils/validation';
 import { withSessionId } from '../internal/session';
@@ -19,7 +19,7 @@ export async function decryptPrivateKeyWithPrf({
   prfFirstB64u,
   wrapKeySalt,
 }: {
-  ctx: SignerWorkerManagerContext,
+  ctx: SigningWorkerManagerContext,
   nearAccountId: AccountId,
   authenticators: ClientAuthenticatorData[],
   sessionId: string,

@@ -33,7 +33,7 @@ function generateKeygenSessionId(): string {
 export async function keygenThresholdEd25519Lite(args: {
   indexedDB: ThresholdIndexedDbPort;
   touchIdPrompt: ThresholdWebAuthnPromptPort;
-  signerWorkerManager: ThresholdEd25519ClientShareDeriverPort;
+  signingWorkerManager: ThresholdEd25519ClientShareDeriverPort;
   relayerUrl: string;
   nearAccountId: string;
 }): Promise<{
@@ -75,7 +75,7 @@ export async function keygenThresholdEd25519Lite(args: {
 
   // 2) Derive the client verifying share inside the signer worker.
   try {
-    const derived = await args.signerWorkerManager.deriveThresholdEd25519ClientVerifyingShare({
+    const derived = await args.signingWorkerManager.deriveThresholdEd25519ClientVerifyingShare({
       sessionId: keygenSessionId,
       nearAccountId: toAccountId(args.nearAccountId),
       prfFirstB64u,

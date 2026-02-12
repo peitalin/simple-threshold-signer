@@ -6,7 +6,7 @@ import {
 } from '../../../../types/signer-worker';
 import { runSecureConfirm } from '../../../secureConfirm/flow/bridge';
 import { SecureConfirmationType } from '../../../secureConfirm/flow/types';
-import { SignerWorkerManagerContext } from '..';
+import { SigningWorkerManagerContext } from '..';
 import { getLastLoggedInDeviceNumber } from '../getDeviceNumber';
 
 /**
@@ -24,7 +24,7 @@ export async function exportNearKeypairUi({
   prfFirstB64u,
   wrapKeySalt,
 }: {
-  ctx: SignerWorkerManagerContext;
+  ctx: SigningWorkerManagerContext;
   nearAccountId: AccountId;
   variant?: 'drawer' | 'modal';
   theme?: 'dark' | 'light';

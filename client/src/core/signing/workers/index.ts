@@ -1,2 +1,2 @@
-export * from './workerRpc';
-export * from './signerWorkerManager';
+export * from './signingWorkerManager';
+export * from './signingWorkerManager/backends';

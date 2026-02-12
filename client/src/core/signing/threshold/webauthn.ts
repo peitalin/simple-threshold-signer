@@ -68,9 +68,9 @@ export async function collectAuthenticationCredentialForChallengeB64u(args: {
 }
 
 export function getThresholdPrfFirstCachePortFromSignerWorker(
-  signerWorkerManager?: ThresholdSignerWorkerPort | null,
+  signingWorkerManager?: ThresholdSignerWorkerPort | null,
 ): ThresholdPrfFirstCachePort | null {
-  const ctx = signerWorkerManager?.getContext?.();
+  const ctx = signingWorkerManager?.getContext?.();
   const cache = ctx?.secureConfirmWorkerManager;
   if (!cache || typeof cache.putPrfFirstForThresholdSession !== 'function') {
     return null;
