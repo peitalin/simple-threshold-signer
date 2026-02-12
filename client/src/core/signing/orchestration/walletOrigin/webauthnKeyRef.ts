@@ -10,13 +10,22 @@ export async function resolveWebAuthnP256KeyRefForNearAccount(args: {
   rpId?: string;
 }): Promise<KeyRef & { type: 'webauthnP256' }> {
   const nearAccountId = toAccountId(args.nearAccountId);
-  const authenticators = await args.indexedDB.clientDB.getAuthenticatorsByUser(nearAccountId);
+  const context = await args.indexedDB.clientDB.resolveNearAccountContext(nearAccountId);
+  if (!context?.profileId) {
+    throw new Error(`[multichain] no profile/account mapping found for account ${nearAccountId}`);
+  }
+
+  const authenticators = await args.indexedDB.clientDB.listProfileAuthenticators(context.profileId);
   if (!authenticators.length) {
     throw new Error(`[multichain] no passkeys found for account ${nearAccountId}`);
   }
 
-  let authenticatorsForPrompt = authenticators;
-  ({ authenticatorsForPrompt } = await args.indexedDB.clientDB.ensureCurrentPasskey(nearAccountId, authenticators));
+  const { authenticatorsForPrompt } =
+    await args.indexedDB.clientDB.selectProfileAuthenticatorsForPrompt({
+      profileId: context.profileId,
+      authenticators,
+      accountLabel: nearAccountId,
+    });
   const auth = authenticatorsForPrompt[0];
   if (!auth) {
     throw new Error(`[multichain] missing authenticator for account ${nearAccountId}`);

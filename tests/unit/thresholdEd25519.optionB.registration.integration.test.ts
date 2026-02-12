@@ -388,7 +388,11 @@ test.describe('Threshold Ed25519 (registration) — relay-created threshold key'
         return await page.evaluate(async ({ paths, accountId }) => {
           const { PasskeyNearKeysDBManager } = await import(paths.nearKeysDb);
           const db = new PasskeyNearKeysDBManager();
-          const rec = await db.getThresholdKeyMaterial(accountId, 1);
+          const profileId = `legacy-near:${String(accountId || '').trim().toLowerCase()}`;
+          const chainId = String(accountId || '').trim().toLowerCase().endsWith('.testnet')
+            ? 'near:testnet'
+            : 'near:mainnet';
+          const rec = await db.getKeyMaterialV2(profileId, 1, chainId, 'threshold_share_v1');
           return !!rec;
         }, { paths: IMPORT_PATHS, accountId: registration.accountId });
       }, { timeout: 10_000 })
@@ -421,13 +425,17 @@ test.describe('Threshold Ed25519 (registration) — relay-created threshold key'
     const stored = await page.evaluate(async ({ paths, accountId }) => {
       const { PasskeyNearKeysDBManager } = await import(paths.nearKeysDb);
       const db = new PasskeyNearKeysDBManager();
-      const rec = await db.getThresholdKeyMaterial(accountId, 1);
+      const profileId = `legacy-near:${String(accountId || '').trim().toLowerCase()}`;
+      const chainId = String(accountId || '').trim().toLowerCase().endsWith('.testnet')
+        ? 'near:testnet'
+        : 'near:mainnet';
+      const rec = await db.getKeyMaterialV2(profileId, 1, chainId, 'threshold_share_v1');
       return rec ? { ...rec } : null;
     }, { paths: IMPORT_PATHS, accountId: registration.accountId });
 
-    expect(stored?.kind).toBe('threshold_ed25519_2p_v1');
+    expect(stored?.keyKind).toBe('threshold_share_v1');
     expect(stored?.publicKey).toBe(thresholdPublicKey);
-    expect(stored?.relayerKeyId).toBe(relayerKeyId);
+    expect(String(stored?.payload?.relayerKeyId || '')).toBe(relayerKeyId);
   });
 
   test('registration fails if relay omits threshold key material (no stored threshold material)', async ({ page }) => {
@@ -692,7 +700,11 @@ test.describe('Threshold Ed25519 (registration) — relay-created threshold key'
     const stored = await page.evaluate(async ({ paths, accountId }) => {
       const { PasskeyNearKeysDBManager } = await import(paths.nearKeysDb);
       const db = new PasskeyNearKeysDBManager();
-      const rec = await db.getThresholdKeyMaterial(accountId, 1);
+      const profileId = `legacy-near:${String(accountId || '').trim().toLowerCase()}`;
+      const chainId = String(accountId || '').trim().toLowerCase().endsWith('.testnet')
+        ? 'near:testnet'
+        : 'near:mainnet';
+      const rec = await db.getKeyMaterialV2(profileId, 1, chainId, 'threshold_share_v1');
       return rec ? { ...rec } : null;
     }, { paths: IMPORT_PATHS, accountId: registration.accountId });
 

@@ -278,24 +278,31 @@ export class UserPreferencesManager {
     }
   }
 
+  private applyStoredPreferences(
+    preferences: { confirmationConfig?: ConfirmationConfig; signerMode?: SignerMode | SignerMode['mode'] } | undefined,
+  ): void {
+    if (preferences?.confirmationConfig) {
+      const sanitized = this.sanitizeConfirmationConfig(preferences.confirmationConfig as ConfirmationConfig);
+      this.confirmationConfig = this.mergeConfirmationConfig(this.confirmationConfig, sanitized);
+      this.notifyConfirmationConfigChange(this.confirmationConfig);
+    }
+
+    const base = this.signerModeOverride ?? DEFAULT_SIGNING_MODE;
+    const stored = preferences?.signerMode as SignerMode | SignerMode['mode'] | null | undefined;
+    const nextSignerMode = stored != null ? coerceSignerMode(stored, base) : base;
+    this.setSignerModeInternal(nextSignerMode, { persist: false, notify: true });
+  }
+
   /**
    * Load settings for a specific user
    */
   private async loadSettingsForUser(nearAccountId: AccountId): Promise<void> {
     if (IndexedDBManager.clientDB.isDisabled()) return;
-    const user = await IndexedDBManager.clientDB.getLastUser().catch(() => null);
-    if (!user || user.nearAccountId !== nearAccountId) return;
-    if (user?.preferences?.confirmationConfig) {
-      const sanitized = this.sanitizeConfirmationConfig(user.preferences.confirmationConfig as ConfirmationConfig);
-      this.confirmationConfig = this.mergeConfirmationConfig(this.confirmationConfig, sanitized);
-      this.notifyConfirmationConfigChange(this.confirmationConfig);
-    }
-
-    // Signer mode: stored per-user preference (optional).
-    const base = this.signerModeOverride ?? DEFAULT_SIGNING_MODE;
-    const stored = user?.preferences?.signerMode as SignerMode | SignerMode['mode'] | null | undefined;
-    const nextSignerMode = stored != null ? coerceSignerMode(stored, base) : base;
-    this.setSignerModeInternal(nextSignerMode, { persist: false, notify: true });
+    const context = await IndexedDBManager.clientDB.resolveNearAccountContext(nearAccountId).catch(() => null);
+    if (!context?.profileId) return;
+    const profile = await IndexedDBManager.clientDB.getProfile(context.profileId).catch(() => null);
+    if (!profile) return;
+    this.applyStoredPreferences(profile.preferences);
   }
 
   /**
@@ -331,26 +338,18 @@ export class UserPreferencesManager {
    */
   async loadUserSettings(): Promise<void> {
     if (IndexedDBManager.clientDB.isDisabled()) return;
-    const user = await IndexedDBManager.clientDB.getLastUser().catch(() => null);
-    if (user) {
-      this.currentUserAccountId = user.nearAccountId;
-      // Load user's confirmation config if it exists, otherwise keep existing settings/defaults
-      if (user.preferences?.confirmationConfig) {
-        const sanitized = this.sanitizeConfirmationConfig(user.preferences.confirmationConfig as ConfirmationConfig);
-        this.confirmationConfig = this.mergeConfirmationConfig(this.confirmationConfig, sanitized);
-        this.notifyConfirmationConfigChange(this.confirmationConfig);
-      } else {
-        console.debug('[WebAuthnManager]: No user preferences found, using defaults');
-      }
-
-      // Load signer mode preference if available; otherwise use app default (configs.signerMode).
-      const base = this.signerModeOverride ?? DEFAULT_SIGNING_MODE;
-      const stored = user?.preferences?.signerMode as SignerMode | SignerMode['mode'] | null | undefined;
-      const nextSignerMode = stored != null ? coerceSignerMode(stored, base) : base;
-      this.setSignerModeInternal(nextSignerMode, { persist: false, notify: true });
-    } else {
+    const last = await IndexedDBManager.clientDB.getLastSelectedNearAccount().catch(() => null);
+    if (!last) {
       console.debug('[WebAuthnManager]: No last user found, using default settings');
+      return;
     }
+    this.currentUserAccountId = last.nearAccountId;
+    const profile = await IndexedDBManager.clientDB.getProfile(last.profileId).catch(() => null);
+    if (!profile) {
+      console.debug('[WebAuthnManager]: No profile found for last user, using default settings');
+      return;
+    }
+    this.applyStoredPreferences(profile.preferences);
   }
 
   /**
@@ -358,12 +357,7 @@ export class UserPreferencesManager {
    */
   async saveUserSettings(): Promise<void> {
     try {
-      let accountId: AccountId | undefined = this.currentUserAccountId ?? undefined;
-      if (!accountId) {
-        const last = await IndexedDBManager.clientDB.getLastUser().catch(() => undefined as any);
-        accountId = (last as any)?.nearAccountId;
-      }
-
+      const accountId: AccountId | undefined = this.currentUserAccountId ?? undefined;
       if (!accountId) {
         console.warn('[UserPreferences]: No current user set; keeping confirmation config in memory only');
         return;
@@ -407,7 +401,7 @@ export class UserPreferencesManager {
       // Best-effort persistence: only write when we have a current user context.
       const id = this.currentUserAccountId;
       if (!id || IndexedDBManager.clientDB.isDisabled()) return;
-      void IndexedDBManager.clientDB.setSignerMode(id, next).catch(() => undefined);
+      void IndexedDBManager.clientDB.updatePreferences(id, { signerMode: next }).catch(() => undefined);
     }
   }
 }

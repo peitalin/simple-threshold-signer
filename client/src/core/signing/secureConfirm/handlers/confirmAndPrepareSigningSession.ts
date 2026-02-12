@@ -6,14 +6,11 @@ import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../../../../
 import {
   SecureConfirmationType,
   type SecureConfirmRequest,
-  type SignTransactionPayload,
   type SigningAuthMode,
   type TransactionSummary,
   type SerializableCredential,
 } from '../confirmTxFlow/types';
-import type { SignNep413Payload } from '../confirmTxFlow/types';
 import type { SecureConfirmWorkerManagerContext } from '..';
-import type { SecureConfirmWorkerManagerHandlerContext } from './types';
 import { runSecureConfirm } from '../secureConfirmBridge';
 
 export interface ConfirmAndPrepareSigningSessionBaseParams {
@@ -69,14 +66,30 @@ export interface ConfirmAndPrepareSigningSessionNep413Params extends ConfirmAndP
   nearRpcUrl?: string;
 }
 
+export interface ConfirmAndPrepareSigningSessionIntentDigestParams extends ConfirmAndPrepareSigningSessionBaseParams {
+  kind: 'intentDigest';
+  nearAccountId: string;
+  challengeB64u: string;
+  intentDigest: string;
+  title?: string;
+  body?: string;
+}
+
 export type ConfirmAndPrepareSigningSessionParams =
   | ConfirmAndPrepareSigningSessionTransactionParams
   | ConfirmAndPrepareSigningSessionDelegateParams
-  | ConfirmAndPrepareSigningSessionNep413Params;
+  | ConfirmAndPrepareSigningSessionNep413Params
+  | ConfirmAndPrepareSigningSessionIntentDigestParams;
 
-export interface ConfirmAndPrepareSigningSessionResult {
+export interface ConfirmAndPrepareSigningSessionResultWithTxContext {
   sessionId: string;
   transactionContext: TransactionContext;
+  intentDigest: string;
+  credential?: SerializableCredential;
+}
+
+export interface ConfirmAndPrepareSigningSessionResultIntentDigest {
+  sessionId: string;
   intentDigest: string;
   credential?: SerializableCredential;
 }
@@ -91,13 +104,21 @@ export interface ConfirmAndPrepareSigningSessionResult {
  * - return `transactionContext` (reserved nonces, block hash/height) for the signer worker.
  */
 export async function confirmAndPrepareSigningSession(
-  _handlerCtx: SecureConfirmWorkerManagerHandlerContext,
-  params: ConfirmAndPrepareSigningSessionParams
-): Promise<ConfirmAndPrepareSigningSessionResult> {
+  params: ConfirmAndPrepareSigningSessionIntentDigestParams,
+): Promise<ConfirmAndPrepareSigningSessionResultIntentDigest>;
+export async function confirmAndPrepareSigningSession(
+  params: Exclude<ConfirmAndPrepareSigningSessionParams, ConfirmAndPrepareSigningSessionIntentDigestParams>,
+): Promise<ConfirmAndPrepareSigningSessionResultWithTxContext>;
+export async function confirmAndPrepareSigningSession(
+  params: ConfirmAndPrepareSigningSessionParams,
+): Promise<ConfirmAndPrepareSigningSessionResultWithTxContext | ConfirmAndPrepareSigningSessionResultIntentDigest>;
+export async function confirmAndPrepareSigningSession(
+  params: ConfirmAndPrepareSigningSessionParams,
+): Promise<ConfirmAndPrepareSigningSessionResultWithTxContext | ConfirmAndPrepareSigningSessionResultIntentDigest> {
   const { sessionId } = params;
 
   let intentDigest: string;
-  let request: SecureConfirmRequest<SignTransactionPayload | SignNep413Payload, TransactionSummary>;
+  let request: SecureConfirmRequest;
 
   switch (params.kind) {
     case 'transaction': {
@@ -206,6 +227,36 @@ export async function confirmAndPrepareSigningSession(
       };
       break;
     }
+    case 'intentDigest': {
+      intentDigest = String(params.intentDigest || '').trim();
+      if (!intentDigest) {
+        throw new Error('Missing intentDigest for intent digest signing flow');
+      }
+      const challengeB64u = String(params.challengeB64u || '').trim();
+      if (!challengeB64u) {
+        throw new Error('Missing challengeB64u for intent digest signing flow');
+      }
+
+      const summary: TransactionSummary = {
+        intentDigest,
+        ...(params.title != null ? { title: params.title } : {}),
+        ...(params.body != null ? { body: params.body } : {}),
+      };
+
+      request = {
+        requestId: sessionId,
+        type: SecureConfirmationType.SIGN_INTENT_DIGEST,
+        summary,
+        payload: {
+          nearAccountId: params.nearAccountId,
+          challengeB64u,
+          ...(params.signingAuthMode ? { signingAuthMode: params.signingAuthMode } : {}),
+        },
+        confirmationConfig: params.confirmationConfigOverride,
+        intentDigest,
+      };
+      break;
+    }
     default: {
       // Exhaustiveness guard
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -219,6 +270,15 @@ export async function confirmAndPrepareSigningSession(
   if (!decision?.confirmed) {
     throw new Error(decision?.error || 'User rejected signing request');
   }
+
+  if (params.kind === 'intentDigest') {
+    return {
+      sessionId,
+      intentDigest: decision.intentDigest || intentDigest,
+      credential: decision.credential,
+    };
+  }
+
   if (!decision.transactionContext) {
     throw new Error('Missing transactionContext from confirmation flow');
   }

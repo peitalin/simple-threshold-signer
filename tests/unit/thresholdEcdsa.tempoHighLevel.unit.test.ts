@@ -7,8 +7,8 @@ import {
   runThresholdEcdsaTempoFlow,
   setupThresholdEcdsaTempoHarness,
 } from '../helpers/thresholdEcdsaTempoFlow';
-import { computeEip1559TxHash } from '@/core/signing/chains/evm/eip1559';
-import { bytesToHex } from '@/core/signing/chains/evm/bytes';
+import { computeEip1559TxHash } from '@/core/signing/chainAdaptors/evm/eip1559';
+import { bytesToHex } from '@/core/signing/chainAdaptors/evm/bytes';
 
 type CounterKey = 'authorize' | 'presignInit' | 'presignStep' | 'signInit' | 'signFinalize';
 type Counters = Record<CounterKey, number>;

@@ -186,12 +186,14 @@ export async function runThresholdEcdsaTempoFlow(
       } else {
         const ctx = pm.getContext();
         const webAuthnManager = ctx.webAuthnManager as any;
+        const signerWorkerCtx = webAuthnManager.signerWorkerManager.getContext();
 
         keygen = await keygenThresholdEcdsaLite({
           indexedDB: IndexedDBManager,
           touchIdPrompt: webAuthnManager.touchIdPrompt,
           relayerUrl: input.relayerUrl,
           userId: accountId,
+          workerCtx: signerWorkerCtx,
         });
         if (!keygen?.ok) {
           return {
@@ -206,11 +208,11 @@ export async function runThresholdEcdsaTempoFlow(
           session = await connectThresholdEcdsaSessionLite({
             indexedDB: IndexedDBManager,
             touchIdPrompt: webAuthnManager.touchIdPrompt,
-            signerWorkerManager: webAuthnManager.signerWorkerManager,
             relayerUrl: input.relayerUrl,
             relayerKeyId: String(keygen.relayerKeyId || ''),
             userId: accountId,
             participantIds: keygen.participantIds,
+            workerCtx: signerWorkerCtx,
             ...(typeof input.connectSessionTtlMs === 'number' ? { ttlMs: input.connectSessionTtlMs } : {}),
             ...(typeof input.connectSessionRemainingUses === 'number' ? { remainingUses: input.connectSessionRemainingUses } : {}),
           });

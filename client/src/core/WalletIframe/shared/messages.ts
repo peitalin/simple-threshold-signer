@@ -12,7 +12,7 @@ import { type DeviceLinkingQRData } from '../../types/linkDevice';
 import type { DelegateActionInput } from '../../types/delegate';
 import type { ConfirmationConfig } from '../../types/signer-worker';
 import type { SignerMode } from '../../types/signer-worker';
-import type { TempoSigningRequest } from '../../signing/chains/tempo/types';
+import type { TempoSigningRequest } from '../../signing/chainAdaptors/tempo/types';
 import type { ThresholdEcdsaSecp256k1KeyRef } from '../../signing/orchestration/types';
 
 export type WalletProtocolVersion = '1.0.0';
@@ -150,6 +150,7 @@ export interface PMRotateThresholdEd25519KeyPayload {
 export interface PMBootstrapThresholdEcdsaSessionPayload {
   nearAccountId: string;
   options?: {
+    chain?: 'evm' | 'tempo';
     relayerUrl?: string;
     participantIds?: number[];
     sessionKind?: 'jwt' | 'cookie';

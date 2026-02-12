@@ -1,2 +1,2 @@
-export * from './signingWorkerManager';
-export * from './signingWorkerManager/backends';
+export * from './signerWorkerManager';
+export * from './signerWorkerManager/backends';

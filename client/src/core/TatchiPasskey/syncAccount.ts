@@ -225,18 +225,8 @@ export async function syncAccount(
     }
     const credentialPublicKey = base64UrlDecode(credentialPublicKeyB64u);
 
-    // 2) Persist authenticator + user data locally.
+    // 2) Persist user + authenticator data locally.
     const normalizedAccountId = toAccountId(syncedAccountId);
-    await context.webAuthnManager.storeAuthenticator({
-      nearAccountId: normalizedAccountId,
-      credentialId: String((credential as any).rawId || ''),
-      credentialPublicKey,
-      transports: [],
-      name: `Passkey for ${syncedAccountId}`,
-      registered: new Date().toISOString(),
-      syncedAt: new Date().toISOString(),
-      deviceNumber,
-    });
     await context.webAuthnManager.storeUserData({
       nearAccountId: normalizedAccountId,
       deviceNumber,
@@ -247,6 +237,16 @@ export async function syncAccount(
         rawId: String((credential as any).rawId || ''),
       },
       version: 2,
+    });
+    await context.webAuthnManager.storeAuthenticator({
+      nearAccountId: normalizedAccountId,
+      credentialId: String((credential as any).rawId || ''),
+      credentialPublicKey,
+      transports: [],
+      name: `Passkey for ${syncedAccountId}`,
+      registered: new Date().toISOString(),
+      syncedAt: new Date().toISOString(),
+      deviceNumber,
     });
 
     onEvent?.({
@@ -267,8 +267,7 @@ export async function syncAccount(
       });
       const clientVerifyingShareB64u = derived.success ? String(derived.clientVerifyingShareB64u || '').trim() : '';
 
-      await IndexedDBManager.nearKeysDB.storeKeyMaterial({
-        kind: 'threshold_ed25519_2p_v1',
+      await IndexedDBManager.storeNearThresholdKeyMaterialV2({
         nearAccountId: normalizedAccountId,
         deviceNumber,
         publicKey,

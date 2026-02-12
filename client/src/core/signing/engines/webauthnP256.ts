@@ -1,4 +1,4 @@
-import { concatBytes } from '../chains/evm/bytes';
+import { concatBytes } from '../chainAdaptors/evm/bytes';
 import type { KeyRef, SignRequest, SignatureBytes, SigningEngine } from '../orchestration/types';
 
 const WEBAUTHN_TYPE_ID = 0x02;

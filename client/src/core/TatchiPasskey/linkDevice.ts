@@ -282,17 +282,35 @@ export class LinkDeviceFlow {
 
     const localSignerEnabled = this.options?.localSignerEnabled !== false;
     let localPublicKey: string | null = null;
+    let localKeyMaterialForPersist: {
+      publicKey: string;
+      encryptedSk: string;
+      chacha20NonceB64u: string;
+      wrapKeySalt: string;
+    } | null = null;
     if (localSignerEnabled) {
       const localKeyResult = await this.context.webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
         credential,
         nearAccountId: String(nearAccountId),
-        options: { deviceNumber: resolvedDeviceNumber },
+        options: { deviceNumber: resolvedDeviceNumber, persistToDb: false },
       });
       if (!localKeyResult.success || !localKeyResult.publicKey) {
         throw new Error(localKeyResult.error || 'Failed to derive local signer key');
       }
       localPublicKey = ensureEd25519Prefix(String(localKeyResult.publicKey || '').trim());
       if (!localPublicKey) throw new Error('Local signer public key is empty');
+      const encryptedSk = String(localKeyResult.encryptedSk || '').trim();
+      const chacha20NonceB64u = String(localKeyResult.chacha20NonceB64u || '').trim();
+      const wrapKeySalt = String(localKeyResult.wrapKeySalt || '').trim();
+      if (!encryptedSk || !chacha20NonceB64u || !wrapKeySalt) {
+        throw new Error('Missing encrypted local key material after key derivation');
+      }
+      localKeyMaterialForPersist = {
+        publicKey: localPublicKey,
+        encryptedSk,
+        chacha20NonceB64u,
+        wrapKeySalt,
+      };
     }
 
     const credentialForRelay = removePrfOutputGuard(normalizeRegistrationCredential(credential));
@@ -381,8 +399,22 @@ export class LinkDeviceFlow {
       phase: DeviceLinkingPhase.STEP_6_REGISTRATION,
     };
 
-    await IndexedDBManager.nearKeysDB.storeKeyMaterial({
-      kind: 'threshold_ed25519_2p_v1',
+    // Store authenticator + user data first to ensure profile/account mapping exists.
+    await this.storeDeviceAuthenticator({ nearPublicKey: thresholdPublicKey, credential });
+
+    if (localKeyMaterialForPersist) {
+      await IndexedDBManager.storeNearLocalKeyMaterialV2({
+        nearAccountId,
+        deviceNumber: resolvedDeviceNumber,
+        publicKey: localKeyMaterialForPersist.publicKey,
+        encryptedSk: localKeyMaterialForPersist.encryptedSk,
+        chacha20NonceB64u: localKeyMaterialForPersist.chacha20NonceB64u,
+        wrapKeySalt: localKeyMaterialForPersist.wrapKeySalt,
+        timestamp: Date.now(),
+      });
+    }
+
+    await IndexedDBManager.storeNearThresholdKeyMaterialV2({
       nearAccountId,
       deviceNumber: resolvedDeviceNumber,
       publicKey: thresholdPublicKey,
@@ -399,9 +431,6 @@ export class LinkDeviceFlow {
       }),
       timestamp: Date.now(),
     });
-
-    // Store authenticator + user data locally using the threshold public key as the active signing key.
-    await this.storeDeviceAuthenticator({ nearPublicKey: thresholdPublicKey, credential });
 
     // Auto-login: set last-user + warm login state so the device is immediately usable.
     await this.attemptAutoLogin({ accountId: nearAccountId, deviceNumber: resolvedDeviceNumber });
@@ -591,19 +620,7 @@ export class LinkDeviceFlow {
 
     const credentialPublicKey = await this.context.webAuthnManager.extractCosePublicKey(attestationObject);
 
-    // 1) Store authenticator (local cache).
-    await this.context.webAuthnManager.storeAuthenticator({
-      nearAccountId,
-      credentialId,
-      credentialPublicKey,
-      transports: Array.isArray(credential.response?.transports) ? credential.response.transports : [],
-      name: `Passkey for ${nearAccountId}`,
-      registered: new Date().toISOString(),
-      syncedAt: new Date().toISOString(),
-      deviceNumber,
-    });
-
-    // 2) Store user data (also sets lastUser pointer).
+    // 1) Store user data first (also sets last-user/profile pointer).
     await this.context.webAuthnManager.storeUserData({
       nearAccountId,
       deviceNumber,
@@ -614,6 +631,18 @@ export class LinkDeviceFlow {
         rawId: credentialId,
       },
       version: 2,
+    });
+
+    // 2) Store authenticator once profile/account mapping exists.
+    await this.context.webAuthnManager.storeAuthenticator({
+      nearAccountId,
+      credentialId,
+      credentialPublicKey,
+      transports: Array.isArray(credential.response?.transports) ? credential.response.transports : [],
+      name: `Passkey for ${nearAccountId}`,
+      registered: new Date().toISOString(),
+      syncedAt: new Date().toISOString(),
+      deviceNumber,
     });
   }
 

@@ -1,7 +1,7 @@
 import { isObject, isString, isBoolean } from '../../../../../../../../shared/src/utils/validation';
 import { LitComponentEvents, type LitComponentEventDetailMap } from '../lit-events';
 import { W3A_DRAWER_ID, W3A_EXPORT_KEY_VIEWER_ID } from '../tags';
-import type { ExportPrivateKeyDisplayEntry } from '../../../flow/types';
+import type { ExportPrivateKeyDisplayEntry } from '../../../confirmTxFlow/types';
 
 type MessageType =
   | 'READY'

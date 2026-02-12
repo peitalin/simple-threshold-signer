@@ -1,6 +1,6 @@
 import type { SecureConfirmWorkerManagerContext } from '../../';
 import type { SerializableCredential } from '../types';
-import type { ClientAuthenticatorData } from '../../../../IndexedDBManager';
+import type { ProfileAuthenticatorRecord } from '../../../../IndexedDBManager';
 import { collectAuthenticationCredentialForChallengeB64u } from '../../../webauthn/credentials/collectAuthenticationCredentialForChallengeB64u';
 
 export async function collectAuthenticationCredentialWithPRF({
@@ -14,8 +14,8 @@ export async function collectAuthenticationCredentialWithPRF({
   nearAccountId: string;
   challengeB64u: string;
   onBeforePrompt?: (info: {
-    authenticators: ClientAuthenticatorData[];
-    authenticatorsForPrompt: ClientAuthenticatorData[];
+    authenticators: ProfileAuthenticatorRecord[];
+    authenticatorsForPrompt: ProfileAuthenticatorRecord[];
     challengeB64u: string;
   }) => void;
   /**

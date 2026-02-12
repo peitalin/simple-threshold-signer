@@ -130,7 +130,9 @@ export async function prepareRecoveryEmails(nearAccountId: AccountId, recoveryEm
 
   void (async () => {
     try {
-      await IndexedDBManager.upsertRecoveryEmails(accountId, pairs);
+      const context = await IndexedDBManager.clientDB.resolveNearAccountContext(accountId).catch(() => null);
+      if (!context?.profileId) return;
+      await IndexedDBManager.clientDB.upsertRecoveryEmailsV2(context.profileId, pairs);
     } catch (error) {
       console.warn('[EmailRecovery] Failed to persist local recovery emails', error);
     }
@@ -140,5 +142,14 @@ export async function prepareRecoveryEmails(nearAccountId: AccountId, recoveryEm
 }
 
 export async function getLocalRecoveryEmails(nearAccountId: AccountId): Promise<RecoveryEmailRecord[]> {
-  return IndexedDBManager.getRecoveryEmails(nearAccountId);
+  const accountId = toAccountId(nearAccountId);
+  const context = await IndexedDBManager.clientDB.resolveNearAccountContext(accountId).catch(() => null);
+  if (!context?.profileId) return [];
+  const rows = await IndexedDBManager.clientDB.listRecoveryEmailsV2(context.profileId);
+  return rows.map((row) => ({
+    nearAccountId: accountId,
+    hashHex: String(row.hashHex || ''),
+    email: String(row.email || ''),
+    addedAt: Number(row.addedAt || 0),
+  }));
 }

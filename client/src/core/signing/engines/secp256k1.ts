@@ -1,8 +1,9 @@
 import type { KeyRef, SignRequest, SignatureBytes, SigningEngine } from '../orchestration/types';
+import type { WorkerOperationContext } from '../chainAdaptors/handlers/executeSignerWorkerOperation';
 import {
   deriveThresholdSecp256k1ClientShareWasm,
   signSecp256k1RecoverableWasm,
-} from '../chains/evm/ethSignerWasm';
+} from '../chainAdaptors/evm/ethSignerWasm';
 import { authorizeThresholdEcdsaWithSession } from '../threshold/workflows/thresholdEcdsaAuthorize';
 import {
   getCachedThresholdEcdsaAuthSession,
@@ -26,13 +27,16 @@ export class Secp256k1Engine implements SigningEngine {
 
   private readonly getRpId?: () => string | null;
   private readonly dispenseThresholdEcdsaPrfFirstForSession?: ThresholdEcdsaPrfFirstDispenseFn;
+  private readonly workerCtx: WorkerOperationContext;
 
-  constructor(opts?: {
+  constructor(opts: {
     getRpId?: () => string | null;
     dispenseThresholdEcdsaPrfFirstForSession?: ThresholdEcdsaPrfFirstDispenseFn;
+    workerCtx: WorkerOperationContext;
   }) {
-    this.getRpId = opts?.getRpId;
-    this.dispenseThresholdEcdsaPrfFirstForSession = opts?.dispenseThresholdEcdsaPrfFirstForSession;
+    this.getRpId = opts.getRpId;
+    this.dispenseThresholdEcdsaPrfFirstForSession = opts.dispenseThresholdEcdsaPrfFirstForSession;
+    this.workerCtx = opts.workerCtx;
   }
 
   async sign(req: SignRequest, keyRef: KeyRef): Promise<SignatureBytes> {
@@ -50,6 +54,7 @@ export class Secp256k1Engine implements SigningEngine {
       return await signSecp256k1RecoverableWasm({
         digest32: req.digest32,
         privateKey32: keyRef.privateKey,
+        workerCtx: this.workerCtx,
       });
     }
 
@@ -119,6 +124,7 @@ export class Secp256k1Engine implements SigningEngine {
     const derived = await deriveThresholdSecp256k1ClientShareWasm({
       prfFirstB64u: dispensed.prfFirstB64u,
       userId: keyRef.userId,
+      workerCtx: this.workerCtx,
     });
     if (derived.clientVerifyingShareB64u !== keyRef.clientVerifyingShareB64u) {
       throw new Error('[multichain] Derived client share does not match keyRef.clientVerifyingShareB64u');
@@ -136,6 +142,7 @@ export class Secp256k1Engine implements SigningEngine {
       relayerVerifyingShareB64u: keyRef.relayerVerifyingShareB64u,
       sessionKind,
       ...(thresholdSessionJwt ? { thresholdSessionJwt } : {}),
+      workerCtx: this.workerCtx,
     });
     if (!signed.ok) {
       throw new Error(signed.message || signed.code || '[multichain] threshold-ecdsa signing failed');

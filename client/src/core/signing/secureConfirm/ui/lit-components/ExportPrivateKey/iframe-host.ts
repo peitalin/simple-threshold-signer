@@ -8,7 +8,7 @@ import type { ExportViewerVariant, ExportViewerTheme } from './viewer';
 import { isObject, isString, isBoolean } from '../../../../../../../../shared/src/utils/validation';
 import { dispatchLitCancel, dispatchLitConfirm, dispatchLitCopy } from '../lit-events';
 import { ensureExternalStyles } from '../css/css-loader';
-import type { ExportPrivateKeyDisplayEntry } from '../../../flow/types';
+import type { ExportPrivateKeyDisplayEntry } from '../../../confirmTxFlow/types';
 
 type MessageType =
   | 'READY'

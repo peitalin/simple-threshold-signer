@@ -22,8 +22,8 @@ import {
 import type {
   TempoSecp256k1SigningRequest,
   TempoSigningRequest,
-} from '../signing/chains/tempo/types';
-import type { TempoSignedResult } from '../signing/chains/tempo/tempoAdapter';
+} from '../signing/chainAdaptors/tempo/types';
+import type { TempoSignedResult } from '../signing/chainAdaptors/tempo/tempoAdapter';
 import type { ThresholdEcdsaSecp256k1KeyRef } from '../signing/orchestration/types';
 import type {
   ActionResult,
@@ -1385,6 +1385,7 @@ export class TatchiPasskey {
   async bootstrapThresholdEcdsaSession(args: {
     nearAccountId: string;
     options?: {
+      chain?: 'evm' | 'tempo';
       relayerUrl?: string;
       participantIds?: number[];
       sessionKind?: 'jwt' | 'cookie';
@@ -1402,6 +1403,7 @@ export class TatchiPasskey {
 
     return await this.webAuthnManager.bootstrapThresholdEcdsaSessionLite({
       nearAccountId: toAccountId(args.nearAccountId),
+      chain: args.options?.chain,
       relayerUrl: args.options?.relayerUrl,
       participantIds: args.options?.participantIds,
       sessionKind: args.options?.sessionKind,

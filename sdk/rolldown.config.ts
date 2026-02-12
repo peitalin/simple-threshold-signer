@@ -11,7 +11,10 @@ import { pathToFileURL } from 'url';
 const SDK_ROOT_ABS = process.cwd();
 const CLIENT_SRC_ROOT_ABS = path.resolve(SDK_ROOT_ABS, '../client/src');
 const CLIENT_REACT_ROOT_ABS = path.resolve(SDK_ROOT_ABS, '../client/src/react');
-const CLIENT_CHAINSIGS_ROOT_ABS = path.resolve(SDK_ROOT_ABS, '../client/src/chainsigs');
+const CLIENT_INTEGRATIONS_CHAINSIGS_ROOT_ABS = path.resolve(
+  SDK_ROOT_ABS,
+  '../client/src/integrations/chainsigs',
+);
 const CLIENT_PLUGINS_ROOT_ABS = path.resolve(SDK_ROOT_ABS, '../client/src/plugins');
 const SERVER_SRC_ROOT_ABS = path.resolve(SDK_ROOT_ABS, '../server/src');
 const NEAR_SIGNER_WASM_JS_ABS = path.resolve(
@@ -537,12 +540,12 @@ const configs = [
   },
   // Chainsigs helper ESM build
   {
-    input: '../client/src/chainsigs/index.ts',
+    input: '../client/src/integrations/chainsigs/index.ts',
     output: {
       dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',
       preserveModules: true,
-      preserveModulesRoot: CLIENT_CHAINSIGS_ROOT_ABS,
+      preserveModulesRoot: CLIENT_INTEGRATIONS_CHAINSIGS_ROOT_ABS,
       entryFileNames: 'chainsigs/[name].js',
       chunkFileNames: 'chainsigs/[name].js',
       sourcemap: true,

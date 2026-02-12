@@ -59,7 +59,20 @@ test.describe('confirmTxFlow – defensive paths', () => {
             clientExtensionResults: { prf: { results: { first: 'BQ', second: 'Bg' } } },
           }) as any,
         },
-        indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
+        indexedDB: {
+          clientDB: {
+            resolveNearAccountContext: async (nearAccountId: string) => ({
+              profileId: `legacy-near:${String(nearAccountId)}`,
+              sourceChainId: 'near:testnet',
+              sourceAccountAddress: String(nearAccountId),
+            }),
+            listProfileAuthenticators: async () => [],
+            selectProfileAuthenticatorsForPrompt: async ({ authenticators }: any) => ({
+              authenticatorsForPrompt: authenticators,
+              wrongPasskeyError: undefined,
+            }),
+          },
+        },
       };
 
       const request = {
@@ -153,7 +166,20 @@ test.describe('confirmTxFlow – defensive paths', () => {
           getRpId: () => 'example.localhost',
           generateRegistrationCredentialsInternal: async () => ({}) as any,
         },
-        indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
+        indexedDB: {
+          clientDB: {
+            resolveNearAccountContext: async (nearAccountId: string) => ({
+              profileId: `legacy-near:${String(nearAccountId)}`,
+              sourceChainId: 'near:testnet',
+              sourceAccountAddress: String(nearAccountId),
+            }),
+            listProfileAuthenticators: async () => [],
+            selectProfileAuthenticatorsForPrompt: async ({ authenticators }: any) => ({
+              authenticatorsForPrompt: authenticators,
+              wrongPasskeyError: undefined,
+            }),
+          },
+        },
       };
 
 	      const request = {
@@ -247,7 +273,20 @@ test.describe('confirmTxFlow – defensive paths', () => {
             clientExtensionResults: { prf: { results: { first: 'BQ', second: 'Bg' } } },
           }) as any,
         },
-        indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
+        indexedDB: {
+          clientDB: {
+            resolveNearAccountContext: async (nearAccountId: string) => ({
+              profileId: `legacy-near:${String(nearAccountId)}`,
+              sourceChainId: 'near:testnet',
+              sourceAccountAddress: String(nearAccountId),
+            }),
+            listProfileAuthenticators: async () => [],
+            selectProfileAuthenticatorsForPrompt: async ({ authenticators }: any) => ({
+              authenticatorsForPrompt: authenticators,
+              wrongPasskeyError: undefined,
+            }),
+          },
+        },
       };
 
       const request = {
@@ -324,7 +363,20 @@ test.describe('confirmTxFlow – defensive paths', () => {
         touchIdPrompt: {
           getRpId: () => 'example.localhost',
         },
-        indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
+        indexedDB: {
+          clientDB: {
+            resolveNearAccountContext: async (nearAccountId: string) => ({
+              profileId: `legacy-near:${String(nearAccountId)}`,
+              sourceChainId: 'near:testnet',
+              sourceAccountAddress: String(nearAccountId),
+            }),
+            listProfileAuthenticators: async () => [],
+            selectProfileAuthenticatorsForPrompt: async ({ authenticators }: any) => ({
+              authenticatorsForPrompt: authenticators,
+              wrongPasskeyError: undefined,
+            }),
+          },
+        },
       };
 
       const request = {
@@ -369,8 +421,13 @@ test.describe('confirmTxFlow – defensive paths', () => {
       const ctx: any = {
         indexedDB: {
           clientDB: {
-            getAuthenticatorsByUser: async () => [authOld, authNew],
-            ensureCurrentPasskey: async () => ({
+            resolveNearAccountContext: async (nearAccountId: string) => ({
+              profileId: `legacy-near:${String(nearAccountId)}`,
+              sourceChainId: 'near:testnet',
+              sourceAccountAddress: String(nearAccountId),
+            }),
+            listProfileAuthenticators: async () => [authOld, authNew],
+            selectProfileAuthenticatorsForPrompt: async () => ({
               authenticatorsForPrompt: [authNew],
               wrongPasskeyError: undefined,
             }),
@@ -460,8 +517,16 @@ test.describe('confirmTxFlow – defensive paths', () => {
 	      },
         indexedDB: {
           clientDB: {
-            getAuthenticatorsByUser: async () => [],
-            ensureCurrentPasskey: async () => ({ authenticatorsForPrompt: [], wrongPasskeyError: undefined }),
+            resolveNearAccountContext: async (nearAccountId: string) => ({
+              profileId: `legacy-near:${String(nearAccountId)}`,
+              sourceChainId: 'near:testnet',
+              sourceAccountAddress: String(nearAccountId),
+            }),
+            listProfileAuthenticators: async () => [],
+            selectProfileAuthenticatorsForPrompt: async ({ authenticators }: any) => ({
+              authenticatorsForPrompt: authenticators,
+              wrongPasskeyError: undefined,
+            }),
             getLastUser: async () => ({ nearAccountId: 'error.testnet', deviceNumber: 1 }),
             getUserByDevice: async () => ({ deviceNumber: 1 }),
           },
@@ -477,6 +542,17 @@ test.describe('confirmTxFlow – defensive paths', () => {
               timestamp: Date.now(),
             }),
           },
+          getNearLocalKeyMaterialV2First: async () => ({
+            kind: 'local_near_sk_v3',
+            nearAccountId: 'error.testnet',
+            deviceNumber: 1,
+            publicKey: 'ed25519:pk',
+            encryptedSk: 'ciphertext-b64u',
+            chacha20NonceB64u: 'nonce-b64u',
+            wrapKeySalt: 'salt-missing-prf',
+            timestamp: Date.now(),
+          }),
+          getNearThresholdKeyMaterialV2First: async () => null,
         },
       };
 
@@ -554,7 +630,20 @@ test.describe('confirmTxFlow – defensive paths', () => {
             getClientExtensionResults: () => ({ prf: { results: {} } }),
           }) as any,
         },
-        indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
+        indexedDB: {
+          clientDB: {
+            resolveNearAccountContext: async (nearAccountId: string) => ({
+              profileId: `legacy-near:${String(nearAccountId)}`,
+              sourceChainId: 'near:testnet',
+              sourceAccountAddress: String(nearAccountId),
+            }),
+            listProfileAuthenticators: async () => [],
+            selectProfileAuthenticatorsForPrompt: async ({ authenticators }: any) => ({
+              authenticatorsForPrompt: authenticators,
+              wrongPasskeyError: undefined,
+            }),
+          },
+        },
       };
 
 	      const request = {
@@ -625,7 +714,20 @@ test.describe('confirmTxFlow – defensive paths', () => {
 	            throw new Error('Credential collection failed: wrong passkey or user cancelled');
 	          },
 	        },
-	        indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
+	        indexedDB: {
+	          clientDB: {
+	            resolveNearAccountContext: async (nearAccountId: string) => ({
+	              profileId: `legacy-near:${String(nearAccountId)}`,
+	              sourceChainId: 'near:testnet',
+	              sourceAccountAddress: String(nearAccountId),
+	            }),
+	            listProfileAuthenticators: async () => [],
+	            selectProfileAuthenticatorsForPrompt: async ({ authenticators }: any) => ({
+	              authenticatorsForPrompt: authenticators,
+	              wrongPasskeyError: undefined,
+	            }),
+	          },
+	        },
 	      };
 
       const request = {

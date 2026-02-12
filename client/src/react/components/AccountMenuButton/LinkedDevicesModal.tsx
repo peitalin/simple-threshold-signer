@@ -4,6 +4,7 @@ import './LinkedDevicesModal.css';
 import { useTheme, Theme } from '../theme';
 import type { AccessKeyList } from '@/core/near/NearClient';
 import { IndexedDBManager } from '@/core/IndexedDBManager';
+import { toAccountId } from '../../../core/types/accountIds';
 
 interface LinkedDevicesModalProps {
   nearAccountId: string;
@@ -147,10 +148,10 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
 
       const currentKey = loginState?.nearPublicKey || null;
       const localKeyMaterial = currentDeviceNumberFromState != null
-        ? await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(nearAccountId, currentDeviceNumberFromState).catch(() => null)
+        ? await IndexedDBManager.getNearLocalKeyMaterialV2First(toAccountId(nearAccountId), currentDeviceNumberFromState).catch(() => null)
         : null;
       const thresholdKeyMaterial = currentDeviceNumberFromState != null
-        ? await IndexedDBManager.nearKeysDB.getThresholdKeyMaterial(nearAccountId, currentDeviceNumberFromState).catch(() => null)
+        ? await IndexedDBManager.getNearThresholdKeyMaterialV2First(toAccountId(nearAccountId), currentDeviceNumberFromState).catch(() => null)
         : null;
 
       const nextDeviceNumber = (() => {

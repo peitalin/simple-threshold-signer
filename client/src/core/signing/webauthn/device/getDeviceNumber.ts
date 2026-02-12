@@ -23,28 +23,19 @@ export async function getLastLoggedInDeviceNumber(
   clientDB: PasskeyClientDBManager,
 ): Promise<number> {
   const accountId = toAccountId(nearAccountId);
+  const context = await clientDB.resolveNearAccountContext(accountId).catch(() => null);
+  if (!context?.profileId) {
+    throw new Error(`No profile/account mapping for account ${accountId}`);
+  }
 
-  // V2-first: use profile-scoped last-user pointer when available.
   const lastProfile = await clientDB.getLastProfileState().catch(() => null);
-  if (lastProfile?.profileId) {
-    const expectedProfileId = `legacy-near:${String(accountId)}`;
-    const profileDevice = parseDeviceNumber(lastProfile.deviceNumber, { min: 1 });
-    if (lastProfile.profileId === expectedProfileId && profileDevice !== null) {
-      return profileDevice;
-    }
-    const fromV2 = await clientDB.getUserByDevice(accountId, lastProfile.deviceNumber).catch(() => null);
-    if (fromV2 && fromV2.nearAccountId === accountId) {
-      const deviceNumber = parseDeviceNumber(fromV2.deviceNumber, { min: 1 });
-      if (deviceNumber !== null) return deviceNumber;
-    }
+  if (!lastProfile?.profileId || lastProfile.profileId !== context.profileId) {
+    throw new Error(`No last user session for account ${accountId}`);
   }
 
-  const last = await clientDB.getLastUser();
-  if (last && last.nearAccountId === accountId) {
-    const deviceNumber = parseDeviceNumber(last.deviceNumber, { min: 1 });
-    if (deviceNumber !== null) {
-      return deviceNumber;
-    }
+  const deviceNumber = parseDeviceNumber(lastProfile.deviceNumber, { min: 1 });
+  if (deviceNumber === null) {
+    throw new Error(`Invalid last-user deviceNumber for account ${accountId}`);
   }
-  throw new Error(`No last user session for account ${accountId}`);
+  return deviceNumber;
 }

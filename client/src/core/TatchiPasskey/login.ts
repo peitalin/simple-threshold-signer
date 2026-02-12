@@ -69,7 +69,7 @@ export async function loginAndCreateSession(
     const [hintUser, lastUser, latestByAccount, authenticators] = await Promise.all([
       hintUserPromise,
       webAuthnManager.getLastUser().catch(() => null),
-      IndexedDBManager.clientDB.getLastDBUpdatedUser(nearAccountId).catch(() => null),
+      IndexedDBManager.clientDB.getMostRecentNearAccountProjection(nearAccountId).catch(() => null),
       webAuthnManager.getAuthenticatorsByUser(nearAccountId).catch(() => []),
     ]);
 
@@ -119,8 +119,8 @@ export async function loginAndCreateSession(
         if (context.configs?.signerMode?.mode !== 'threshold-signer') return;
         if (!signingSessionPolicy.ttlMs || !signingSessionPolicy.remainingUses) return;
 
-        const thresholdKeyMaterial = await IndexedDBManager.nearKeysDB
-          .getThresholdKeyMaterial(String(nearAccountId), deviceNumber)
+        const thresholdKeyMaterial = await IndexedDBManager
+          .getNearThresholdKeyMaterialV2First(nearAccountId, deviceNumber)
           .catch(() => null);
         if (!thresholdKeyMaterial) return;
 
@@ -440,7 +440,7 @@ export async function getRecentLogins(
  */
 export async function logoutAndClearSession(context: PasskeyManagerContext): Promise<void> {
   const { webAuthnManager } = context;
-  await IndexedDBManager.clientDB.clearLastUser().catch(() => undefined);
+  await IndexedDBManager.clientDB.clearLastProfileSelection().catch(() => undefined);
   try { webAuthnManager.getNonceManager().clear(); } catch {}
   try { clearAllCachedThresholdEd25519AuthSessions(); } catch {}
 }

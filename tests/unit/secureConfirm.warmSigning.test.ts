@@ -53,7 +53,20 @@ test.describe('SecureConfirm – warm signing', () => {
             throw new Error('TouchID prompt should not be called for warmSession');
           },
         },
-        indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
+        indexedDB: {
+          clientDB: {
+            resolveNearAccountContext: async (nearAccountId: string) => ({
+              profileId: `legacy-near:${String(nearAccountId)}`,
+              sourceChainId: 'near:testnet',
+              sourceAccountAddress: String(nearAccountId),
+            }),
+            listProfileAuthenticators: async () => [],
+            selectProfileAuthenticatorsForPrompt: async ({ authenticators }: any) => ({
+              authenticatorsForPrompt: authenticators,
+              wrongPasskeyError: undefined,
+            }),
+          },
+        },
       };
 
       const request = {
@@ -95,4 +108,3 @@ test.describe('SecureConfirm – warm signing', () => {
     expect(result.reserved.length).toBeGreaterThan(0);
   });
 });
-

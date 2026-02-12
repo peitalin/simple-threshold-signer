@@ -8,7 +8,7 @@ This directory contains fallback mechanisms to handle Safari-specific limitation
 - **Symptom:** `invalid type: string 'WORKER_PING', expected u32`
 - **Cause:** Control ping with string `type` forwarded to Rust handler expecting numeric enum
 - **Solution:** Worker ignores non-numeric `type` values before Rust processing
-- **Files:** `signingWorkerManager/index.ts`, `near-signer.worker.ts`
+- **Files:** `signerWorkerManager/index.ts`, `near-signer.worker.ts`
 
 **Issue 2: Cross-Origin Ancestor Error**
 - **Symptom:** `The origin of the document is not the same as its ancestors`
@@ -33,7 +33,7 @@ The signer WASM worker receives a control ping `{ type: "WORKER_PING" }` immedia
 - Registration/signing flows fail with "Worker has already processed a message"
 
 ### Root Cause
-- Manager sends health check ping: `worker!.postMessage({ type: 'WORKER_PING' })` at `signingWorkerManager/index.ts:164`
+- Manager sends health check ping: `worker!.postMessage({ type: 'WORKER_PING' })` at `signerWorkerManager/index.ts:164`
 - Rust expects numeric `type` enum, receiving string triggers parse error
 - Worker sets `messageProcessed = true` on first message, blocking real requests
 

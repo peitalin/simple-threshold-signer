@@ -141,9 +141,36 @@ export class EmailRecoveryFlow {
         throw new Error('email-recovery/prepare returned incomplete threshold key material');
       }
 
-      // Store threshold key material + local passkey records immediately.
-      await IndexedDBManager.nearKeysDB.storeKeyMaterial({
-        kind: 'threshold_ed25519_2p_v1',
+      // Store local passkey records first.
+      const credentialId = String((credential as any).rawId || '').trim();
+      const attestationObject = String((credential as any)?.response?.attestationObject || '').trim();
+      if (!credentialId || !attestationObject) {
+        throw new Error('Missing WebAuthn registration attestation in credential');
+      }
+      const credentialPublicKey = await this.context.webAuthnManager.extractCosePublicKey(attestationObject);
+      await this.context.webAuthnManager.storeUserData({
+        nearAccountId,
+        deviceNumber,
+        clientNearPublicKey: thresholdPublicKey,
+        lastUpdated: Date.now(),
+        passkeyCredential: {
+          id: String((credential as any).id || credentialId),
+          rawId: credentialId,
+        },
+        version: 2,
+      });
+      await this.context.webAuthnManager.storeAuthenticator({
+        nearAccountId,
+        credentialId,
+        credentialPublicKey,
+        transports: Array.isArray((credential as any)?.response?.transports) ? (credential as any).response.transports : [],
+        name: `Passkey for ${String(nearAccountId)}`,
+        registered: new Date().toISOString(),
+        syncedAt: new Date().toISOString(),
+        deviceNumber,
+      });
+
+      await IndexedDBManager.storeNearThresholdKeyMaterialV2({
         nearAccountId,
         deviceNumber,
         publicKey: thresholdPublicKey,
@@ -159,35 +186,6 @@ export class EmailRecoveryFlow {
           clientShareDerivation: 'prf_first_v1',
         }),
         timestamp: Date.now(),
-      });
-
-      // Store authenticator + user data locally.
-      const credentialId = String((credential as any).rawId || '').trim();
-      const attestationObject = String((credential as any)?.response?.attestationObject || '').trim();
-      if (!credentialId || !attestationObject) {
-        throw new Error('Missing WebAuthn registration attestation in credential');
-      }
-      const credentialPublicKey = await this.context.webAuthnManager.extractCosePublicKey(attestationObject);
-      await this.context.webAuthnManager.storeAuthenticator({
-        nearAccountId,
-        credentialId,
-        credentialPublicKey,
-        transports: Array.isArray((credential as any)?.response?.transports) ? (credential as any).response.transports : [],
-        name: `Passkey for ${String(nearAccountId)}`,
-        registered: new Date().toISOString(),
-        syncedAt: new Date().toISOString(),
-        deviceNumber,
-      });
-      await this.context.webAuthnManager.storeUserData({
-        nearAccountId,
-        deviceNumber,
-        clientNearPublicKey: thresholdPublicKey,
-        lastUpdated: Date.now(),
-        passkeyCredential: {
-          id: String((credential as any).id || credentialId),
-          rawId: credentialId,
-        },
-        version: 2,
       });
 
       this.pending = {

@@ -4,9 +4,11 @@ import path from 'node:path';
 
 const IMPORT_PATHS = {
   nearAdapter:
-    '/sdk/esm/core/signing/chains/near/nearAdapter.js',
+    '/sdk/esm/core/signing/chainAdaptors/near/nearAdapter.js',
   tempoAdapter:
-    '/sdk/esm/core/signing/chains/tempo/tempoAdapter.js',
+    '/sdk/esm/core/signing/chainAdaptors/tempo/tempoAdapter.js',
+  signerGateway:
+    '/sdk/esm/core/signing/workers/signerWorkerManager/gateway.js',
   actions: '/sdk/esm/core/types/actions.js',
 } as const;
 
@@ -24,15 +26,15 @@ test.describe('modularity lazy signer loading', () => {
 
     expect(source).toContain("import('../engines/ed25519')");
     expect(source).toContain(
-      "import('../chains/tempo/handlers/signTempoWithSecureConfirm')",
+      "import('../chainAdaptors/tempo/handlers/signTempoWithSecureConfirm')",
     );
     expect(source).toContain("import('../engines/secp256k1')");
     expect(source).toContain("import('../engines/webauthnP256')");
 
     expect(source).not.toContain(
-      "await import('../chains/near/walletOrigin')",
+      "await import('../chainAdaptors/near/walletOrigin')",
     );
-    expect(source).not.toContain("from '../chains/tempo/handlers/signTempoWithSecureConfirm'");
+    expect(source).not.toContain("from '../chainAdaptors/tempo/handlers/signTempoWithSecureConfirm'");
     expect(source).not.toContain("from '../engines/ed25519'");
     expect(source).not.toContain("from '../engines/secp256k1'");
     expect(source).not.toContain("from '../engines/webauthnP256'");
@@ -64,13 +66,20 @@ test.describe('modularity lazy signer loading', () => {
         await adapter.buildIntent({
           chain: 'near',
           kind: 'transactionsWithActions',
-          nearAccountId: 'alice.near',
-          transactions: [
-            {
-              receiverId: 'bob.near',
-              actions: [{ action_type: ActionType.Transfer, deposit: '1' }],
+          payload: {
+            rpcCall: {
+              nearAccountId: 'alice.near',
+              nearRpcUrl: 'https://rpc.testnet.near.org',
+              contractId: 'web3authn.testnet',
             },
-          ],
+            transactions: [
+              {
+                receiverId: 'bob.near',
+                actions: [{ action_type: ActionType.Transfer, deposit: '1' }],
+              },
+            ],
+            signerMode: 'threshold-signer',
+          },
         });
 
         return { workerCreations };
@@ -149,8 +158,13 @@ test.describe('modularity lazy signer loading', () => {
       try {
         (window as any).Worker = FakeWorker as any;
         const { TempoAdapter } = await import(paths.tempoAdapter);
+        const { requestMultichainWorkerOperation } = await import(paths.signerGateway);
+        const workerCtx = {
+          requestWorkerOperation: async ({ kind, request }: { kind: string; request: unknown }) =>
+            await requestMultichainWorkerOperation({ kind: kind as any, request: request as any }),
+        };
 
-        const adapter = new TempoAdapter();
+        const adapter = new TempoAdapter(workerCtx as any);
 
         const eip1559Request = {
           chain: 'tempo' as const,

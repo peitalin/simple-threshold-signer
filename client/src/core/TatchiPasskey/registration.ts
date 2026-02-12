@@ -103,10 +103,15 @@ export async function registerPasskeyInternal(
     let nearPublicKey: string | null = null;
     let nearPrivateKeyForBootstrap: string | null = null;
     let thresholdClientVerifyingShareB64u: string | null = null;
+    let localKeyMaterialForPersist: {
+      encryptedSk: string;
+      chacha20NonceB64u: string;
+      wrapKeySalt: string;
+    } | null = null;
 
     // 2) Key material:
     // - threshold-signer: derive client verifying share from PRF.first (no local signer key)
-    // - local-signer: derive and persist encrypted local key material
+    // - local-signer: derive encrypted local key material (persisted after profile/account mapping exists)
     if (requestedSignerModeStr === 'threshold-signer') {
       // Option B bootstrap: derive a local/backup key from PRF.second.
       // The relay creates the account with this key, and then the client adds the threshold key.
@@ -133,12 +138,23 @@ export async function registerPasskeyInternal(
       const nearKeyResult = await webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
         credential,
         nearAccountId,
-        options: { deviceNumber },
+        options: { deviceNumber, persistToDb: false },
       });
       if (!nearKeyResult.success || !nearKeyResult.publicKey) {
         const reason = nearKeyResult?.error || 'Failed to generate NEAR keypair with PRF';
         throw new Error(reason);
       }
+      const encryptedSk = String(nearKeyResult.encryptedSk || '').trim();
+      const chacha20NonceB64u = String(nearKeyResult.chacha20NonceB64u || '').trim();
+      const wrapKeySalt = String(nearKeyResult.wrapKeySalt || '').trim();
+      if (!encryptedSk || !chacha20NonceB64u || !wrapKeySalt) {
+        throw new Error('Missing encrypted local key material after key derivation');
+      }
+      localKeyMaterialForPersist = {
+        encryptedSk,
+        chacha20NonceB64u,
+        wrapKeySalt,
+      };
       nearPublicKey = nearKeyResult.publicKey;
     }
 
@@ -196,6 +212,7 @@ export async function registerPasskeyInternal(
 
     const thresholdPublicKey = String(accountAndRegistrationResult?.thresholdEd25519?.publicKey || '').trim();
     const relayerKeyId = String(accountAndRegistrationResult?.thresholdEd25519?.relayerKeyId || '').trim();
+    const relayerVerifyingShareB64u = String(accountAndRegistrationResult?.thresholdEd25519?.relayerVerifyingShareB64u || '').trim();
     const accountCreationPublicKey = String(nearPublicKey || '').trim();
     if (!accountCreationPublicKey) {
       throw new Error('Missing account public key after registration');
@@ -229,7 +246,6 @@ export async function registerPasskeyInternal(
     // For threshold-signer registrations (Option B): client adds the threshold key AFTER account creation
     // (account is created with the backup/local key derived from PRF.second).
     if (requestedSignerModeStr === 'threshold-signer') {
-      const relayerVerifyingShareB64u = String(accountAndRegistrationResult?.thresholdEd25519?.relayerVerifyingShareB64u || '').trim();
       if (!thresholdPublicKey || !relayerKeyId || !thresholdClientVerifyingShareB64u || !relayerVerifyingShareB64u) {
         throw new Error('Threshold registration did not return required key material');
       }
@@ -292,25 +308,6 @@ export async function registerPasskeyInternal(
         console.warn('[Registration] Threshold key not yet visible after AddKey; continuing optimistically');
       }
 
-      await IndexedDBManager.nearKeysDB.storeKeyMaterial({
-        kind: 'threshold_ed25519_2p_v1',
-        nearAccountId,
-        deviceNumber,
-        publicKey: thresholdPublicKey,
-        relayerKeyId,
-        clientShareDerivation: 'prf_first_v1',
-        participants: buildThresholdEd25519Participants2pV1({
-          clientParticipantId: accountAndRegistrationResult?.thresholdEd25519?.clientParticipantId,
-          relayerParticipantId: accountAndRegistrationResult?.thresholdEd25519?.relayerParticipantId,
-          relayerKeyId,
-          relayerUrl: context.configs?.relayer?.url,
-          clientVerifyingShareB64u: thresholdClientVerifyingShareB64u,
-          relayerVerifyingShareB64u,
-          clientShareDerivation: 'prf_first_v1',
-        }),
-        timestamp: Date.now(),
-      });
-
       onEvent?.({
         step: 7,
         phase: RegistrationPhase.STEP_7_THRESHOLD_KEY_ENROLLMENT,
@@ -343,6 +340,38 @@ export async function registerPasskeyInternal(
 
     // Mark database as stored for rollback tracking
     registrationState.databaseStored = true;
+
+    if (localKeyMaterialForPersist) {
+      await IndexedDBManager.storeNearLocalKeyMaterialV2({
+        nearAccountId,
+        deviceNumber,
+        publicKey: accountCreationPublicKey,
+        encryptedSk: localKeyMaterialForPersist.encryptedSk,
+        chacha20NonceB64u: localKeyMaterialForPersist.chacha20NonceB64u,
+        wrapKeySalt: localKeyMaterialForPersist.wrapKeySalt,
+        timestamp: Date.now(),
+      });
+    }
+
+    if (thresholdPublicKey && relayerKeyId && thresholdClientVerifyingShareB64u) {
+      await IndexedDBManager.storeNearThresholdKeyMaterialV2({
+        nearAccountId,
+        deviceNumber,
+        publicKey: thresholdPublicKey,
+        relayerKeyId,
+        clientShareDerivation: 'prf_first_v1',
+        participants: buildThresholdEd25519Participants2pV1({
+          clientParticipantId: accountAndRegistrationResult?.thresholdEd25519?.clientParticipantId,
+          relayerParticipantId: accountAndRegistrationResult?.thresholdEd25519?.relayerParticipantId,
+          relayerKeyId,
+          relayerUrl: context.configs?.relayer?.url,
+          clientVerifyingShareB64u: thresholdClientVerifyingShareB64u,
+          relayerVerifyingShareB64u,
+          clientShareDerivation: 'prf_first_v1',
+        }),
+        timestamp: Date.now(),
+      });
+    }
 
     onEvent?.({
       step: 8,

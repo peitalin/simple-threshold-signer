@@ -5,7 +5,7 @@ import DrawerElement from '../Drawer';
 // We no longer map full color sets from DARK_THEME/LIGHT_THEME here.
 import { dispatchLitCancel, dispatchLitCopy } from '../lit-events';
 import { ensureExternalStyles } from '../css/css-loader';
-import type { ExportPrivateKeyDisplayEntry } from '../../../flow/types';
+import type { ExportPrivateKeyDisplayEntry } from '../../../confirmTxFlow/types';
 
 export type ExportViewerTheme = 'dark' | 'light';
 export type ExportViewerVariant = 'drawer' | 'modal';

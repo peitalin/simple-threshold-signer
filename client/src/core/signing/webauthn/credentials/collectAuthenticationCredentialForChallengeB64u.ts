@@ -1,5 +1,5 @@
 import { toAccountId, type AccountId } from '../../../types/accountIds';
-import type { ClientAuthenticatorData } from '../../../IndexedDBManager';
+import type { ProfileAuthenticatorRecord } from '../../../IndexedDBManager';
 import type { WebAuthnAuthenticationCredential } from '../../../types/webauthn';
 
 export type WebAuthnAllowCredential = {
@@ -8,21 +8,25 @@ export type WebAuthnAllowCredential = {
   transports: AuthenticatorTransport[];
 };
 
-export type WebAuthnAuthenticatorRecord = Pick<ClientAuthenticatorData, 'credentialId' | 'transports'>;
+export type WebAuthnAuthenticatorRecord = Pick<ProfileAuthenticatorRecord, 'credentialId' | 'transports'>;
 
-export type WebAuthnIndexedDbClientPort<TAuth extends WebAuthnAuthenticatorRecord = ClientAuthenticatorData> = {
-  getAuthenticatorsByUser: (nearAccountId: AccountId) => Promise<TAuth[]>;
-  ensureCurrentPasskey: (
+export type WebAuthnIndexedDbClientPort<TAuth extends WebAuthnAuthenticatorRecord = ProfileAuthenticatorRecord> = {
+  resolveNearAccountContext: (
     nearAccountId: AccountId,
-    authenticators: TAuth[],
-    selectedCredentialId?: string,
-  ) => Promise<{
-    authenticatorsForPrompt?: TAuth[];
+  ) => Promise<{ profileId: string; sourceChainId: string; sourceAccountAddress: string } | null>;
+  listProfileAuthenticators: (profileId: string) => Promise<TAuth[]>;
+  selectProfileAuthenticatorsForPrompt: (args: {
+    profileId: string;
+    authenticators: TAuth[];
+    selectedCredentialRawId?: string;
+    accountLabel?: string;
+  }) => Promise<{
+    authenticatorsForPrompt: TAuth[];
     wrongPasskeyError?: string;
   }>;
 };
 
-export type WebAuthnIndexedDbPort<TAuth extends WebAuthnAuthenticatorRecord = ClientAuthenticatorData> = {
+export type WebAuthnIndexedDbPort<TAuth extends WebAuthnAuthenticatorRecord = ProfileAuthenticatorRecord> = {
   clientDB: WebAuthnIndexedDbClientPort<TAuth>;
 };
 
@@ -47,7 +51,7 @@ export function authenticatorsToAllowCredentials<TAuth extends WebAuthnAuthentic
 }
 
 export async function collectAuthenticationCredentialForChallengeB64u<
-  TAuth extends WebAuthnAuthenticatorRecord = ClientAuthenticatorData,
+  TAuth extends WebAuthnAuthenticatorRecord = ProfileAuthenticatorRecord,
 >(args: {
   indexedDB: WebAuthnIndexedDbPort<TAuth>;
   touchIdPrompt: Pick<WebAuthnPromptPort, 'getAuthenticationCredentialsSerializedForChallengeB64u'>;
@@ -61,14 +65,20 @@ export async function collectAuthenticationCredentialForChallengeB64u<
   includeSecondPrfOutput?: boolean;
 }): Promise<WebAuthnAuthenticationCredential> {
   const nearAccountId = toAccountId(args.nearAccountId);
+  const context = await args.indexedDB.clientDB.resolveNearAccountContext(nearAccountId);
+  if (!context?.profileId) {
+    throw new Error(`[multichain] no profile/account mapping found for account ${nearAccountId}`);
+  }
 
-  const authenticators = await args.indexedDB.clientDB.getAuthenticatorsByUser(nearAccountId);
+  const authenticators = await args.indexedDB.clientDB.listProfileAuthenticators(context.profileId);
   let authenticatorsForPrompt = authenticators;
   if (authenticators.length > 0) {
-    const ensured = await args.indexedDB.clientDB.ensureCurrentPasskey(nearAccountId, authenticators);
-    if (Array.isArray(ensured?.authenticatorsForPrompt)) {
-      authenticatorsForPrompt = ensured.authenticatorsForPrompt;
-    }
+    const ensured = await args.indexedDB.clientDB.selectProfileAuthenticatorsForPrompt({
+      profileId: context.profileId,
+      authenticators,
+      accountLabel: nearAccountId,
+    });
+    authenticatorsForPrompt = ensured.authenticatorsForPrompt;
   }
 
   args.onBeforePrompt?.({ authenticators, authenticatorsForPrompt, challengeB64u: args.challengeB64u });
@@ -82,11 +92,12 @@ export async function collectAuthenticationCredentialForChallengeB64u<
   });
 
   if (authenticators.length > 0) {
-    const ensured = await args.indexedDB.clientDB.ensureCurrentPasskey(
-      nearAccountId,
+    const ensured = await args.indexedDB.clientDB.selectProfileAuthenticatorsForPrompt({
+      profileId: context.profileId,
       authenticators,
-      serialized.rawId,
-    );
+      selectedCredentialRawId: serialized.rawId,
+      accountLabel: nearAccountId,
+    });
     if (ensured?.wrongPasskeyError) {
       throw new Error(String(ensured.wrongPasskeyError));
     }

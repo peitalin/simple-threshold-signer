@@ -90,8 +90,8 @@ import type {
 import type {
   TempoSecp256k1SigningRequest,
   TempoSigningRequest,
-} from '../../signing/chains/tempo/types';
-import type { TempoSignedResult } from '../../signing/chains/tempo/tempoAdapter';
+} from '../../signing/chainAdaptors/tempo/types';
+import type { TempoSignedResult } from '../../signing/chainAdaptors/tempo/tempoAdapter';
 import type { ThresholdEcdsaSecp256k1KeyRef } from '../../signing/orchestration/types';
 import type { ThresholdEcdsaSessionBootstrapResult } from '../../signing/api/WebAuthnManager';
 import type { LinkDeviceResult, StartDevice2LinkingFlowArgs, StartDevice2LinkingFlowResults, DeviceLinkingQRData } from '../../types/linkDevice';
@@ -697,6 +697,7 @@ export class WalletIframeRouter {
   async bootstrapThresholdEcdsaSession(payload: {
     nearAccountId: string;
     options?: {
+      chain?: 'evm' | 'tempo';
       relayerUrl?: string;
       participantIds?: number[];
       sessionKind?: 'jwt' | 'cookie';

@@ -10,7 +10,8 @@ import {
   thresholdEcdsaPresignSessionAbortWasm,
   thresholdEcdsaPresignSessionInitWasm,
   thresholdEcdsaPresignSessionStepWasm,
-} from '../../chains/evm/ethSignerWasm';
+} from '../../chainAdaptors/evm/ethSignerWasm';
+import type { WorkerOperationContext } from '../../chainAdaptors/handlers/executeSignerWorkerOperation';
 import {
   thresholdEcdsaPresignInit,
   thresholdEcdsaPresignStep,
@@ -154,6 +155,7 @@ async function runPresignHandshake(args: {
   groupPublicKey33: Uint8Array;
   sessionKind: ThresholdEcdsaSessionKind;
   thresholdSessionJwt?: string;
+  workerCtx: WorkerOperationContext;
 }): Promise<{ ok: true; presignature: ThresholdEcdsaClientPresignatureShare } | ThresholdEcdsaCoordinatorError> {
   const init = await thresholdEcdsaPresignInit({
     relayerUrl: args.relayerUrl,
@@ -199,6 +201,7 @@ async function runPresignHandshake(args: {
       threshold: 2,
       clientThresholdSigningShare32,
       groupPublicKey33: args.groupPublicKey33,
+      workerCtx: args.workerCtx,
     });
     pendingClientOutgoing = [...localInit.outgoingMessages];
     if (localInit.stage === 'triples_done' || localInit.stage === 'presign' || localInit.stage === 'done') {
@@ -216,6 +219,7 @@ async function runPresignHandshake(args: {
           relayerParticipantId: args.relayerParticipantId,
           stage: stageForServer,
           incomingMessages: pendingServerOutgoing,
+          workerCtx: args.workerCtx,
         });
         pendingServerOutgoing = [];
         pendingClientOutgoing.push(...localStepped.outgoingMessages);
@@ -266,6 +270,7 @@ async function runPresignHandshake(args: {
           relayerParticipantId: args.relayerParticipantId,
           stage: stageForServer,
           incomingMessages: [],
+          workerCtx: args.workerCtx,
         });
         pendingClientOutgoing.push(...localStepped.outgoingMessages);
         if (localStepped.presignature97) {
@@ -316,7 +321,10 @@ async function runPresignHandshake(args: {
     return { ok: false, code: 'presign_failed', message: msg };
   } finally {
     if (shouldAbortLocalSession) {
-      await thresholdEcdsaPresignSessionAbortWasm({ sessionId: localSessionId }).catch(() => {});
+      await thresholdEcdsaPresignSessionAbortWasm({
+        sessionId: localSessionId,
+        workerCtx: args.workerCtx,
+      }).catch(() => {});
     }
   }
 }
@@ -335,6 +343,7 @@ export async function signThresholdEcdsaDigestWithPool(args: {
   relayerVerifyingShareB64u?: string;
   sessionKind?: ThresholdEcdsaSessionKind;
   thresholdSessionJwt?: string;
+  workerCtx: WorkerOperationContext;
 }): Promise<ThresholdEcdsaCoordinatorResult> {
   try {
     const relayerUrl = String(args.relayerUrl || '').trim().replace(/\/+$/g, '');
@@ -389,6 +398,7 @@ export async function signThresholdEcdsaDigestWithPool(args: {
         groupPublicKey33,
         sessionKind,
         thresholdSessionJwt: args.thresholdSessionJwt,
+        workerCtx: args.workerCtx,
       });
       if (!generated.ok) return generated;
       presignature = generated.presignature;
@@ -413,6 +423,7 @@ export async function signThresholdEcdsaDigestWithPool(args: {
         groupPublicKey33,
         sessionKind,
         thresholdSessionJwt: args.thresholdSessionJwt,
+        workerCtx: args.workerCtx,
       });
       if (!generated.ok) return generated;
       presignature = generated.presignature;
@@ -465,6 +476,7 @@ export async function signThresholdEcdsaDigestWithPool(args: {
       presignSigmaShare32: sigmaShare32,
       digest32: args.signingDigest32,
       entropy32,
+      workerCtx: args.workerCtx,
     });
     if (clientSignatureShare32.length !== 32) {
       return {
@@ -526,6 +538,7 @@ export async function refillThresholdEcdsaClientPresignaturePool(args: {
   relayerVerifyingShareB64u?: string;
   sessionKind?: ThresholdEcdsaSessionKind;
   thresholdSessionJwt?: string;
+  workerCtx: WorkerOperationContext;
 }): Promise<{ ok: true; presignatureId: string } | ThresholdEcdsaCoordinatorError> {
   try {
     const participantIds = normalizeParticipantIds(args.participantIds);
@@ -553,6 +566,7 @@ export async function refillThresholdEcdsaClientPresignaturePool(args: {
       groupPublicKey33,
       sessionKind,
       thresholdSessionJwt: args.thresholdSessionJwt,
+      workerCtx: args.workerCtx,
     });
     if (!generated.ok) return generated;
 

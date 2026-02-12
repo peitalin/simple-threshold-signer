@@ -87,7 +87,7 @@
     "./chainsigs": {
       "import": "./dist/esm/chainsigs/index.js",
       "default": "./dist/esm/chainsigs/index.js",
-      "types": "./dist/types/client/src/chainsigs/index.d.ts"
+      "types": "./dist/types/client/src/integrations/chainsigs/index.d.ts"
     },
     "./WalletIframe/client/html": {
       "import": "./dist/esm/core/WalletIframe/client/html.js",

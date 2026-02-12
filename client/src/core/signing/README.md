@@ -11,16 +11,16 @@ This folder is the signing runtime for NEAR + Tempo/EVM flows.
   - Shared signing contracts (`SigningIntent`, `SignRequest`, `SigningEngine`) and generic runner (`executeSigningIntent`).
 - `engines/`
   - Algorithm-specific signing implementations (`ed25519`, `secp256k1`, `webauthnP256`).
-- `chains/`
+- `chainAdaptors/`
   - Chain-specific intent builders and handlers (NEAR, Tempo, EVM helpers).
 - `secureConfirm/`
   - User confirmation flow + WebAuthn credential collection.
 - `workers/`
   - Worker transports:
-  - `signingWorkerManager`: unified worker architecture layer.
-  - `signingWorkerManager/backends/nearWorkerBackend`: NEAR signer worker backend.
-  - `signingWorkerManager/backends/multichainWorkerBackend`: EVM/Tempo worker backend.
-  - `signingWorkerManager/nearKeyOps`: NEAR-only key operations invoked via `SigningWorkerManager.nearKeyOps`.
+  - `signerWorkerManager`: unified worker architecture layer.
+  - `signerWorkerManager/backends/nearWorkerBackend`: NEAR signer worker backend.
+  - `signerWorkerManager/backends/multichainWorkerBackend`: EVM/Tempo worker backend.
+  - `signerWorkerManager/nearKeyOps`: NEAR-only key operations invoked via `SignerWorkerManager.nearKeyOps`.
 - `threshold/`
   - Threshold session, authorization, and signing workflows.
 - `webauthn/`
@@ -35,7 +35,7 @@ flowchart LR
   TP["TatchiPasskey"] --> WM["api/WebAuthnManager"]
   WM --> ORCH["orchestration/executeSigningIntent"]
   ORCH --> ENG["engines/*"]
-  ENG --> CHAINS["chains/*"]
+  ENG --> CHAINS["chainAdaptors/*"]
   WM --> SC["secureConfirm/*"]
   CHAINS --> WORKERS["workers/*"]
 ```
@@ -55,14 +55,16 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  NH["NEAR handlers"] --> SWM["SigningWorkerManager"]
+  NH["NEAR handlers"] --> SWM["SignerWorkerManager"]
   WM["WebAuthnManager (NEAR key ops)"] --> SWM
   SWM --> NB["NearSignerWorkerBackend"]
   SWM --> NKO["nearKeyOps service"]
   NB --> NSW["near-signer.worker"]
   NKO --> NB
 
-  WASM["ethSignerWasm / tempoSignerWasm"] --> MB["MultichainSignerWorkerBackend"]
+  WASM["ethSignerWasm / tempoSignerWasm"] --> EX["executeSignerWorkerOperation"]
+  EX --> SWM
+  EX --> MB
   MB --> EWK["eth-signer.worker"]
   MB --> TWK["tempo-signer.worker"]
 ```
@@ -76,8 +78,8 @@ flowchart LR
 3. Handler performs:
    - input normalization (`NearAdapter` for transactions),
    - SecureConfirm handshake (`SecureConfirmWorkerManager.confirmAndPrepareSigningSession`),
-   - signer worker call via `ctx.sendMessage(...)`.
-4. `SigningWorkerManager.sendMessage` sends request to `near-signer.worker`.
+   - signer worker call via `ctx.requestWorkerOperation(...)`.
+4. `SignerWorkerManager.requestWorkerOperation` sends request to `near-signer.worker`.
 5. Worker response returns signed payload back through handler -> engine -> `finalize`.
 
 ### 2) Tempo Signing (`eip1559` / `tempoTransaction`)
@@ -106,8 +108,8 @@ flowchart LR
 
 ### 4) Worker RPC Path (`ethSigner` / `tempoSigner`)
 
-1. Chain wasm wrapper (`ethSignerWasm` or `tempoSignerWasm`) calls `executeMultichainWorkerOperation(...)`.
-2. That helper dispatches to `getMultichainSignerWorkerBackend(kind).requestOperation(...)`.
+1. Chain wasm wrapper (`ethSignerWasm` or `tempoSignerWasm`) calls `executeSignerWorkerOperation(...)`.
+2. Helper dispatches via `SignerWorkerManager.requestWorkerOperation({ kind, request })` (runtime context is required).
 3. `MultichainSignerWorkerBackend` lazily creates a dedicated module worker by kind.
 4. Request/response is correlated by message `id`.
 5. Returned `ArrayBuffer` is decoded to `Uint8Array` in caller.
@@ -117,5 +119,5 @@ flowchart LR
 - `WebAuthnManager` owns product-level orchestration.
 - `orchestration/` owns the generic signing execution contract.
 - `engines/` own algorithm-level signing behavior.
-- `chains/` own chain-specific intent shape and final serialization.
+- `chainAdaptors/` own chain-specific intent shape and final serialization.
 - `workers/` own runtime transport to WASM worker backends.

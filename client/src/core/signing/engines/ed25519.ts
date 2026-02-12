@@ -1,38 +1,11 @@
 import type { SigningEngine } from '../orchestration/types';
-import { signDelegateAction } from '../chains/near/handlers/signDelegateAction';
-import { signNep413Message } from '../chains/near/handlers/signNep413Message';
-import { signTransactionsWithActions } from '../chains/near/handlers/signTransactionsWithActions';
-
-export type NearEd25519SignRequest =
-  | {
-      kind: 'near-transactions-with-actions';
-      algorithm: 'ed25519';
-      payload: Parameters<typeof signTransactionsWithActions>[0];
-    }
-  | {
-      kind: 'near-delegate-action';
-      algorithm: 'ed25519';
-      payload: Parameters<typeof signDelegateAction>[0];
-    }
-  | {
-      kind: 'near-nep413-message';
-      algorithm: 'ed25519';
-      payload: Parameters<typeof signNep413Message>[0];
-    };
-
-export type NearEd25519SignOutput =
-  | {
-      kind: 'near-transactions-with-actions';
-      result: Awaited<ReturnType<typeof signTransactionsWithActions>>;
-    }
-  | {
-      kind: 'near-delegate-action';
-      result: Awaited<ReturnType<typeof signDelegateAction>>;
-    }
-  | {
-      kind: 'near-nep413-message';
-      result: Awaited<ReturnType<typeof signNep413Message>>;
-    };
+import { signDelegateAction } from '../chainAdaptors/near/handlers/signDelegateAction';
+import { signNep413Message } from '../chainAdaptors/near/handlers/signNep413Message';
+import { signTransactionsWithActions } from '../chainAdaptors/near/handlers/signTransactionsWithActions';
+import type {
+  NearEd25519SignOutput,
+  NearEd25519SignRequest,
+} from '../chainAdaptors/near/nearAdapter';
 
 export type NearEd25519KeyRef = {
   type: 'near-ed25519-runtime';
@@ -42,8 +15,12 @@ export const NEAR_ED25519_KEY_REF: NearEd25519KeyRef = {
   type: 'near-ed25519-runtime',
 };
 
-export class NearEd25519Engine
-  implements SigningEngine<NearEd25519SignRequest, NearEd25519KeyRef, NearEd25519SignOutput> {
+export class NearEd25519Engine implements SigningEngine<
+  NearEd25519SignRequest,
+  NearEd25519KeyRef,
+  NearEd25519SignOutput
+> {
+
   readonly algorithm = 'ed25519' as const;
 
   async sign(req: NearEd25519SignRequest, keyRef: NearEd25519KeyRef): Promise<NearEd25519SignOutput> {

@@ -6,7 +6,7 @@ const IMPORT_PATHS = {
   clientDb: '/sdk/esm/core/IndexedDBManager/passkeyClientDB.js',
   nearKeysDb: '/sdk/esm/core/IndexedDBManager/passkeyNearKeysDB.js',
   getDeviceNumber: '/sdk/esm/core/signing/webauthn/device/getDeviceNumber.js',
-  signTxs: '/sdk/esm/core/signing/chains/near/handlers/signTransactionsWithActions.js',
+  signTxs: '/sdk/esm/core/signing/chainAdaptors/near/handlers/signTransactionsWithActions.js',
   signerTypes: '/sdk/esm/core/types/signer-worker.js',
   actions: '/sdk/esm/core/types/actions.js',
 } as const;
@@ -29,6 +29,8 @@ test.describe('Link device → immediate sign (regression)', () => {
 
         const nearAccountId = 'linkdev1.w3a-v1.testnet';
         const deviceNumber = 2;
+        const profileId = `legacy-near:${nearAccountId.toLowerCase()}`;
+        const chainId = nearAccountId.toLowerCase().endsWith('.testnet') ? 'near:testnet' : 'near:mainnet';
 
         // Use a per-test DB instance (the global IndexedDBManager is disabled on the app origin in wallet-iframe mode).
         const suffix =
@@ -44,10 +46,10 @@ test.describe('Link device → immediate sign (regression)', () => {
         // This keeps the regression deterministic and avoids relying on app-origin persistence.
         const webAuthnManager: any = {
           storeUserData: async (userData: any) => {
-            await clientDB.storeWebAuthnUserData(userData);
+            await clientDB.upsertNearAccountProjection(userData);
           },
           storeAuthenticator: async (authenticatorData: any) => {
-            await clientDB.storeAuthenticator({
+            await clientDB.upsertNearAuthenticator({
               ...authenticatorData,
               deviceNumber: authenticatorData.deviceNumber ?? 1,
             });
@@ -95,27 +97,62 @@ test.describe('Link device → immediate sign (regression)', () => {
 
         // LinkDeviceFlow derives/stores the encrypted NEAR key earlier in the real flow.
         // For this regression, store a minimal entry so signing can proceed immediately.
-        await nearKeysDB.storeKeyMaterial({
-          kind: 'local_near_sk_v3',
-          nearAccountId: nearAccountId,
+        await nearKeysDB.storeKeyMaterialV2({
+          profileId,
           deviceNumber,
+          chainId,
+          keyKind: 'local_sk_encrypted_v1',
+          algorithm: 'ed25519',
           publicKey: 'ed25519:pk-device2',
-          encryptedSk: 'ciphertext-b64u',
-          chacha20NonceB64u: 'nonce-b64u',
           wrapKeySalt: 'wrapKeySalt-b64u',
+          payload: {
+            encryptedSk: 'ciphertext-b64u',
+            chacha20NonceB64u: 'nonce-b64u',
+          },
           timestamp: Date.now(),
+          schemaVersion: 1,
         });
 
-        const last = await clientDB.getLastUser();
+        const last = await clientDB.getLastSelectedNearAccountProjection();
         const deviceFromHelper = await getLastLoggedInDeviceNumber(nearAccountId, clientDB);
-        const key = await nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceFromHelper);
-        const authenticators = await clientDB.getAuthenticatorsByUser(nearAccountId);
+        const key = await nearKeysDB.getKeyMaterialV2(profileId, deviceFromHelper, chainId, 'local_sk_encrypted_v1');
+        const authenticators = await clientDB.listNearAuthenticators(nearAccountId);
 
         // Exercise the signing handler path up to and including the IndexedDB lookups.
         // We stub the SecureConfirm confirmation and worker response so the test stays deterministic
         // and focuses on "link device → immediate sign" state wiring.
         const signingCtx: any = {
-          indexedDB: { clientDB, nearKeysDB },
+          indexedDB: {
+            clientDB,
+            nearKeysDB,
+            getNearLocalKeyMaterialV2First: async (accountId: string, deviceNum: number) => {
+              const normalizedAccountId = String(accountId || '').trim().toLowerCase();
+              const localProfileId = `legacy-near:${normalizedAccountId}`;
+              const localChainId = normalizedAccountId.endsWith('.testnet') ? 'near:testnet' : 'near:mainnet';
+              const row = await nearKeysDB.getKeyMaterialV2(
+                localProfileId,
+                deviceNum,
+                localChainId,
+                'local_sk_encrypted_v1',
+              );
+              if (!row) return null;
+              const wrapKeySalt = String(row.wrapKeySalt || '').trim();
+              const encryptedSk = String((row.payload as any)?.encryptedSk || '').trim();
+              const chacha20NonceB64u = String((row.payload as any)?.chacha20NonceB64u || '').trim();
+              if (!wrapKeySalt || !encryptedSk || !chacha20NonceB64u) return null;
+              return {
+                nearAccountId: accountId,
+                deviceNumber: deviceNum,
+                kind: 'local_near_sk_v3' as const,
+                publicKey: row.publicKey,
+                wrapKeySalt,
+                encryptedSk,
+                chacha20NonceB64u,
+                timestamp: row.timestamp,
+              };
+            },
+            getNearThresholdKeyMaterialV2First: async () => null,
+          },
           nonceManager: { initializeUser: () => {} },
           touchIdPrompt: { getRpId: () => 'example.localhost' },
           relayerUrl: 'https://relay-server.localhost',
@@ -133,6 +170,16 @@ test.describe('Link device → immediate sign (regression)', () => {
               credential: dummyCredential,
             }),
           },
+          requestWorkerOperation: async () => ({
+            type: WorkerResponseType.SignTransactionsWithActionsSuccess,
+            payload: {
+              success: true,
+              signedTransactions: [
+                { transaction: {}, signature: {}, borshBytes: new Uint8Array([1]) },
+              ],
+              logs: [],
+            },
+          }),
           sendMessage: async () => ({
             type: WorkerResponseType.SignTransactionsWithActionsSuccess,
             payload: {
@@ -162,7 +209,7 @@ test.describe('Link device → immediate sign (regression)', () => {
           success: true,
           lastUser: last ? { nearAccountId: last.nearAccountId, deviceNumber: last.deviceNumber } : null,
           deviceFromHelper,
-          hasEncryptedKey: key?.kind === 'local_near_sk_v3' && !!key?.encryptedSk,
+          hasEncryptedKey: key?.keyKind === 'local_sk_encrypted_v1' && !!(key?.payload as any)?.encryptedSk,
           authenticatorCount: Array.isArray(authenticators) ? authenticators.length : 0,
           signedCount: Array.isArray(signed) ? signed.length : 0,
         } as const;
@@ -198,6 +245,8 @@ test.describe('Link device → immediate sign (regression)', () => {
 
         const nearAccountId = 'linkdev2.w3a-v1.testnet';
         const deviceNumber: any = '2';
+        const profileId = `legacy-near:${nearAccountId.toLowerCase()}`;
+        const chainId = nearAccountId.toLowerCase().endsWith('.testnet') ? 'near:testnet' : 'near:mainnet';
 
         // Use a per-test DB instance (the global IndexedDBManager is disabled on the app origin in wallet-iframe mode).
         const suffix =
@@ -212,10 +261,10 @@ test.describe('Link device → immediate sign (regression)', () => {
         // Provide a minimal WebAuthnManager facade for the private storage helper.
         const webAuthnManager: any = {
           storeUserData: async (userData: any) => {
-            await clientDB.storeWebAuthnUserData(userData);
+            await clientDB.upsertNearAccountProjection(userData);
           },
           storeAuthenticator: async (authenticatorData: any) => {
-            await clientDB.storeAuthenticator({
+            await clientDB.upsertNearAuthenticator({
               ...authenticatorData,
               deviceNumber: authenticatorData.deviceNumber ?? 1,
             });
@@ -263,27 +312,62 @@ test.describe('Link device → immediate sign (regression)', () => {
 
         // LinkDeviceFlow derives/stores the encrypted NEAR key earlier in the real flow.
         // For this regression, store a minimal entry so signing can proceed immediately.
-        await nearKeysDB.storeKeyMaterial({
-          kind: 'local_near_sk_v3',
-          nearAccountId: nearAccountId,
+        await nearKeysDB.storeKeyMaterialV2({
+          profileId,
           deviceNumber: 2,
+          chainId,
+          keyKind: 'local_sk_encrypted_v1',
+          algorithm: 'ed25519',
           publicKey: 'ed25519:pk-device2',
-          encryptedSk: 'ciphertext-b64u',
-          chacha20NonceB64u: 'nonce-b64u',
           wrapKeySalt: 'wrapKeySalt-b64u',
+          payload: {
+            encryptedSk: 'ciphertext-b64u',
+            chacha20NonceB64u: 'nonce-b64u',
+          },
           timestamp: Date.now(),
+          schemaVersion: 1,
         });
 
-        const last = await clientDB.getLastUser();
+        const last = await clientDB.getLastSelectedNearAccountProjection();
         const deviceFromHelper = await getLastLoggedInDeviceNumber(nearAccountId, clientDB);
-        const key = await nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceFromHelper);
-        const authenticators = await clientDB.getAuthenticatorsByUser(nearAccountId);
+        const key = await nearKeysDB.getKeyMaterialV2(profileId, deviceFromHelper, chainId, 'local_sk_encrypted_v1');
+        const authenticators = await clientDB.listNearAuthenticators(nearAccountId);
 
         // Exercise the signing handler path up to and including the IndexedDB lookups.
         // We stub the SecureConfirm confirmation and worker response so the test stays deterministic
         // and focuses on "link device → immediate sign" state wiring.
         const signingCtx: any = {
-          indexedDB: { clientDB, nearKeysDB },
+          indexedDB: {
+            clientDB,
+            nearKeysDB,
+            getNearLocalKeyMaterialV2First: async (accountId: string, deviceNum: number) => {
+              const normalizedAccountId = String(accountId || '').trim().toLowerCase();
+              const localProfileId = `legacy-near:${normalizedAccountId}`;
+              const localChainId = normalizedAccountId.endsWith('.testnet') ? 'near:testnet' : 'near:mainnet';
+              const row = await nearKeysDB.getKeyMaterialV2(
+                localProfileId,
+                deviceNum,
+                localChainId,
+                'local_sk_encrypted_v1',
+              );
+              if (!row) return null;
+              const wrapKeySalt = String(row.wrapKeySalt || '').trim();
+              const encryptedSk = String((row.payload as any)?.encryptedSk || '').trim();
+              const chacha20NonceB64u = String((row.payload as any)?.chacha20NonceB64u || '').trim();
+              if (!wrapKeySalt || !encryptedSk || !chacha20NonceB64u) return null;
+              return {
+                nearAccountId: accountId,
+                deviceNumber: deviceNum,
+                kind: 'local_near_sk_v3' as const,
+                publicKey: row.publicKey,
+                wrapKeySalt,
+                encryptedSk,
+                chacha20NonceB64u,
+                timestamp: row.timestamp,
+              };
+            },
+            getNearThresholdKeyMaterialV2First: async () => null,
+          },
           nonceManager: { initializeUser: () => {} },
           touchIdPrompt: { getRpId: () => 'example.localhost' },
           relayerUrl: 'https://relay-server.localhost',
@@ -301,6 +385,16 @@ test.describe('Link device → immediate sign (regression)', () => {
               credential: dummyCredential,
             }),
           },
+          requestWorkerOperation: async () => ({
+            type: WorkerResponseType.SignTransactionsWithActionsSuccess,
+            payload: {
+              success: true,
+              signedTransactions: [
+                { transaction: {}, signature: {}, borshBytes: new Uint8Array([1]) },
+              ],
+              logs: [],
+            },
+          }),
           sendMessage: async () => ({
             type: WorkerResponseType.SignTransactionsWithActionsSuccess,
             payload: {
@@ -330,7 +424,7 @@ test.describe('Link device → immediate sign (regression)', () => {
           success: true,
           lastUser: last ? { nearAccountId: last.nearAccountId, deviceNumber: last.deviceNumber } : null,
           deviceFromHelper,
-          hasEncryptedKey: key?.kind === 'local_near_sk_v3' && !!key?.encryptedSk,
+          hasEncryptedKey: key?.keyKind === 'local_sk_encrypted_v1' && !!(key?.payload as any)?.encryptedSk,
           authenticatorCount: Array.isArray(authenticators) ? authenticators.length : 0,
           signedCount: Array.isArray(signed) ? signed.length : 0,
         } as const;

@@ -1,7 +1,7 @@
 import type { ConfirmationConfig } from '../../../../types/signer-worker';
 import type { TransactionContext, SecureConfirmSecurityContext } from '../../../../types';
 import type { ConfirmUIHandle } from '../../ui/confirm-ui';
-import type { ClientAuthenticatorData } from '../../../../IndexedDBManager';
+import type { ProfileAuthenticatorRecord } from '../../../../IndexedDBManager';
 import type { KnownSecureConfirmRequest, SerializableCredential, TransactionSummary } from '../types';
 import type { ThemeName } from '../../../../types/tatchi';
 
@@ -26,8 +26,8 @@ export interface WebAuthnCollector {
     nearAccountId: string;
     challengeB64u: string;
     onBeforePrompt?: (info: {
-      authenticators: ClientAuthenticatorData[];
-      authenticatorsForPrompt: ClientAuthenticatorData[];
+      authenticators: ProfileAuthenticatorRecord[];
+      authenticatorsForPrompt: ProfileAuthenticatorRecord[];
       challengeB64u: string;
     }) => void;
     includeSecondPrfOutput?: boolean;

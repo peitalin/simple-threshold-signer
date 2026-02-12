@@ -12,7 +12,7 @@ Target structure:
 client/src/core/signing/
   api/
     WebAuthnManager.ts
-  chains/
+  chainAdaptors/
     near/
     tempo/
     evm/
@@ -71,9 +71,9 @@ Completed so far:
   - `signing/webauthn/device/*`
   - `signing/webauthn/cose/*`
 - Legacy WebAuthnManager/threshold callsites updated to use canonical WebAuthn helpers.
-- `signing/engines/*` and `signing/workers/signingWorkerManager/backends/multichainWorkerBackend.ts` added.
-- `signing/chains/{near,tempo,evm}/*` is now canonical implementation (including NEAR handlers, Tempo adapter/wasm, and EVM helpers/wasm).
-- `signing/chains/orchestrator.ts` and `signing/chains/types.ts` are canonical.
+- `signing/engines/*` and `signing/workers/signerWorkerManager/backends/multichainWorkerBackend.ts` added.
+- `signing/chainAdaptors/{near,tempo,evm}/*` is now canonical implementation (including NEAR handlers, Tempo adapter/wasm, and EVM helpers/wasm).
+- `signing/chainAdaptors/orchestrator.ts` and `signing/chainAdaptors/types.ts` are canonical.
 - `signing/threshold/**` is now canonical implementation for threshold crypto/ports/session/workflows/validation.
 - Core/runtime/test callsites were repointed from `signing/schemes/threshold/*` to `signing/threshold/*`.
 - `signing/api/WebAuthnManager.ts` now hosts the `WebAuthnManager` implementation.
@@ -106,7 +106,7 @@ Validation run:
 Hard rules:
 
 1. `signing/api/*` is the composition root and may depend on lower layers.
-2. `signing/chains/*` may depend on `engines`, `threshold`, `webauthn`, `secureConfirm`, `workers`, shared core types.
+2. `signing/chainAdaptors/*` may depend on `engines`, `threshold`, `webauthn`, `secureConfirm`, `workers`, shared core types.
 3. `signing/engines/*` must not depend on `api` or chain handlers.
 4. `signing/threshold/*` must not depend on `api` or chain handlers.
 5. `signing/webauthn/*` must not depend on `api` or chain handlers.
@@ -117,14 +117,14 @@ Hard rules:
 
 ### Move from `signing/multichain`
 
-- `client/src/core/signing/multichain/near/**` -> `client/src/core/signing/chains/near/**`
-- `client/src/core/signing/multichain/tempo/**` -> `client/src/core/signing/chains/tempo/**`
-- `client/src/core/signing/multichain/evm/**` -> `client/src/core/signing/chains/evm/**`
+- `client/src/core/signing/multichain/near/**` -> `client/src/core/signing/chainAdaptors/near/**`
+- `client/src/core/signing/multichain/tempo/**` -> `client/src/core/signing/chainAdaptors/tempo/**`
+- `client/src/core/signing/multichain/evm/**` -> `client/src/core/signing/chainAdaptors/evm/**`
 - `client/src/core/signing/multichain/engines/*` -> `client/src/core/signing/engines/*`
 - `client/src/core/signing/multichain/webauthn/coseP256.ts` -> `client/src/core/signing/webauthn/cose/coseP256.ts`
-- `client/src/core/signing/multichain/wasmWorkers/workerRpc.ts` -> `client/src/core/signing/workers/signingWorkerManager/backends/multichainWorkerBackend.ts`
-- `client/src/core/signing/multichain/shared/orchestrator.ts` -> `client/src/core/signing/chains/orchestrator.ts`
-- `client/src/core/signing/multichain/shared/types.ts` -> `client/src/core/signing/chains/types.ts`
+- `client/src/core/signing/multichain/wasmWorkers/workerRpc.ts` -> `client/src/core/signing/workers/signerWorkerManager/backends/multichainWorkerBackend.ts`
+- `client/src/core/signing/multichain/shared/orchestrator.ts` -> `client/src/core/signing/chainAdaptors/orchestrator.ts`
+- `client/src/core/signing/multichain/shared/types.ts` -> `client/src/core/signing/chainAdaptors/types.ts`
 
 ### Move from `WebAuthnManager`
 
@@ -135,7 +135,7 @@ Hard rules:
 - `client/src/core/WebAuthnManager/SecureConfirmWorkerManager/**` -> `client/src/core/signing/secureConfirm/{manager,flow,ui}/**`
 - `client/src/core/WebAuthnManager/index.ts` -> split into:
   - `client/src/core/signing/api/WebAuthnManager.ts` (public facade only)
-  - internal orchestration modules under `signing/chains`, `signing/threshold`, `signing/secureConfirm`, `signing/webauthn`
+  - internal orchestration modules under `signing/chainAdaptors`, `signing/threshold`, `signing/secureConfirm`, `signing/webauthn`
 
 ### Threshold namespace normalization
 
@@ -190,9 +190,9 @@ Deliverable:
 
 - SecureConfirm logic is under signing hierarchy, not WebAuthnManager hierarchy.
 
-### Phase 4: Move Multichain to `signing/chains` + `signing/engines` + `signing/workers`
+### Phase 4: Move Multichain to `signing/chainAdaptors` + `signing/engines` + `signing/workers`
 
-- [x] Move `multichain/near|tempo|evm` to `chains/*`.
+- [x] Move `multichain/near|tempo|evm` to `chainAdaptors/*`.
 - [x] Move `multichain/engines/*` to `engines/*`.
 - [x] Move `multichain/wasmWorkers/*` to `workers/*`.
 - [x] Rename imports in orchestrators and handlers.

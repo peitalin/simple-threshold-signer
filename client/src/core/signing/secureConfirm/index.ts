@@ -20,18 +20,17 @@ import type { NonceManager } from '../../near/nonceManager';
 import {
   SecureConfirmMessageType,
   type SecureConfirmRequest,
-  type SerializableCredential,
-  type SigningAuthMode,
 } from './confirmTxFlow/types';
-import type { TransactionInputWasm } from '../../types/actions';
-import type { RpcCallPayload, ConfirmationConfig } from '../../types/signer-worker';
-import type { TransactionContext } from '../../types/rpc';
+import type { ConfirmationConfig } from '../../types/signer-worker';
 import type { ThemeName } from '../../types/tatchi';
-import type { RegistrationCredentialConfirmationPayload } from '../threshold/keys';
+import type { RegistrationCredentialConfirmationPayload } from '../workers/signerWorkerManager/internal/validation';
 import { handlePromptUserConfirmInJsMainThread } from './confirmTxFlow';
 import type { SecureConfirmWorkerManagerHandlerContext } from './handlers/types';
 import {
   confirmAndPrepareSigningSession,
+  type ConfirmAndPrepareSigningSessionParams,
+  type ConfirmAndPrepareSigningSessionResultIntentDigest,
+  type ConfirmAndPrepareSigningSessionResultWithTxContext,
   requestRegistrationCredentialConfirmation,
 } from './handlers';
 
@@ -161,56 +160,16 @@ export class SecureConfirmWorkerManager {
    * SecureConfirm confirmation helper for signing flows.
    * Runs confirmTxFlow on the main thread and returns the artifacts needed by the signer worker.
    */
-  async confirmAndPrepareSigningSession(params: {
-    ctx: SecureConfirmWorkerManagerContext;
-    sessionId: string;
-    signingAuthMode?: SigningAuthMode;
-    sessionPolicyDigest32?: string;
-    kind: 'transaction';
-    txSigningRequests: TransactionInputWasm[];
-    rpcCall: RpcCallPayload;
-    title?: string;
-    body?: string;
-    confirmationConfigOverride?: Partial<ConfirmationConfig>;
-  } | {
-    ctx: SecureConfirmWorkerManagerContext;
-    sessionId: string;
-    signingAuthMode?: SigningAuthMode;
-    sessionPolicyDigest32?: string;
-    kind: 'delegate';
-    nearAccountId: string;
-    title?: string;
-    body?: string;
-    delegate: {
-      senderId: string;
-      receiverId: string;
-      actions: TransactionInputWasm['actions'];
-      nonce: string | number | bigint;
-      maxBlockHeight: string | number | bigint;
-    };
-    rpcCall: RpcCallPayload;
-    confirmationConfigOverride?: Partial<ConfirmationConfig>;
-  } | {
-    ctx: SecureConfirmWorkerManagerContext;
-    sessionId: string;
-    signingAuthMode?: SigningAuthMode;
-    sessionPolicyDigest32?: string;
-    kind: 'nep413';
-    nearAccountId: string;
-    message: string;
-    recipient: string;
-    title?: string;
-    body?: string;
-    contractId?: string;
-    nearRpcUrl?: string;
-    confirmationConfigOverride?: Partial<ConfirmationConfig>;
-  }): Promise<{
-    sessionId: string;
-    transactionContext: TransactionContext;
-    intentDigest: string;
-    credential?: SerializableCredential;
-  }> {
-    return confirmAndPrepareSigningSession(this.getHandlerContext(), params);
+  async confirmAndPrepareSigningSession(
+    params: Extract<ConfirmAndPrepareSigningSessionParams, { kind: 'intentDigest' }>,
+  ): Promise<ConfirmAndPrepareSigningSessionResultIntentDigest>;
+  async confirmAndPrepareSigningSession(
+    params: Exclude<ConfirmAndPrepareSigningSessionParams, { kind: 'intentDigest' }>,
+  ): Promise<ConfirmAndPrepareSigningSessionResultWithTxContext>;
+  async confirmAndPrepareSigningSession(
+    params: ConfirmAndPrepareSigningSessionParams,
+  ): Promise<ConfirmAndPrepareSigningSessionResultWithTxContext | ConfirmAndPrepareSigningSessionResultIntentDigest> {
+    return confirmAndPrepareSigningSession(params);
   }
 
   /**

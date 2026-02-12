@@ -97,10 +97,10 @@ export * from './core/signing/engines/webauthnP256';
 export * from './core/signing/orchestration/walletOrigin/thresholdEcdsaCoordinator';
 export * from './core/signing/orchestration/walletOrigin/webauthnKeyRef';
 export * from './core/signing/webauthn/cose/coseP256';
-export * from './core/signing/chains/near/nearAdapter';
-export * from './core/signing/chains/tempo/types';
-export * from './core/signing/chains/tempo/tempoAdapter';
-export { signTempoWithSecureConfirm } from './core/signing/chains/tempo/handlers/signTempoWithSecureConfirm';
+export * from './core/signing/chainAdaptors/near/nearAdapter';
+export * from './core/signing/chainAdaptors/tempo/types';
+export * from './core/signing/chainAdaptors/tempo/tempoAdapter';
+export { signTempoWithSecureConfirm } from './core/signing/chainAdaptors/tempo/handlers/signTempoWithSecureConfirm';
 
 // Threshold/lite APIs consolidated into the root SDK entrypoint.
 export { keygenThresholdEd25519Lite } from './core/signing/threshold/workflows/keygenThresholdEd25519Lite';

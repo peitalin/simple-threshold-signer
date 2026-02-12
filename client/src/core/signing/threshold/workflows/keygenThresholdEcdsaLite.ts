@@ -1,6 +1,7 @@
 import { computeThresholdEcdsaKeygenIntentDigest } from '../../../../utils/intentDigest';
 import { thresholdEcdsaKeygen } from '../../../near/rpcCalls';
-import { deriveThresholdSecp256k1ClientShareWasm } from '../../chains/evm/ethSignerWasm';
+import { deriveThresholdSecp256k1ClientShareWasm } from '../../chainAdaptors/evm/ethSignerWasm';
+import type { WorkerOperationContext } from '../../chainAdaptors/handlers/executeSignerWorkerOperation';
 import {
   collectAuthenticationCredentialForChallengeB64u,
   getPrfFirstB64uFromCredential,
@@ -30,6 +31,7 @@ export async function keygenThresholdEcdsaLite(args: {
   touchIdPrompt: ThresholdWebAuthnPromptPort;
   relayerUrl: string;
   userId: string;
+  workerCtx: WorkerOperationContext;
 }): Promise<{
   ok: boolean;
   keygenSessionId?: string;
@@ -74,6 +76,7 @@ export async function keygenThresholdEcdsaLite(args: {
     const derived = await deriveThresholdSecp256k1ClientShareWasm({
       prfFirstB64u,
       userId,
+      workerCtx: args.workerCtx,
     });
 
     // 3) Keygen with the relay.

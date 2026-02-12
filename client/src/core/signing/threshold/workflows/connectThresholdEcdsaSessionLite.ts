@@ -5,7 +5,8 @@ import {
   type ThresholdPrfFirstCachePort,
   type ThresholdWebAuthnPromptPort,
 } from '../webauthn';
-import { deriveThresholdSecp256k1ClientShareWasm } from '../../chains/evm/ethSignerWasm';
+import { deriveThresholdSecp256k1ClientShareWasm } from '../../chainAdaptors/evm/ethSignerWasm';
+import type { WorkerOperationContext } from '../../chainAdaptors/handlers/executeSignerWorkerOperation';
 import { buildThresholdEcdsaSessionPolicy } from '../session/thresholdSessionPolicy';
 import {
   makeThresholdEcdsaAuthSessionCacheKey,
@@ -37,6 +38,7 @@ export async function connectThresholdEcdsaSessionLite(args: {
   sessionId?: string;
   ttlMs?: number;
   remainingUses?: number;
+  workerCtx: WorkerOperationContext;
 }): Promise<{
   ok: boolean;
   sessionId?: string;
@@ -87,6 +89,7 @@ export async function connectThresholdEcdsaSessionLite(args: {
     clientVerifyingShareB64u = (await deriveThresholdSecp256k1ClientShareWasm({
       prfFirstB64u,
       userId,
+      workerCtx: args.workerCtx,
     })).clientVerifyingShareB64u;
   } catch (e: unknown) {
     const msg = String((e && typeof e === 'object' && 'message' in e) ? (e as { message?: unknown }).message : e || 'Failed to derive client verifying share');
