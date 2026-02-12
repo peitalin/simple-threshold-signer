@@ -1,17 +1,15 @@
-import { secp256k1 } from '@noble/curves/secp256k1.js';
 import { base64UrlDecode, base64UrlEncode } from '../../../../../../shared/src/utils/encoders';
 import { normalizeThresholdEd25519ParticipantIds } from '../../../../../../shared/src/threshold/participants';
 import {
-  mapAdditiveShareToThresholdSignaturesShare2p,
-  THRESHOLD_SECP256K1_ECDSA_2P_PARTICIPANTS_V1,
-} from '../../../../../../shared/src/threshold/secp256k1Ecdsa2pShareMapping';
-import {
+  addSecp256k1PublicKeys33Wasm,
+  mapAdditiveShareToThresholdSignaturesShare2pWasm,
   thresholdEcdsaComputeSignatureShareWasm,
   thresholdEcdsaPresignSessionAbortWasm,
   thresholdEcdsaPresignSessionInitWasm,
   thresholdEcdsaPresignSessionStepWasm,
+  validateSecp256k1PublicKey33Wasm,
 } from '../../chainAdaptors/evm/ethSignerWasm';
-import type { WorkerOperationContext } from '../../chainAdaptors/handlers/executeSignerWorkerOperation';
+import type { WorkerOperationContext } from '../../workers/operations/executeSignerWorkerOperation';
 import {
   thresholdEcdsaPresignInit,
   thresholdEcdsaPresignStep,
@@ -45,6 +43,12 @@ type ThresholdEcdsaCoordinatorOk = {
 };
 
 export type ThresholdEcdsaCoordinatorResult = ThresholdEcdsaCoordinatorOk | ThresholdEcdsaCoordinatorError;
+
+const THRESHOLD_SECP256K1_ECDSA_2P_PARTICIPANTS_V1 = Object.freeze({
+  clientId: 1,
+  relayerId: 2,
+  participantIds: [1, 2] as const,
+});
 
 const MAX_HANDSHAKE_STEPS = 64;
 const clientPresignaturePool = new Map<string, ThresholdEcdsaClientPresignatureShare[]>();
@@ -112,18 +116,20 @@ function fromB64uMessages(messagesB64u: string[] | undefined): Uint8Array[] {
     .map((entry) => base64UrlDecode(entry));
 }
 
-function resolveGroupPublicKey33(args: {
+async function resolveGroupPublicKey33(args: {
   clientVerifyingShareB64u: string;
   groupPublicKeyB64u?: string;
   relayerVerifyingShareB64u?: string;
-}): Uint8Array {
+  workerCtx: WorkerOperationContext;
+}): Promise<Uint8Array> {
   const groupPublicKeyB64u = String(args.groupPublicKeyB64u || '').trim();
   if (groupPublicKeyB64u) {
     const bytes = base64UrlDecode(groupPublicKeyB64u);
     if (bytes.length !== 33) throw new Error('groupPublicKeyB64u must decode to 33 bytes');
-    const point = secp256k1.Point.fromBytes(bytes);
-    point.assertValidity();
-    return bytes;
+    return await validateSecp256k1PublicKey33Wasm({
+      publicKey33: bytes,
+      workerCtx: args.workerCtx,
+    });
   }
 
   const clientVerifyingShareB64u = String(args.clientVerifyingShareB64u || '').trim();
@@ -136,12 +142,19 @@ function resolveGroupPublicKey33(args: {
   const relayerBytes = base64UrlDecode(relayerVerifyingShareB64u);
   if (clientBytes.length !== 33) throw new Error('clientVerifyingShareB64u must decode to 33 bytes');
   if (relayerBytes.length !== 33) throw new Error('relayerVerifyingShareB64u must decode to 33 bytes');
-
-  const clientPoint = secp256k1.Point.fromBytes(clientBytes);
-  clientPoint.assertValidity();
-  const relayerPoint = secp256k1.Point.fromBytes(relayerBytes);
-  relayerPoint.assertValidity();
-  return clientPoint.add(relayerPoint).toBytes(true);
+  const validatedClientPublicKey33 = await validateSecp256k1PublicKey33Wasm({
+    publicKey33: clientBytes,
+    workerCtx: args.workerCtx,
+  });
+  const validatedRelayerPublicKey33 = await validateSecp256k1PublicKey33Wasm({
+    publicKey33: relayerBytes,
+    workerCtx: args.workerCtx,
+  });
+  return await addSecp256k1PublicKeys33Wasm({
+    left33: validatedClientPublicKey33,
+    right33: validatedRelayerPublicKey33,
+    workerCtx: args.workerCtx,
+  });
 }
 
 async function runPresignHandshake(args: {
@@ -179,9 +192,10 @@ async function runPresignHandshake(args: {
   }
 
   const localSessionId = createClientPresignSessionId();
-  const clientThresholdSigningShare32 = mapAdditiveShareToThresholdSignaturesShare2p({
+  const clientThresholdSigningShare32 = await mapAdditiveShareToThresholdSignaturesShare2pWasm({
     additiveShare32: args.clientSigningShare32,
     participantId: args.clientParticipantId,
+    workerCtx: args.workerCtx,
   });
 
   let localDonePresignature97: Uint8Array | null = null;
@@ -372,10 +386,11 @@ export async function signThresholdEcdsaDigestWithPool(args: {
       : THRESHOLD_SECP256K1_ECDSA_2P_PARTICIPANTS_V1.relayerId;
     const sessionKind: ThresholdEcdsaSessionKind = args.sessionKind || 'jwt';
 
-    const groupPublicKey33 = resolveGroupPublicKey33({
+    const groupPublicKey33 = await resolveGroupPublicKey33({
       clientVerifyingShareB64u,
       groupPublicKeyB64u: args.groupPublicKeyB64u,
       relayerVerifyingShareB64u: args.relayerVerifyingShareB64u,
+      workerCtx: args.workerCtx,
     });
 
     const poolKey = makePresignaturePoolKey({
@@ -549,10 +564,11 @@ export async function refillThresholdEcdsaClientPresignaturePool(args: {
       ? Math.floor(Number(args.relayerParticipantId))
       : THRESHOLD_SECP256K1_ECDSA_2P_PARTICIPANTS_V1.relayerId;
     const sessionKind: ThresholdEcdsaSessionKind = args.sessionKind || 'jwt';
-    const groupPublicKey33 = resolveGroupPublicKey33({
+    const groupPublicKey33 = await resolveGroupPublicKey33({
       clientVerifyingShareB64u: args.clientVerifyingShareB64u,
       groupPublicKeyB64u: args.groupPublicKeyB64u,
       relayerVerifyingShareB64u: args.relayerVerifyingShareB64u,
+      workerCtx: args.workerCtx,
     });
 
     const generated = await runPresignHandshake({

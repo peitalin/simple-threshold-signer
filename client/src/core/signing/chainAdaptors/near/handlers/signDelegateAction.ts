@@ -56,7 +56,7 @@ import {
   toPublicKeyString,
 } from '../../../workers/signerWorkerManager/internal/validation';
 import { deriveThresholdEd25519ClientVerifyingShare } from '../../../threshold/workflows/deriveThresholdEd25519ClientVerifyingShare';
-import { executeSignerWorkerOperation } from '../../handlers/executeSignerWorkerOperation';
+import { executeSignerWorkerOperation } from '../../../workers/operations/executeSignerWorkerOperation';
 
 const DUMMY_WRAP_KEY_SALT_B64U = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
@@ -98,7 +98,10 @@ export async function signDelegateAction({
 
   const resolvedRpcCall = {
     contractId: rpcCall.contractId || PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId,
-    nearRpcUrl: rpcCall.nearRpcUrl || (PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl.split(',')[0] || PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl),
+    nearRpcUrl:
+      rpcCall.nearRpcUrl ||
+      PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl.split(',')[0] ||
+      PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl,
     nearAccountId,
   } as RpcCallPayload;
 
@@ -108,7 +111,7 @@ export async function signDelegateAction({
       validateActionArgsWasm(action);
     } catch (error) {
       throw new Error(
-        `Delegate action ${actionIndex} validation failed: ${error instanceof Error ? error.message : String(error)}`
+        `Delegate action ${actionIndex} validation failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   });
@@ -117,8 +120,9 @@ export async function signDelegateAction({
   if (deviceNumber !== undefined && parsedDeviceNumber === null) {
     throw new Error(`Invalid deviceNumber for delegate signing: ${deviceNumber}`);
   }
-  const resolvedDeviceNumber = parsedDeviceNumber
-    ?? await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
+  const resolvedDeviceNumber =
+    parsedDeviceNumber ??
+    (await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB));
   const thresholdKeyMaterial = await ctx.indexedDB.getNearThresholdKeyMaterialV2First(
     nearAccountId,
     resolvedDeviceNumber,
@@ -139,14 +143,13 @@ export async function signDelegateAction({
     warnings,
   });
 
-  const localKeyMaterial = (resolvedSignerMode === 'local-signer' || thresholdBehavior === 'fallback')
-    ? await ctx.indexedDB.getNearLocalKeyMaterialV2First(
-      nearAccountId,
-      resolvedDeviceNumber,
-    )
-    : null;
+  const localKeyMaterial =
+    resolvedSignerMode === 'local-signer' || thresholdBehavior === 'fallback'
+      ? await ctx.indexedDB.getNearLocalKeyMaterialV2First(nearAccountId, resolvedDeviceNumber)
+      : null;
   const localWrapKeySalt = String(localKeyMaterial?.wrapKeySalt || '').trim();
-  const thresholdWrapKeySalt = String(thresholdKeyMaterial?.wrapKeySalt || '').trim() || DUMMY_WRAP_KEY_SALT_B64U;
+  const thresholdWrapKeySalt =
+    String(thresholdKeyMaterial?.wrapKeySalt || '').trim() || DUMMY_WRAP_KEY_SALT_B64U;
 
   // If the caller defaulted to local-signer but the account is threshold-only, prefer threshold-signer.
   // This avoids hard failures for newly-registered threshold accounts where no local vault key is stored.
@@ -154,12 +157,10 @@ export async function signDelegateAction({
     const configured = await isRelayerThresholdEd25519Configured(relayerUrl).catch(() => false);
     if (!configured) {
       throw new Error(
-        '[WebAuthnManager] local-signer requested but no local key material found and the relayer is not configured for threshold signing'
+        '[WebAuthnManager] local-signer requested but no local key material found and the relayer is not configured for threshold signing',
       );
     }
-    const msg =
-      `[WebAuthnManager] local-signer requested but no local key material found for account: ${nearAccountId}; using threshold-signer`;
-    // eslint-disable-next-line no-console
+    const msg = `[WebAuthnManager] local-signer requested but no local key material found for account: ${nearAccountId}; using threshold-signer`;
     console.warn(msg);
     warnings.push(msg);
     resolvedSignerMode = 'threshold-signer';
@@ -174,7 +175,8 @@ export async function signDelegateAction({
     }
   }
 
-  const canFallbackToLocal = thresholdBehavior === 'fallback' && !!localKeyMaterial && !!localWrapKeySalt;
+  const canFallbackToLocal =
+    thresholdBehavior === 'fallback' && !!localKeyMaterial && !!localWrapKeySalt;
 
   const signingContext = validateAndPrepareDelegateSigningContext({
     nearAccountId,
@@ -191,20 +193,25 @@ export async function signDelegateAction({
   // Threshold signing MUST use the threshold/group public key (relayer access key) for:
   // - correct nonce reservation
   // - relayer scope checks (/authorize expects signingPayload.delegate.publicKey == relayer key)
-  ctx.nonceManager.initializeUser(toAccountId(nearAccountId), signingContext.signingNearPublicKeyStr);
+  ctx.nonceManager.initializeUser(
+    toAccountId(nearAccountId),
+    signingContext.signingNearPublicKeyStr,
+  );
 
   const usesNeeded = 1;
   const desiredTtlMs =
-    typeof signingSessionTtlMs === 'number' && Number.isFinite(signingSessionTtlMs) && signingSessionTtlMs > 0
+    typeof signingSessionTtlMs === 'number' &&
+    Number.isFinite(signingSessionTtlMs) &&
+    signingSessionTtlMs > 0
       ? Math.floor(signingSessionTtlMs)
       : undefined;
   const desiredRemainingUses =
-    typeof signingSessionRemainingUses === 'number' && Number.isFinite(signingSessionRemainingUses) && signingSessionRemainingUses > 0
+    typeof signingSessionRemainingUses === 'number' &&
+    Number.isFinite(signingSessionRemainingUses) &&
+    signingSessionRemainingUses > 0
       ? Math.floor(signingSessionRemainingUses)
       : undefined;
-  let thresholdSessionPlan:
-    | Awaited<ReturnType<typeof buildThresholdSessionPolicy>>
-    | null = null;
+  let thresholdSessionPlan: Awaited<ReturnType<typeof buildThresholdSessionPolicy>> | null = null;
   let signingAuthMode: SigningAuthMode | undefined;
   if (signingContext.threshold) {
     const hasJwt = !!signingContext.threshold.thresholdSessionJwt;
@@ -232,7 +239,9 @@ export async function signDelegateAction({
     sessionId,
     kind: 'delegate',
     ...(signingAuthMode ? { signingAuthMode } : {}),
-    ...(thresholdSessionPlan ? { sessionPolicyDigest32: thresholdSessionPlan.sessionPolicyDigest32 } : {}),
+    ...(thresholdSessionPlan
+      ? { sessionPolicyDigest32: thresholdSessionPlan.sessionPolicyDigest32 }
+      : {}),
     nearAccountId,
     delegate: {
       senderId: delegate.senderId || nearAccountId,
@@ -268,7 +277,9 @@ export async function signDelegateAction({
     if (delivered.ok) {
       prfFirstB64u = delivered.prfFirstB64u;
     } else {
-      await secureConfirmWorkerManager.clearPrfFirstForThresholdSession({ sessionId }).catch(() => { });
+      await secureConfirmWorkerManager
+        .clearPrfFirstForThresholdSession({ sessionId })
+        .catch(() => {});
       signingAuthMode = 'webauthn';
 
       const rpId = String(ctx.touchIdPrompt.getRpId() || '').trim();
@@ -304,10 +315,14 @@ export async function signDelegateAction({
       intentDigest = refreshed.intentDigest;
       transactionContext = refreshed.transactionContext;
       credentialWithPrf = refreshed.credential as WebAuthnAuthenticationCredential | undefined;
-      credentialForRelayJson = credentialWithPrf ? JSON.stringify(redactCredentialExtensionOutputs(credentialWithPrf)) : undefined;
+      credentialForRelayJson = credentialWithPrf
+        ? JSON.stringify(redactCredentialExtensionOutputs(credentialWithPrf))
+        : undefined;
       prfFirstB64u = getPrfResultsFromCredential(credentialWithPrf).first;
       if (!prfFirstB64u) {
-        throw new Error('Missing PRF.first output from credential (requires a PRF-enabled passkey)');
+        throw new Error(
+          'Missing PRF.first output from credential (requires a PRF-enabled passkey)',
+        );
       }
     }
   } else {
@@ -399,18 +414,20 @@ export async function signDelegateAction({
       throw new Error(minted.message || 'Failed to mint threshold session');
     }
 
-    const expiresAtMs = minted.expiresAtMs ?? (Date.now() + thresholdSessionPlan.policy.ttlMs);
+    const expiresAtMs = minted.expiresAtMs ?? Date.now() + thresholdSessionPlan.policy.ttlMs;
     const remainingUses = minted.remainingUses ?? thresholdSessionPlan.policy.remainingUses;
 
     if (!prfFirstB64u) {
       throw new Error('Missing PRF.first output for threshold session cache');
     }
-    await secureConfirmWorkerManager.putPrfFirstForThresholdSession({
-      sessionId,
-      prfFirstB64u,
-      expiresAtMs,
-      remainingUses,
-    }).catch(() => { });
+    await secureConfirmWorkerManager
+      .putPrfFirstForThresholdSession({
+        sessionId,
+        prfFirstB64u,
+        expiresAtMs,
+        remainingUses,
+      })
+      .catch(() => {});
 
     putCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey, {
       sessionKind: 'jwt',
@@ -441,8 +458,12 @@ export async function signDelegateAction({
     threshold: {
       relayerUrl: signingContext.threshold.relayerUrl,
       relayerKeyId: signingContext.threshold.thresholdKeyMaterial.relayerKeyId,
-      clientParticipantId: signingContext.threshold.thresholdKeyMaterial.participants.find((p) => p.role === 'client')?.id,
-      relayerParticipantId: signingContext.threshold.thresholdKeyMaterial.participants.find((p) => p.role === 'relayer')?.id,
+      clientParticipantId: signingContext.threshold.thresholdKeyMaterial.participants.find(
+        (p) => p.role === 'client',
+      )?.id,
+      relayerParticipantId: signingContext.threshold.thresholdKeyMaterial.participants.find(
+        (p) => p.role === 'relayer',
+      )?.id,
       participantIds: signingContext.threshold.thresholdKeyMaterial.participants.map((p) => p.id),
       thresholdSessionKind: 'jwt' as const,
       thresholdSessionJwt: signingContext.threshold.thresholdSessionJwt,
@@ -451,7 +472,7 @@ export async function signDelegateAction({
     intentDigest,
     transactionContext,
     credential: credentialForRelayJson,
-  } as any;
+  };
 
   let okResponse: WorkerSuccessResponse<typeof WorkerRequestType.SignDelegateAction> | undefined;
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -472,16 +493,16 @@ export async function signDelegateAction({
       const err = e instanceof Error ? e : new Error(String(e));
 
       if (canFallbackToLocal && isThresholdSignerMissingKeyError(err)) {
-        if (!localKeyMaterial) throw new Error(`No local key material found for account: ${nearAccountId}`);
+        if (!localKeyMaterial)
+          throw new Error(`No local key material found for account: ${nearAccountId}`);
         const msg =
           '[WebAuthnManager] threshold-signer requested but the relayer is missing the signing share; falling back to local-signer';
-        // eslint-disable-next-line no-console
         console.warn(msg);
         warnings.push(msg);
 
         try {
           clearCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey);
-        } catch { }
+        } catch {}
         signingContext.threshold.thresholdSessionJwt = undefined;
 
         const localPublicKey = ensureEd25519Prefix(localKeyMaterial.publicKey);
@@ -489,7 +510,9 @@ export async function signDelegateAction({
           throw new Error(`Missing local signing public key for ${nearAccountId}`);
         }
         ctx.nonceManager.initializeUser(toAccountId(nearAccountId), localPublicKey);
-        transactionContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient, { force: true });
+        transactionContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient, {
+          force: true,
+        });
 
         const localDelegatePayload = {
           ...delegatePayload,
@@ -526,7 +549,9 @@ export async function signDelegateAction({
 
       if (attempt === 0 && isThresholdSessionAuthUnavailableError(err)) {
         clearCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey);
-        await secureConfirmWorkerManager.clearPrfFirstForThresholdSession({ sessionId }).catch(() => { });
+        await secureConfirmWorkerManager
+          .clearPrfFirstForThresholdSession({ sessionId })
+          .catch(() => {});
         signingContext.threshold.thresholdSessionJwt = undefined;
         requestPayload.threshold!.thresholdSessionJwt = undefined;
 
@@ -535,7 +560,9 @@ export async function signDelegateAction({
           nearAccountId,
           rpId,
           relayerKeyId: signingContext.threshold.thresholdKeyMaterial.relayerKeyId,
-          participantIds: signingContext.threshold.thresholdKeyMaterial.participants.map((p) => p.id),
+          participantIds: signingContext.threshold.thresholdKeyMaterial.participants.map(
+            (p) => p.id,
+          ),
           ...(desiredTtlMs !== undefined ? { ttlMs: desiredTtlMs } : {}),
           remainingUses: Math.max(usesNeeded, desiredRemainingUses ?? usesNeeded),
         });
@@ -563,11 +590,15 @@ export async function signDelegateAction({
         intentDigest = refreshed.intentDigest;
         transactionContext = refreshed.transactionContext;
         credentialWithPrf = refreshed.credential as WebAuthnAuthenticationCredential | undefined;
-        credentialForRelayJson = credentialWithPrf ? JSON.stringify(redactCredentialExtensionOutputs(credentialWithPrf)) : undefined;
+        credentialForRelayJson = credentialWithPrf
+          ? JSON.stringify(redactCredentialExtensionOutputs(credentialWithPrf))
+          : undefined;
 
         const prfFirst = getPrfResultsFromCredential(credentialWithPrf).first;
         if (!prfFirst) {
-          throw new Error('Missing PRF.first output from credential (requires a PRF-enabled passkey)');
+          throw new Error(
+            'Missing PRF.first output from credential (requires a PRF-enabled passkey)',
+          );
         }
 
         const derived = await deriveThresholdEd25519ClientVerifyingShare({
@@ -593,15 +624,17 @@ export async function signDelegateAction({
           throw new Error(minted.message || 'Failed to mint threshold session');
         }
 
-        const expiresAtMs = minted.expiresAtMs ?? (Date.now() + thresholdSessionPlan.policy.ttlMs);
+        const expiresAtMs = minted.expiresAtMs ?? Date.now() + thresholdSessionPlan.policy.ttlMs;
         const remainingUses = minted.remainingUses ?? thresholdSessionPlan.policy.remainingUses;
 
-        await secureConfirmWorkerManager.putPrfFirstForThresholdSession({
-          sessionId,
-          prfFirstB64u: prfFirst,
-          expiresAtMs,
-          remainingUses,
-        }).catch(() => { });
+        await secureConfirmWorkerManager
+          .putPrfFirstForThresholdSession({
+            sessionId,
+            prfFirstB64u: prfFirst,
+            expiresAtMs,
+            remainingUses,
+          })
+          .catch(() => {});
 
         putCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey, {
           sessionKind: 'jwt',
@@ -667,7 +700,9 @@ function validateAndPrepareDelegateSigningContext(args: {
   providedDelegatePublicKey: DelegateActionInput['publicKey'];
   warnings: string[];
 }): DelegateSigningContext {
-  const providedDelegatePublicKeyStr = ensureEd25519Prefix(toPublicKeyString(args.providedDelegatePublicKey));
+  const providedDelegatePublicKeyStr = ensureEd25519Prefix(
+    toPublicKeyString(args.providedDelegatePublicKey),
+  );
 
   if (args.resolvedSignerMode !== 'threshold-signer') {
     if (!args.localKeyMaterial) {
@@ -679,7 +714,7 @@ function validateAndPrepareDelegateSigningContext(args: {
     }
     if (providedDelegatePublicKeyStr && providedDelegatePublicKeyStr !== localPublicKey) {
       args.warnings.push(
-        `Delegate public key ${providedDelegatePublicKeyStr} does not match local signer key; using ${localPublicKey}`
+        `Delegate public key ${providedDelegatePublicKeyStr} does not match local signer key; using ${localPublicKey}`,
       );
     }
     return {
@@ -702,7 +737,7 @@ function validateAndPrepareDelegateSigningContext(args: {
 
   if (providedDelegatePublicKeyStr && providedDelegatePublicKeyStr !== thresholdPublicKey) {
     args.warnings.push(
-      `Delegate public key ${providedDelegatePublicKeyStr} does not match threshold signer key; using ${thresholdPublicKey}`
+      `Delegate public key ${providedDelegatePublicKeyStr} does not match threshold signer key; using ${thresholdPublicKey}`,
     );
   }
 
@@ -716,10 +751,12 @@ function validateAndPrepareDelegateSigningContext(args: {
     throw new Error('Missing rpId for threshold signing');
   }
 
-  const participantIds = normalizeThresholdEd25519ParticipantIds(thresholdKeyMaterial.participants.map((p) => p.id));
+  const participantIds = normalizeThresholdEd25519ParticipantIds(
+    thresholdKeyMaterial.participants.map((p) => p.id),
+  );
   if (!participantIds || participantIds.length < 2) {
     throw new Error(
-      `Invalid threshold signing participantIds (expected >=2 participants, got [${(participantIds || []).join(',')}])`
+      `Invalid threshold signing participantIds (expected >=2 participants, got [${(participantIds || []).join(',')}])`,
     );
   }
 
@@ -745,7 +782,7 @@ function validateAndPrepareDelegateSigningContext(args: {
 }
 
 function requireOkSignDelegateActionResponse(
-  response: DelegateSignResponse
+  response: DelegateSignResponse,
 ): WorkerSuccessResponse<typeof WorkerRequestType.SignDelegateAction> {
   if (!isSignDelegateActionSuccess(response)) {
     if (isWorkerError(response)) {

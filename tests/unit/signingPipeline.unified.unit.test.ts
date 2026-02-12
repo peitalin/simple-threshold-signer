@@ -201,4 +201,24 @@ test.describe('unified signing pipeline', () => {
     expect(webAuthnManagerSource).toContain("import('../orchestration/signWithIntent')");
     expect(tempoHandlerSource).toContain('executeSigningIntent({');
   });
+
+  test('activation helpers stay internal-only and bootstrap-only', () => {
+    const rootIndexSource = fs.readFileSync(
+      path.resolve(process.cwd(), '../client/src/index.ts'),
+      'utf8',
+    );
+    const webAuthnManagerSource = fs.readFileSync(
+      path.resolve(process.cwd(), '../client/src/core/signing/api/WebAuthnManager.ts'),
+      'utf8',
+    );
+
+    expect(rootIndexSource).not.toContain('orchestration/activation');
+    expect(rootIndexSource).not.toContain('activateThresholdKeyForChain');
+    expect(rootIndexSource).not.toContain('activateNearThresholdKeyNoPrompt');
+
+    // Activation helper is used for bootstrap/enrollment only, not as a public API entrypoint.
+    expect(webAuthnManagerSource).toContain('bootstrapThresholdEcdsaSessionLite');
+    expect(webAuthnManagerSource).toContain("chain: 'near'");
+    expect(webAuthnManagerSource).toContain('activateThresholdKeyForChain({');
+  });
 });

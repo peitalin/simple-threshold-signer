@@ -1,13 +1,17 @@
 import init, {
+  add_secp256k1_public_keys_33,
   compute_eip1559_tx_hash,
   derive_secp256k1_keypair_from_prf_second,
   derive_threshold_secp256k1_client_share,
   encode_eip1559_signed_tx,
   init_eth_signer,
+  map_additive_share_to_threshold_signatures_share_2p,
   sign_secp256k1_recoverable,
   ThresholdEcdsaPresignSession,
   threshold_ecdsa_compute_signature_share,
+  validate_secp256k1_public_key_33,
 } from '../../../../wasm/eth_signer/pkg/eth_signer.js';
+import * as ethSignerWasmModule from '../../../../wasm/eth_signer/pkg/eth_signer.js';
 import { initializeWasm, resolveWasmUrl } from '../runtimeAssetPaths/wasm-loader';
 import { errorMessage } from '../../../../shared/src/utils/errors';
 import { WorkerControlMessage } from './workerControlMessages';
@@ -31,6 +35,41 @@ type EthSignerWorkerRequest =
       payload: {
         prfSecond: any;
         nearAccountId: string;
+      };
+    }
+  | {
+      id: string;
+      type: 'mapAdditiveShareToThresholdSignaturesShare2p';
+      payload: {
+        additiveShare32: any;
+        participantId: number;
+      };
+    }
+  | {
+      id: string;
+      type: 'validateSecp256k1PublicKey33';
+      payload: {
+        publicKey33: any;
+      };
+    }
+  | {
+      id: string;
+      type: 'addSecp256k1PublicKeys33';
+      payload: {
+        left33: any;
+        right33: any;
+      };
+    }
+  | {
+      id: string;
+      type: 'buildWebauthnP256Signature';
+      payload: {
+        challenge32: any;
+        authenticatorData: any;
+        clientDataJSON: any;
+        signatureDer: any;
+        pubKeyX32: any;
+        pubKeyY32: any;
       };
     }
   | {
@@ -90,6 +129,18 @@ type PresignProgressResult = {
 };
 
 const thresholdEcdsaPresignSessions = new Map<string, ThresholdEcdsaPresignSession>();
+const buildWebauthnP256SignatureWasm = (
+  ethSignerWasmModule as unknown as {
+    build_webauthn_p256_signature?: (
+      challenge32: Uint8Array,
+      authenticatorData: Uint8Array,
+      clientDataJSON: Uint8Array,
+      signatureDer: Uint8Array,
+      pubKeyX32: Uint8Array,
+      pubKeyY32: Uint8Array,
+    ) => Uint8Array;
+  }
+).build_webauthn_p256_signature;
 
 function normalizePresignStage(stageRaw: unknown): 'triples' | 'triples_done' | 'presign' | 'done' {
   if (stageRaw === 'triples') return 'triples';
@@ -259,6 +310,57 @@ self.addEventListener('message', async (event: MessageEvent) => {
           },
           [privateKey32, publicKey33, ethereumAddress20],
         );
+        return;
+      }
+      case 'mapAdditiveShareToThresholdSignaturesShare2p': {
+        const additiveShare32 = toU8(msg.payload.additiveShare32);
+        const participantId = Number(msg.payload.participantId);
+        const out = map_additive_share_to_threshold_signatures_share_2p(
+          additiveShare32,
+          participantId,
+        ) as Uint8Array;
+        if (out.length !== 32) {
+          throw new Error(`map_additive_share_to_threshold_signatures_share_2p must return 32 bytes (got ${out.length})`);
+        }
+        const ab = out.slice().buffer;
+        (self as any).postMessage({ id: msg.id, ok: true, result: ab }, [ab]);
+        return;
+      }
+      case 'validateSecp256k1PublicKey33': {
+        const publicKey33 = toU8(msg.payload.publicKey33);
+        const out = validate_secp256k1_public_key_33(publicKey33) as Uint8Array;
+        if (out.length !== 33) {
+          throw new Error(`validate_secp256k1_public_key_33 must return 33 bytes (got ${out.length})`);
+        }
+        const ab = out.slice().buffer;
+        (self as any).postMessage({ id: msg.id, ok: true, result: ab }, [ab]);
+        return;
+      }
+      case 'addSecp256k1PublicKeys33': {
+        const left33 = toU8(msg.payload.left33);
+        const right33 = toU8(msg.payload.right33);
+        const out = add_secp256k1_public_keys_33(left33, right33) as Uint8Array;
+        if (out.length !== 33) {
+          throw new Error(`add_secp256k1_public_keys_33 must return 33 bytes (got ${out.length})`);
+        }
+        const ab = out.slice().buffer;
+        (self as any).postMessage({ id: msg.id, ok: true, result: ab }, [ab]);
+        return;
+      }
+      case 'buildWebauthnP256Signature': {
+        if (typeof buildWebauthnP256SignatureWasm !== 'function') {
+          throw new Error('eth_signer wasm export build_webauthn_p256_signature is missing');
+        }
+        const out = buildWebauthnP256SignatureWasm(
+          toU8(msg.payload.challenge32),
+          toU8(msg.payload.authenticatorData),
+          toU8(msg.payload.clientDataJSON),
+          toU8(msg.payload.signatureDer),
+          toU8(msg.payload.pubKeyX32),
+          toU8(msg.payload.pubKeyY32),
+        ) as Uint8Array;
+        const ab = out.slice().buffer;
+        (self as any).postMessage({ id: msg.id, ok: true, result: ab }, [ab]);
         return;
       }
       case 'thresholdEcdsaPresignSessionInit': {

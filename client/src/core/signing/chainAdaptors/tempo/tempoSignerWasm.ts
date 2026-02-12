@@ -2,7 +2,7 @@ import type { TempoUnsignedTx } from './types';
 import {
   executeSignerWorkerOperation,
   type WorkerOperationContext,
-} from '../handlers/executeSignerWorkerOperation';
+} from '../../workers/operations/executeSignerWorkerOperation';
 
 type TempoTxWasmJson = {
   chainId: string;
@@ -16,7 +16,10 @@ type TempoTxWasmJson = {
   validBefore?: string | null;
   validAfter?: string | null;
   feeToken?: string | null;
-  feePayerSignature?: { kind: 'none' } | { kind: 'placeholder' } | { kind: 'signed'; v: 0 | 1; r: string; s: string };
+  feePayerSignature?:
+    | { kind: 'none' }
+    | { kind: 'placeholder' }
+    | { kind: 'signed'; v: 0 | 1; r: string; s: string };
 };
 
 function toDec(v: bigint): string {
@@ -37,7 +40,10 @@ function toWasmTx(tx: TempoUnsignedTx): TempoTxWasmJson {
     maxFeePerGas: toDec(tx.maxFeePerGas),
     gasLimit: toDec(tx.gasLimit),
     calls: tx.calls.map((c) => ({ to: c.to, value: toDec(c.value), input: c.input ?? '0x' })),
-    accessList: (tx.accessList ?? []).map((item) => ({ address: item.address, storageKeys: item.storageKeys })),
+    accessList: (tx.accessList ?? []).map((item) => ({
+      address: item.address,
+      storageKeys: item.storageKeys,
+    })),
     nonceKey: toDec(tx.nonceKey),
     nonce: toDec(tx.nonce),
     validBefore: toDecOpt(tx.validBefore),

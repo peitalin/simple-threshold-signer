@@ -1,7 +1,7 @@
 import { computeThresholdEcdsaKeygenIntentDigest } from '../../../../utils/intentDigest';
 import { thresholdEcdsaKeygen } from '../../../near/rpcCalls';
 import { deriveThresholdSecp256k1ClientShareWasm } from '../../chainAdaptors/evm/ethSignerWasm';
-import type { WorkerOperationContext } from '../../chainAdaptors/handlers/executeSignerWorkerOperation';
+import type { WorkerOperationContext } from '../../workers/operations/executeSignerWorkerOperation';
 import {
   collectAuthenticationCredentialForChallengeB64u,
   getPrfFirstB64uFromCredential,

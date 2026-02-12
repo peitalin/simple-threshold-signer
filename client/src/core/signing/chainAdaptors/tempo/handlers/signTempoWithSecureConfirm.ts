@@ -7,7 +7,7 @@ import type { KeyRef, SignRequest, SigningEngine } from '../../../orchestration/
 import type { ThresholdEcdsaSecp256k1KeyRef } from '../../../orchestration/types';
 import { base64UrlEncode } from '../../../../../../../shared/src/utils/base64';
 import { bytesToHex } from '../../evm/bytes';
-import type { WorkerOperationContext } from '../../handlers/executeSignerWorkerOperation';
+import type { WorkerOperationContext } from '../../../workers/operations/executeSignerWorkerOperation';
 import { TempoAdapter, type TempoSignedResult } from '../tempoAdapter';
 import type { TempoSigningRequest } from '../types';
 import { resolveWebAuthnP256KeyRefForNearAccount } from '../../../orchestration/walletOrigin/webauthnKeyRef';

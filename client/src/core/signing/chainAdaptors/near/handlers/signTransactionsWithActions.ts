@@ -51,7 +51,7 @@ import {
 } from '../../../threshold/session/thresholdSessionPolicy';
 import { normalizeThresholdEd25519ParticipantIds } from '../../../../../../../shared/src/threshold/participants';
 import { deriveThresholdEd25519ClientVerifyingShare } from '../../../threshold/workflows/deriveThresholdEd25519ClientVerifyingShare';
-import { executeSignerWorkerOperation } from '../../handlers/executeSignerWorkerOperation';
+import { executeSignerWorkerOperation } from '../../../workers/operations/executeSignerWorkerOperation';
 import { NearAdapter } from '../nearAdapter';
 
 /**
@@ -129,10 +129,7 @@ export async function signTransactionsWithActions({
 
   const localKeyMaterial =
     resolvedSignerMode === 'local-signer' || thresholdBehavior === 'fallback'
-      ? await ctx.indexedDB.getNearLocalKeyMaterialV2First(
-        nearAccountId,
-        resolvedDeviceNumber,
-      )
+      ? await ctx.indexedDB.getNearLocalKeyMaterialV2First(nearAccountId, resolvedDeviceNumber)
       : null;
   const localWrapKeySalt = String(localKeyMaterial?.wrapKeySalt || '').trim();
   // Threshold share derivation must use the same wrapKeySalt that was used at keygen time.
@@ -148,7 +145,6 @@ export async function signTransactionsWithActions({
       );
     }
     const msg = `[WebAuthnManager] local-signer requested but no local key material found for account: ${nearAccountId}; using threshold-signer`;
-    // eslint-disable-next-line no-console
     console.warn(msg);
     warnings.push(msg);
     resolvedSignerMode = 'threshold-signer';
@@ -398,7 +394,6 @@ export async function signTransactionsWithActions({
           throw new Error(`No local key material found for account: ${nearAccountId}`);
         const msg =
           '[WebAuthnManager] threshold-signer requested but the relayer is missing the signing share; falling back to local-signer';
-        // eslint-disable-next-line no-console
         console.warn(msg);
         warnings.push(msg);
 
@@ -490,7 +485,7 @@ export async function signTransactionsWithActions({
       intentDigest,
       transactionContext,
       credential: credentialForRelayJson,
-    } as any;
+    };
 
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
@@ -519,7 +514,6 @@ export async function signTransactionsWithActions({
             throw new Error(`No local key material found for account: ${nearAccountId}`);
           const msg =
             '[WebAuthnManager] threshold-signer requested but the relayer is missing the signing share; falling back to local-signer';
-          // eslint-disable-next-line no-console
           console.warn(msg);
           warnings.push(msg);
 
@@ -701,27 +695,29 @@ async function signTransactionsWithActionsLocally(args: {
     logs?: string[];
   }>
 > {
+  const localRequestPayload: Omit<WasmSignTransactionsWithActionsRequest, 'sessionId'> = {
+    signerMode: 'local-signer',
+    rpcCall: args.resolvedRpcCall,
+    createdAt: Date.now(),
+    prfFirstB64u: args.prfFirstB64u,
+    wrapKeySalt: args.wrapKeySalt,
+    decryption: {
+      encryptedPrivateKeyData: args.localKeyMaterial.encryptedSk,
+      encryptedPrivateKeyChacha20NonceB64u: args.localKeyMaterial.chacha20NonceB64u,
+    },
+    txSigningRequests: args.txSigningRequests,
+    intentDigest: args.intentDigest,
+    transactionContext: args.transactionContext,
+    credential: args.credential,
+  };
+
   const response = await executeSignerWorkerOperation({
     ctx: args.ctx,
     kind: 'nearSigner',
     request: {
       sessionId: args.sessionId,
       type: WorkerRequestType.SignTransactionsWithActions,
-      payload: {
-        signerMode: 'local-signer',
-        rpcCall: args.resolvedRpcCall,
-        createdAt: Date.now(),
-        prfFirstB64u: args.prfFirstB64u,
-        wrapKeySalt: args.wrapKeySalt,
-        decryption: {
-          encryptedPrivateKeyData: args.localKeyMaterial.encryptedSk,
-          encryptedPrivateKeyChacha20NonceB64u: args.localKeyMaterial.chacha20NonceB64u,
-        },
-        txSigningRequests: args.txSigningRequests,
-        intentDigest: args.intentDigest,
-        transactionContext: args.transactionContext,
-        credential: args.credential,
-      } as any,
+      payload: localRequestPayload,
       onEvent: args.onEvent,
     },
   });

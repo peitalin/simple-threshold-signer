@@ -1,5 +1,5 @@
 import type { KeyRef, SignRequest, SignatureBytes, SigningEngine } from '../orchestration/types';
-import type { WorkerOperationContext } from '../chainAdaptors/handlers/executeSignerWorkerOperation';
+import type { WorkerOperationContext } from '../workers/operations/executeSignerWorkerOperation';
 import {
   deriveThresholdSecp256k1ClientShareWasm,
   signSecp256k1RecoverableWasm,

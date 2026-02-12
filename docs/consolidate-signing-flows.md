@@ -30,7 +30,7 @@ No bespoke parallel signing flow should remain after cutover.
 ## Current State
 
 - NEAR and EVM/Tempo now share a single execute helper:
-  - `client/src/core/signing/chainAdaptors/handlers/executeSignerWorkerOperation.ts`
+  - `client/src/core/signing/workers/operations/executeSignerWorkerOperation.ts`
 - NEAR and Tempo now share one intent execution entry:
   - `client/src/core/signing/orchestration/signWithIntent.ts`
   - `WebAuthnManager` NEAR signing methods now call `NearAdapter + signWithIntent(...)`.
@@ -86,7 +86,7 @@ No bespoke parallel signing flow should remain after cutover.
 - [x] Define one canonical `signWithIntent(...)` orchestration entry.
 - [x] Move NEAR transaction/delegate/NEP-413 onto adapter+intent flow (matching Tempo/EVM style).
 - [x] Ensure all user-facing chain signing flows pass through `executeSigningIntent`.
-- [ ] Restrict chain modules to adapter-specific normalization/finalization only.
+- [x] Restrict chain modules to adapter-specific normalization/finalization only.
 
 ### Phase 5A: Registration Activation Unification (Internal-Only)
 
@@ -95,7 +95,7 @@ No bespoke parallel signing flow should remain after cutover.
 - [x] Move NEAR activation implementation from `WebAuthnManager` into `orchestration/activation/near` and invoke it via the shared activation contract.
 - [x] Add EVM activation implementation using the same internal activation contract.
 - [x] Add Tempo activation implementation using the same internal activation contract.
-- [ ] Ensure activation helpers are only reachable through registration/bootstrap workflows, never direct SDK API.
+- [x] Ensure activation helpers are only reachable through registration/bootstrap workflows, never direct SDK API.
 
 ### Phase 5: SecureConfirm Unification
 
@@ -143,10 +143,10 @@ No bespoke parallel signing flow should remain after cutover.
 
 1. [x] Remove ctx-less multichain fallback from `executeSignerWorkerOperation` and require manager context everywhere (migrate tests/utilities first).
 2. [x] Implement EVM/Tempo activation adapters and wire them into registration/bootstrap workflows.
-3. [ ] Add tests proving activation helpers are internal-only and user signing still routes through `executeSigningIntent`.
+3. [x] Add tests proving activation helpers are internal-only and user signing still routes through `executeSigningIntent`.
 4. [x] Add unified pipeline test asserting NEAR/EVM/Tempo traverse the same execution path.
 5. [x] Finish remaining consolidation hardening:
    - standardize warm-session vs WebAuthn handling across chains
    - remove obsolete type aliases/redundant wrappers
    - run dead-code/import checks and remove unreachable paths
-6. [ ] Restrict remaining chain modules to adapter-specific normalization/finalization only.
+6. [x] Restrict remaining chain modules to adapter-specific normalization/finalization only.

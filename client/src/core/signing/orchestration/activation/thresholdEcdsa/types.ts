@@ -1,6 +1,6 @@
 import type { AccountId } from '../../../../types/accountIds';
 import type { ThresholdEcdsaSecp256k1KeyRef } from '../../../orchestration/types';
-import type { WorkerOperationContext } from '../../../chainAdaptors/handlers/executeSignerWorkerOperation';
+import type { WorkerOperationContext } from '../../../workers/operations/executeSignerWorkerOperation';
 import type {
   ThresholdIndexedDbPort,
   ThresholdPrfFirstCachePort,

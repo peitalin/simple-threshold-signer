@@ -5,6 +5,7 @@ import {
   type ConfirmationConfig,
   type Nep413SigningResponse,
   type SignerMode,
+  type WasmSignNep413MessageRequest,
   type WorkerSuccessResponse,
   getThresholdBehaviorFromSignerMode,
 } from '../../../../types/signer-worker';
@@ -42,7 +43,7 @@ function generateSessionId(): string {
 import type { SigningRuntimeDeps } from '../../types';
 import { toAccountId } from '../../../../types/accountIds';
 import { deriveThresholdEd25519ClientVerifyingShare } from '../../../threshold/workflows/deriveThresholdEd25519ClientVerifyingShare';
-import { executeSignerWorkerOperation } from '../../handlers/executeSignerWorkerOperation';
+import { executeSignerWorkerOperation } from '../../../workers/operations/executeSignerWorkerOperation';
 
 const DUMMY_WRAP_KEY_SALT_B64U = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
@@ -52,7 +53,10 @@ const DUMMY_WRAP_KEY_SALT_B64U = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
  * @param payload - NEP-413 signing parameters including message, recipient, nonce, and state
  * @returns Promise resolving to signing result with account ID, public key, and signature
  */
-export async function signNep413Message({ ctx, payload }: {
+export async function signNep413Message({
+  ctx,
+  payload,
+}: {
   ctx: SigningRuntimeDeps;
   payload: {
     message: string;
@@ -89,8 +93,9 @@ export async function signNep413Message({ ctx, payload }: {
     if (payload.deviceNumber !== undefined && parsedDeviceNumber === null) {
       throw new Error(`Invalid deviceNumber for NEP-413 signing: ${payload.deviceNumber}`);
     }
-    const resolvedDeviceNumber = parsedDeviceNumber
-      ?? await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
+    const resolvedDeviceNumber =
+      parsedDeviceNumber ??
+      (await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB));
     const nearAccount = toAccountId(nearAccountId);
     const thresholdKeyMaterial = await ctx.indexedDB.getNearThresholdKeyMaterialV2First(
       nearAccount,
@@ -104,14 +109,13 @@ export async function signNep413Message({ ctx, payload }: {
       hasThresholdKeyMaterial: !!thresholdKeyMaterial,
     });
 
-    const localKeyMaterial = (resolvedSignerMode === 'local-signer' || thresholdBehavior === 'fallback')
-      ? await ctx.indexedDB.getNearLocalKeyMaterialV2First(
-        nearAccount,
-        resolvedDeviceNumber,
-      )
-      : null;
+    const localKeyMaterial =
+      resolvedSignerMode === 'local-signer' || thresholdBehavior === 'fallback'
+        ? await ctx.indexedDB.getNearLocalKeyMaterialV2First(nearAccount, resolvedDeviceNumber)
+        : null;
     const localWrapKeySalt = String(localKeyMaterial?.wrapKeySalt || '').trim();
-    const thresholdWrapKeySalt = String(thresholdKeyMaterial?.wrapKeySalt || '').trim() || DUMMY_WRAP_KEY_SALT_B64U;
+    const thresholdWrapKeySalt =
+      String(thresholdKeyMaterial?.wrapKeySalt || '').trim() || DUMMY_WRAP_KEY_SALT_B64U;
 
     if (resolvedSignerMode === 'local-signer') {
       if (!localKeyMaterial) {
@@ -127,7 +131,8 @@ export async function signNep413Message({ ctx, payload }: {
       throw new Error('SecureConfirmWorkerManager not available for NEP-413 signing');
     }
 
-    const canFallbackToLocal = thresholdBehavior === 'fallback' && !!localKeyMaterial && !!localWrapKeySalt;
+    const canFallbackToLocal =
+      thresholdBehavior === 'fallback' && !!localKeyMaterial && !!localWrapKeySalt;
 
     const signingContext = validateAndPrepareNep413SigningContext({
       nearAccountId,
@@ -145,25 +150,25 @@ export async function signNep413Message({ ctx, payload }: {
     const usesNeeded = 1;
     const desiredTtlMs =
       typeof payload.signingSessionTtlMs === 'number' &&
-        Number.isFinite(payload.signingSessionTtlMs) &&
-        payload.signingSessionTtlMs > 0
+      Number.isFinite(payload.signingSessionTtlMs) &&
+      payload.signingSessionTtlMs > 0
         ? Math.floor(payload.signingSessionTtlMs)
         : undefined;
     const desiredRemainingUses =
       typeof payload.signingSessionRemainingUses === 'number' &&
-        Number.isFinite(payload.signingSessionRemainingUses) &&
-        payload.signingSessionRemainingUses > 0
+      Number.isFinite(payload.signingSessionRemainingUses) &&
+      payload.signingSessionRemainingUses > 0
         ? Math.floor(payload.signingSessionRemainingUses)
         : undefined;
-    let thresholdSessionPlan:
-      | Awaited<ReturnType<typeof buildThresholdSessionPolicy>>
-      | null = null;
+    let thresholdSessionPlan: Awaited<ReturnType<typeof buildThresholdSessionPolicy>> | null = null;
     let signingAuthMode: SigningAuthMode | undefined;
     if (signingContext.threshold) {
       const hasJwt = !!signingContext.threshold.thresholdSessionJwt;
       let warmOk = false;
       if (hasJwt) {
-        const peek = await secureConfirmWorkerManager.peekPrfFirstForThresholdSession({ sessionId });
+        const peek = await secureConfirmWorkerManager.peekPrfFirstForThresholdSession({
+          sessionId,
+        });
         warmOk = peek.ok && peek.remainingUses >= usesNeeded;
       }
       signingAuthMode = warmOk ? 'warmSession' : 'webauthn';
@@ -173,7 +178,9 @@ export async function signNep413Message({ ctx, payload }: {
           nearAccountId,
           rpId,
           relayerKeyId: signingContext.threshold.thresholdKeyMaterial.relayerKeyId,
-          participantIds: signingContext.threshold.thresholdKeyMaterial.participants.map((p) => p.id),
+          participantIds: signingContext.threshold.thresholdKeyMaterial.participants.map(
+            (p) => p.id,
+          ),
           ...(desiredTtlMs !== undefined ? { ttlMs: desiredTtlMs } : {}),
           remainingUses: Math.max(usesNeeded, desiredRemainingUses ?? usesNeeded),
         });
@@ -185,7 +192,9 @@ export async function signNep413Message({ ctx, payload }: {
       sessionId,
       kind: 'nep413',
       ...(signingAuthMode ? { signingAuthMode } : {}),
-      ...(thresholdSessionPlan ? { sessionPolicyDigest32: thresholdSessionPlan.sessionPolicyDigest32 } : {}),
+      ...(thresholdSessionPlan
+        ? { sessionPolicyDigest32: thresholdSessionPlan.sessionPolicyDigest32 }
+        : {}),
       nearAccountId,
       message: payload.message,
       recipient: payload.recipient,
@@ -196,9 +205,8 @@ export async function signNep413Message({ ctx, payload }: {
       nearRpcUrl: payload.nearRpcUrl,
     });
 
-    let credentialWithPrf: WebAuthnAuthenticationCredential | undefined = confirmation.credential as
-      | WebAuthnAuthenticationCredential
-      | undefined;
+    let credentialWithPrf: WebAuthnAuthenticationCredential | undefined =
+      confirmation.credential as WebAuthnAuthenticationCredential | undefined;
     let credentialForRelayJson = credentialWithPrf
       ? JSON.stringify(redactCredentialExtensionOutputs(credentialWithPrf))
       : undefined;
@@ -213,7 +221,9 @@ export async function signNep413Message({ ctx, payload }: {
       if (delivered.ok) {
         prfFirstB64u = delivered.prfFirstB64u;
       } else {
-        await secureConfirmWorkerManager.clearPrfFirstForThresholdSession({ sessionId }).catch(() => { });
+        await secureConfirmWorkerManager
+          .clearPrfFirstForThresholdSession({ sessionId })
+          .catch(() => {});
         signingAuthMode = 'webauthn';
 
         const rpId = String(ctx.touchIdPrompt.getRpId() || '').trim();
@@ -221,7 +231,9 @@ export async function signNep413Message({ ctx, payload }: {
           nearAccountId,
           rpId,
           relayerKeyId: signingContext.threshold.thresholdKeyMaterial.relayerKeyId,
-          participantIds: signingContext.threshold.thresholdKeyMaterial.participants.map((p) => p.id),
+          participantIds: signingContext.threshold.thresholdKeyMaterial.participants.map(
+            (p) => p.id,
+          ),
           ...(desiredTtlMs !== undefined ? { ttlMs: desiredTtlMs } : {}),
           remainingUses: Math.max(usesNeeded, desiredRemainingUses ?? usesNeeded),
         });
@@ -243,16 +255,22 @@ export async function signNep413Message({ ctx, payload }: {
         });
 
         credentialWithPrf = refreshed.credential as WebAuthnAuthenticationCredential | undefined;
-        credentialForRelayJson = credentialWithPrf ? JSON.stringify(redactCredentialExtensionOutputs(credentialWithPrf)) : undefined;
+        credentialForRelayJson = credentialWithPrf
+          ? JSON.stringify(redactCredentialExtensionOutputs(credentialWithPrf))
+          : undefined;
         prfFirstB64u = getPrfResultsFromCredential(credentialWithPrf).first;
         if (!prfFirstB64u) {
-          throw new Error('Missing PRF.first output from credential (requires a PRF-enabled passkey)');
+          throw new Error(
+            'Missing PRF.first output from credential (requires a PRF-enabled passkey)',
+          );
         }
       }
     } else {
       prfFirstB64u = getPrfResultsFromCredential(credentialWithPrf).first;
       if (!prfFirstB64u) {
-        throw new Error('Missing PRF.first output from credential (requires a PRF-enabled passkey)');
+        throw new Error(
+          'Missing PRF.first output from credential (requires a PRF-enabled passkey)',
+        );
       }
     }
 
@@ -291,18 +309,20 @@ export async function signNep413Message({ ctx, payload }: {
         throw new Error(minted.message || 'Failed to mint threshold session');
       }
 
-      const expiresAtMs = minted.expiresAtMs ?? (Date.now() + thresholdSessionPlan.policy.ttlMs);
+      const expiresAtMs = minted.expiresAtMs ?? Date.now() + thresholdSessionPlan.policy.ttlMs;
       const remainingUses = minted.remainingUses ?? thresholdSessionPlan.policy.remainingUses;
 
       if (!prfFirstB64u) {
         throw new Error('Missing PRF.first output for threshold session cache');
       }
-      await secureConfirmWorkerManager.putPrfFirstForThresholdSession({
-        sessionId,
-        prfFirstB64u,
-        expiresAtMs,
-        remainingUses,
-      }).catch(() => { });
+      await secureConfirmWorkerManager
+        .putPrfFirstForThresholdSession({
+          sessionId,
+          prfFirstB64u,
+          expiresAtMs,
+          remainingUses,
+        })
+        .catch(() => {});
 
       putCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey, {
         sessionKind: 'jwt',
@@ -320,7 +340,7 @@ export async function signNep413Message({ ctx, payload }: {
       throw new Error('Missing thresholdSessionJwt for threshold NEP-413 signing');
     }
 
-    const requestPayload = {
+    const requestPayload: Omit<WasmSignNep413MessageRequest, 'sessionId'> = {
       signerMode: signingContext.resolvedSignerMode,
       message: payload.message,
       recipient: payload.recipient,
@@ -333,14 +353,20 @@ export async function signNep413Message({ ctx, payload }: {
       decryption: signingContext.decryption,
       threshold: signingContext.threshold
         ? {
-          relayerUrl: signingContext.threshold.relayerUrl,
-          relayerKeyId: signingContext.threshold.thresholdKeyMaterial.relayerKeyId,
-          clientParticipantId: signingContext.threshold.thresholdKeyMaterial.participants.find((p) => p.role === 'client')?.id,
-          relayerParticipantId: signingContext.threshold.thresholdKeyMaterial.participants.find((p) => p.role === 'relayer')?.id,
-          participantIds: signingContext.threshold.thresholdKeyMaterial.participants.map((p) => p.id),
-          thresholdSessionKind: 'jwt' as const,
-          thresholdSessionJwt: signingContext.threshold.thresholdSessionJwt,
-        }
+            relayerUrl: signingContext.threshold.relayerUrl,
+            relayerKeyId: signingContext.threshold.thresholdKeyMaterial.relayerKeyId,
+            clientParticipantId: signingContext.threshold.thresholdKeyMaterial.participants.find(
+              (p) => p.role === 'client',
+            )?.id,
+            relayerParticipantId: signingContext.threshold.thresholdKeyMaterial.participants.find(
+              (p) => p.role === 'relayer',
+            )?.id,
+            participantIds: signingContext.threshold.thresholdKeyMaterial.participants.map(
+              (p) => p.id,
+            ),
+            thresholdSessionKind: 'jwt' as const,
+            thresholdSessionJwt: signingContext.threshold.thresholdSessionJwt,
+          }
         : undefined,
       credential: credentialForRelayJson,
     };
@@ -352,7 +378,7 @@ export async function signNep413Message({ ctx, payload }: {
         request: {
           sessionId,
           type: WorkerRequestType.SignNep413Message,
-          payload: requestPayload as any,
+          payload: requestPayload,
         },
       });
       const okResponse = requireOkSignNep413MessageResponse(response);
@@ -375,7 +401,7 @@ export async function signNep413Message({ ctx, payload }: {
           request: {
             sessionId,
             type: WorkerRequestType.SignNep413Message,
-            payload: requestPayload as any,
+            payload: requestPayload,
           },
         });
         okResponse = requireOkSignNep413MessageResponse(response);
@@ -384,9 +410,23 @@ export async function signNep413Message({ ctx, payload }: {
         const err = e instanceof Error ? e : new Error(String(e));
 
         if (canFallbackToLocal && isThresholdSignerMissingKeyError(err)) {
-          if (!localKeyMaterial) throw new Error(`No local key material found for account: ${nearAccountId}`);
+          if (!localKeyMaterial)
+            throw new Error(`No local key material found for account: ${nearAccountId}`);
           clearCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey);
           signingContext.threshold.thresholdSessionJwt = undefined;
+
+          const localRequestPayload: Omit<WasmSignNep413MessageRequest, 'sessionId'> = {
+            ...requestPayload,
+            signerMode: 'local-signer',
+            nearPublicKey: String(localKeyMaterial.publicKey || '').trim(),
+            prfFirstB64u,
+            wrapKeySalt: localWrapKeySalt,
+            decryption: {
+              encryptedPrivateKeyData: localKeyMaterial.encryptedSk,
+              encryptedPrivateKeyChacha20NonceB64u: localKeyMaterial.chacha20NonceB64u,
+            },
+            threshold: undefined,
+          };
 
           const response = await executeSignerWorkerOperation({
             ctx,
@@ -394,18 +434,7 @@ export async function signNep413Message({ ctx, payload }: {
             request: {
               sessionId,
               type: WorkerRequestType.SignNep413Message,
-              payload: {
-                ...requestPayload,
-                signerMode: 'local-signer',
-                nearPublicKey: String(localKeyMaterial.publicKey || '').trim(),
-                prfFirstB64u,
-                wrapKeySalt: localWrapKeySalt,
-                decryption: {
-                  encryptedPrivateKeyData: localKeyMaterial.encryptedSk,
-                  encryptedPrivateKeyChacha20NonceB64u: localKeyMaterial.chacha20NonceB64u,
-                },
-                threshold: undefined,
-              } as any,
+              payload: localRequestPayload,
             },
           });
           okResponse = requireOkSignNep413MessageResponse(response);
@@ -414,7 +443,9 @@ export async function signNep413Message({ ctx, payload }: {
 
         if (attempt === 0 && isThresholdSessionAuthUnavailableError(err)) {
           clearCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey);
-          await secureConfirmWorkerManager.clearPrfFirstForThresholdSession({ sessionId }).catch(() => { });
+          await secureConfirmWorkerManager
+            .clearPrfFirstForThresholdSession({ sessionId })
+            .catch(() => {});
           signingContext.threshold.thresholdSessionJwt = undefined;
           requestPayload.threshold!.thresholdSessionJwt = undefined;
 
@@ -423,7 +454,9 @@ export async function signNep413Message({ ctx, payload }: {
             nearAccountId,
             rpId,
             relayerKeyId: signingContext.threshold.thresholdKeyMaterial.relayerKeyId,
-            participantIds: signingContext.threshold.thresholdKeyMaterial.participants.map((p) => p.id),
+            participantIds: signingContext.threshold.thresholdKeyMaterial.participants.map(
+              (p) => p.id,
+            ),
             ...(desiredTtlMs !== undefined ? { ttlMs: desiredTtlMs } : {}),
             remainingUses: Math.max(usesNeeded, desiredRemainingUses ?? usesNeeded),
           });
@@ -445,14 +478,16 @@ export async function signNep413Message({ ctx, payload }: {
           });
 
           credentialWithPrf = refreshed.credential as WebAuthnAuthenticationCredential | undefined;
-          credentialForRelayJson = credentialWithPrf ? JSON.stringify(redactCredentialExtensionOutputs(credentialWithPrf)) : undefined;
+          credentialForRelayJson = credentialWithPrf
+            ? JSON.stringify(redactCredentialExtensionOutputs(credentialWithPrf))
+            : undefined;
 
           const prfFirst = getPrfResultsFromCredential(credentialWithPrf).first;
           if (!prfFirst) {
-            throw new Error('Missing PRF.first output from credential (requires a PRF-enabled passkey)');
+            throw new Error(
+              'Missing PRF.first output from credential (requires a PRF-enabled passkey)',
+            );
           }
-
-
 
           const derived = await deriveThresholdEd25519ClientVerifyingShare({
             ctx,
@@ -477,15 +512,17 @@ export async function signNep413Message({ ctx, payload }: {
             throw new Error(minted.message || 'Failed to mint threshold session');
           }
 
-          const expiresAtMs = minted.expiresAtMs ?? (Date.now() + thresholdSessionPlan.policy.ttlMs);
+          const expiresAtMs = minted.expiresAtMs ?? Date.now() + thresholdSessionPlan.policy.ttlMs;
           const remainingUses = minted.remainingUses ?? thresholdSessionPlan.policy.remainingUses;
 
-          await secureConfirmWorkerManager.putPrfFirstForThresholdSession({
-            sessionId,
-            prfFirstB64u: prfFirst,
-            expiresAtMs,
-            remainingUses,
-          }).catch(() => { });
+          await secureConfirmWorkerManager
+            .putPrfFirstForThresholdSession({
+              sessionId,
+              prfFirstB64u: prfFirst,
+              expiresAtMs,
+              remainingUses,
+            })
+            .catch(() => {});
 
           putCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey, {
             sessionKind: 'jwt',
@@ -518,16 +555,16 @@ export async function signNep413Message({ ctx, payload }: {
       state: okResponse.payload.state || undefined,
     };
   } catch (error: unknown) {
-    // eslint-disable-next-line no-console
     console.error('SignerWorkerManager: NEP-413 signing error:', error);
     return {
       success: false,
       accountId: '',
       publicKey: '',
       signature: '',
-      error: (error && typeof (error as { message?: unknown }).message === 'string')
-        ? (error as { message: string }).message
-        : 'Unknown error'
+      error:
+        error && typeof (error as { message?: unknown }).message === 'string'
+          ? (error as { message: string }).message
+          : 'Unknown error',
     };
   }
 }
@@ -600,10 +637,12 @@ function validateAndPrepareNep413SigningContext(args: {
     throw new Error('Missing rpId for threshold signing');
   }
 
-  const participantIds = normalizeThresholdEd25519ParticipantIds(thresholdKeyMaterial.participants.map((p) => p.id));
+  const participantIds = normalizeThresholdEd25519ParticipantIds(
+    thresholdKeyMaterial.participants.map((p) => p.id),
+  );
   if (!participantIds || participantIds.length < 2) {
     throw new Error(
-      `Invalid threshold signing participantIds (expected >=2 participants, got [${(participantIds || []).join(',')}])`
+      `Invalid threshold signing participantIds (expected >=2 participants, got [${(participantIds || []).join(',')}])`,
     );
   }
 

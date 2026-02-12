@@ -1,10 +1,11 @@
 import type { Eip1559UnsignedTx, EvmAccessListItem, EvmAddress, EvmBytes, Hex } from '../evm/types';
-import type { RlpValue } from '../evm/rlp';
+
+export type TempoRlpValue = Uint8Array | TempoRlpValue[];
 
 export type TempoCall = {
-  to: EvmAddress;          // 20 bytes
-  value: bigint;          // wei
-  input?: EvmBytes;       // calldata, defaults to 0x
+  to: EvmAddress; // 20 bytes
+  value: bigint; // wei
+  input?: EvmBytes; // calldata, defaults to 0x
 };
 
 export type TempoFeePayerSignature =
@@ -25,8 +26,8 @@ export type TempoUnsignedTx = {
   validAfter?: bigint | null;
   feeToken?: EvmAddress | null;
   feePayerSignature?: TempoFeePayerSignature;
-  aaAuthorizationList?: RlpValue; // default []
-  keyAuthorization?: RlpValue; // optional; omitted when undefined
+  aaAuthorizationList?: TempoRlpValue; // default []
+  keyAuthorization?: TempoRlpValue; // optional; omitted when undefined
 };
 
 export type TempoSigningRequest =
@@ -43,5 +44,7 @@ export type TempoSigningRequest =
       senderSignatureAlgorithm: 'secp256k1';
     };
 
-export type TempoSecp256k1SigningRequest =
-  Extract<TempoSigningRequest, { senderSignatureAlgorithm: 'secp256k1' }>;
+export type TempoSecp256k1SigningRequest = Extract<
+  TempoSigningRequest,
+  { senderSignatureAlgorithm: 'secp256k1' }
+>;

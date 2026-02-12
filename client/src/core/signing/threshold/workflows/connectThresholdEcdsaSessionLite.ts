@@ -6,7 +6,7 @@ import {
   type ThresholdWebAuthnPromptPort,
 } from '../webauthn';
 import { deriveThresholdSecp256k1ClientShareWasm } from '../../chainAdaptors/evm/ethSignerWasm';
-import type { WorkerOperationContext } from '../../chainAdaptors/handlers/executeSignerWorkerOperation';
+import type { WorkerOperationContext } from '../../workers/operations/executeSignerWorkerOperation';
 import { buildThresholdEcdsaSessionPolicy } from '../session/thresholdSessionPolicy';
 import {
   makeThresholdEcdsaAuthSessionCacheKey,

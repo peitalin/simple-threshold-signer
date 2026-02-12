@@ -37,6 +37,29 @@ export interface EthSignerWorkerOperationMap {
       ethereumAddress20: ArrayBuffer;
     };
   };
+  mapAdditiveShareToThresholdSignaturesShare2p: {
+    payload: { additiveShare32: ArrayBuffer; participantId: number };
+    result: ArrayBuffer;
+  };
+  validateSecp256k1PublicKey33: {
+    payload: { publicKey33: ArrayBuffer };
+    result: ArrayBuffer;
+  };
+  addSecp256k1PublicKeys33: {
+    payload: { left33: ArrayBuffer; right33: ArrayBuffer };
+    result: ArrayBuffer;
+  };
+  buildWebauthnP256Signature: {
+    payload: {
+      challenge32: ArrayBuffer;
+      authenticatorData: ArrayBuffer;
+      clientDataJSON: ArrayBuffer;
+      signatureDer: ArrayBuffer;
+      pubKeyX32: ArrayBuffer;
+      pubKeyY32: ArrayBuffer;
+    };
+    result: ArrayBuffer;
+  };
   thresholdEcdsaPresignSessionInit: {
     payload: {
       sessionId: string;

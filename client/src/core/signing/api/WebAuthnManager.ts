@@ -66,7 +66,10 @@ import {
   type SecureConfirmRequest,
   type ExportPrivateKeyDisplayEntry,
 } from '../secureConfirm/confirmTxFlow/types';
-import type { NearIntentResult, NearSigningRequest } from '../chainAdaptors/near/nearAdapter';
+import type {
+  NearIntentResult,
+  NearSigningRequest,
+} from '../chainAdaptors/near/nearAdapter';
 import type {
   TempoSecp256k1SigningRequest,
   TempoSigningRequest,
@@ -613,7 +616,7 @@ export class WebAuthnManager {
     return await signWithIntent({
       adapter: new NearAdapter(),
       request,
-      engines: { ed25519: new NearEd25519Engine() },
+      engines: { ed25519: new NearEd25519Engine() } as any,
       resolveSignInput: async (signReq) => ({ signReq, keyRef: NEAR_ED25519_KEY_REF }),
     }) as NearIntentResult<TRequest>;
   }
@@ -850,7 +853,7 @@ export class WebAuthnManager {
           dispenseThresholdEcdsaPrfFirstForSession: (payload) =>
             this.secureConfirmWorkerManager.dispensePrfFirstForThresholdSession(payload),
         }),
-        webauthnP256: new WebAuthnP256Engine(),
+        webauthnP256: new WebAuthnP256Engine(signerWorkerCtx),
       },
       ...(args.thresholdEcdsaKeyRef
         ? { keyRefsByAlgorithm: { secp256k1: args.thresholdEcdsaKeyRef } }

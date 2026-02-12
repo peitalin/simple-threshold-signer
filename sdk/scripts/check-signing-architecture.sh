@@ -27,10 +27,29 @@ if rg -n \
   exit 1
 fi
 
+echo "[check-signing-architecture] checking legacy execute helper path removal..."
+if rg -n \
+  -e "chainAdaptors/handlers/executeSignerWorkerOperation" \
+  client/src/core/signing \
+  tests \
+  docs; then
+  echo "[check-signing-architecture] failed: found stale executeSignerWorkerOperation import/docs path"
+  exit 1
+fi
+
+echo "[check-signing-architecture] checking chain adaptor barrel boundaries..."
+if rg -n \
+  -e "export \\* from '\\./(bytes|eip1559|keccak|rlp|tempoTx|deriveSecp256k1KeypairFromPrfSecond)'" \
+  client/src/core/signing/chainAdaptors/evm/index.ts \
+  client/src/core/signing/chainAdaptors/tempo/index.ts; then
+  echo "[check-signing-architecture] failed: chain adaptor barrels must not re-export low-level crypto modules"
+  exit 1
+fi
+
 echo "[check-signing-architecture] checking execute helper context enforcement..."
 if rg -n \
   -e "requestMultichainWorkerOperation" \
-  client/src/core/signing/chainAdaptors/handlers/executeSignerWorkerOperation.ts; then
+  client/src/core/signing/workers/operations/executeSignerWorkerOperation.ts; then
   echo "[check-signing-architecture] failed: execute helper must dispatch through runtime context only"
   exit 1
 fi
@@ -41,6 +60,15 @@ if rg -n \
   client/src/core/signing \
   tests; then
   echo "[check-signing-architecture] failed: secureConfirm/flow wrapper imports should be removed"
+  exit 1
+fi
+
+echo "[check-signing-architecture] checking WebAuthn P-256 wasm boundary..."
+if rg -n \
+  -e "parseDerEcdsaSignatureP256" \
+  -e "readDerLength\\(" \
+  client/src/core/signing/engines/webauthnP256.ts; then
+  echo "[check-signing-architecture] failed: WebAuthn P-256 DER parsing must live in wasm worker path"
   exit 1
 fi
 

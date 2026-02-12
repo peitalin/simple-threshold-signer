@@ -6,10 +6,21 @@ import type {
   NearWorkerOperationRequest,
   NearWorkerOperationResult,
   NearWorkerOperationType,
-} from '../../workers/signerWorkerManager/backends/types';
-import type { SigningRuntimeDeps } from '../types';
+  SignerWorkerKind,
+  SignerWorkerOperationRequest,
+  SignerWorkerOperationResult,
+  SignerWorkerOperationType,
+} from '../signerWorkerManager/backends/types';
 
-export type WorkerOperationContext = Pick<SigningRuntimeDeps, 'requestWorkerOperation'>;
+export type WorkerOperationContext = {
+  requestWorkerOperation: <
+    K extends SignerWorkerKind,
+    T extends SignerWorkerOperationType<K>,
+  >(args: {
+    kind: K;
+    request: SignerWorkerOperationRequest<K, T>;
+  }) => Promise<SignerWorkerOperationResult<K, T>>;
+};
 
 type NearOperationArgs<T extends NearWorkerOperationType> = {
   kind: 'nearSigner';
@@ -26,43 +37,42 @@ type MultichainOperationArgs<
   ctx: WorkerOperationContext;
 };
 
+type AnyNearOperationArgs = NearOperationArgs<NearWorkerOperationType>;
+type AnyMultichainOperationArgs = {
+  [K in MultichainWorkerKind]: MultichainOperationArgs<K, MultichainOperationType<K>>;
+}[MultichainWorkerKind];
+
 export function executeSignerWorkerOperation<T extends NearWorkerOperationType>(
   args: NearOperationArgs<T>,
 ): Promise<NearWorkerOperationResult<T>>;
 export function executeSignerWorkerOperation<
   K extends MultichainWorkerKind,
   T extends MultichainOperationType<K>,
->(
-  args: MultichainOperationArgs<K, T>,
-): Promise<MultichainWorkerOperationResult<K, T>>;
-export async function executeSignerWorkerOperation<
-  K extends MultichainWorkerKind,
-  T extends MultichainOperationType<K>,
->(
-  args: NearOperationArgs<NearWorkerOperationType> | MultichainOperationArgs<K, T>,
-): Promise<NearWorkerOperationResult<NearWorkerOperationType> | MultichainWorkerOperationResult<K, T>> {
+>(args: MultichainOperationArgs<K, T>): Promise<MultichainWorkerOperationResult<K, T>>;
+export async function executeSignerWorkerOperation(
+  args: AnyNearOperationArgs | AnyMultichainOperationArgs,
+): Promise<
+  | NearWorkerOperationResult<NearWorkerOperationType>
+  | MultichainWorkerOperationResult<
+      MultichainWorkerKind,
+      MultichainOperationType<MultichainWorkerKind>
+    >
+> {
   if (args.kind === 'nearSigner') {
     if (!args.ctx) {
       throw new Error('[executeSignerWorkerOperation] ctx is required for nearSigner operations');
     }
     return await args.ctx.requestWorkerOperation({
       kind: 'nearSigner',
-      request: args.request as NearWorkerOperationRequest<NearWorkerOperationType>,
+      request: args.request,
     });
   }
 
   if (!args.ctx) {
     throw new Error(`[executeSignerWorkerOperation] ctx is required for ${args.kind} operations`);
   }
-  const requestWorkerOperation = args.ctx.requestWorkerOperation as <
-    K2 extends MultichainWorkerKind,
-    T2 extends MultichainOperationType<K2>,
-  >(args: {
-    kind: K2;
-    request: MultichainWorkerOperationRequest<K2, T2>;
-  }) => Promise<MultichainWorkerOperationResult<K2, T2>>;
-  return await requestWorkerOperation({
+  return await args.ctx.requestWorkerOperation({
     kind: args.kind,
-    request: args.request as MultichainWorkerOperationRequest<K, T>,
+    request: args.request,
   });
 }

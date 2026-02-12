@@ -3,7 +3,7 @@ import { bytesToHex } from './bytes';
 import {
   executeSignerWorkerOperation,
   type WorkerOperationContext,
-} from '../handlers/executeSignerWorkerOperation';
+} from '../../workers/operations/executeSignerWorkerOperation';
 import { base64UrlDecode, base64UrlEncode } from '../../../../../../shared/src/utils/base64';
 
 type Eip1559TxWasmJson = {
@@ -41,11 +41,6 @@ function toWasmTx(tx: Eip1559UnsignedTx): Eip1559TxWasmJson {
 }
 
 const ETH_SIGNER_WORKER_KIND = 'ethSigner' as const;
-
-type ThresholdSecp256k1ClientShareWasmRaw = {
-  clientSigningShare32: ArrayBuffer;
-  clientVerifyingShare33: ArrayBuffer;
-};
 
 export async function computeEip1559TxHashWasm(
   tx: Eip1559UnsignedTx,
@@ -139,11 +134,15 @@ export async function deriveThresholdSecp256k1ClientShareWasm(args: {
 
   const clientSigningShare32 = new Uint8Array(raw.clientSigningShare32);
   if (clientSigningShare32.length !== 32) {
-    throw new Error(`deriveThresholdSecp256k1ClientShare expected 32-byte signing share (got ${clientSigningShare32.length})`);
+    throw new Error(
+      `deriveThresholdSecp256k1ClientShare expected 32-byte signing share (got ${clientSigningShare32.length})`,
+    );
   }
   const clientVerifyingShareBytes = new Uint8Array(raw.clientVerifyingShare33);
   if (clientVerifyingShareBytes.length !== 33) {
-    throw new Error(`deriveThresholdSecp256k1ClientShare expected 33-byte verifying share (got ${clientVerifyingShareBytes.length})`);
+    throw new Error(
+      `deriveThresholdSecp256k1ClientShare expected 33-byte verifying share (got ${clientVerifyingShareBytes.length})`,
+    );
   }
 
   return {
@@ -187,13 +186,19 @@ export async function deriveSecp256k1KeypairFromPrfSecondWasm(args: {
   const ethereumAddress20 = new Uint8Array(raw.ethereumAddress20);
 
   if (privateKey32.length !== 32) {
-    throw new Error(`deriveSecp256k1KeypairFromPrfSecond expected 32-byte private key (got ${privateKey32.length})`);
+    throw new Error(
+      `deriveSecp256k1KeypairFromPrfSecond expected 32-byte private key (got ${privateKey32.length})`,
+    );
   }
   if (publicKey33.length !== 33) {
-    throw new Error(`deriveSecp256k1KeypairFromPrfSecond expected 33-byte public key (got ${publicKey33.length})`);
+    throw new Error(
+      `deriveSecp256k1KeypairFromPrfSecond expected 33-byte public key (got ${publicKey33.length})`,
+    );
   }
   if (ethereumAddress20.length !== 20) {
-    throw new Error(`deriveSecp256k1KeypairFromPrfSecond expected 20-byte ethereum address (got ${ethereumAddress20.length})`);
+    throw new Error(
+      `deriveSecp256k1KeypairFromPrfSecond expected 20-byte ethereum address (got ${ethereumAddress20.length})`,
+    );
   }
 
   return {
@@ -201,6 +206,162 @@ export async function deriveSecp256k1KeypairFromPrfSecondWasm(args: {
     publicKeyHex: bytesToHex(publicKey33),
     ethereumAddress: bytesToHex(ethereumAddress20),
   };
+}
+
+export async function mapAdditiveShareToThresholdSignaturesShare2pWasm(args: {
+  additiveShare32: Uint8Array;
+  participantId: number;
+  workerCtx: WorkerOperationContext;
+}): Promise<Uint8Array> {
+  if (!(args.additiveShare32 instanceof Uint8Array) || args.additiveShare32.length !== 32) {
+    throw new Error('additiveShare32 must be 32 bytes');
+  }
+  const additiveShare32 = args.additiveShare32.slice();
+  const participantId = Math.floor(Number(args.participantId));
+  if (!Number.isFinite(participantId) || participantId <= 0) {
+    throw new Error(`Invalid participantId: ${args.participantId}`);
+  }
+
+  const ab = await executeSignerWorkerOperation({
+    ctx: args.workerCtx,
+    kind: ETH_SIGNER_WORKER_KIND,
+    request: {
+      type: 'mapAdditiveShareToThresholdSignaturesShare2p',
+      payload: {
+        additiveShare32: additiveShare32.buffer,
+        participantId,
+      },
+      transfer: [additiveShare32.buffer],
+    },
+  });
+  const mapped = new Uint8Array(ab);
+  if (mapped.length !== 32) {
+    throw new Error(
+      `mapAdditiveShareToThresholdSignaturesShare2p expected 32-byte output (got ${mapped.length})`,
+    );
+  }
+  return mapped;
+}
+
+export async function validateSecp256k1PublicKey33Wasm(args: {
+  publicKey33: Uint8Array;
+  workerCtx: WorkerOperationContext;
+}): Promise<Uint8Array> {
+  if (!(args.publicKey33 instanceof Uint8Array) || args.publicKey33.length !== 33) {
+    throw new Error('publicKey33 must be 33 bytes');
+  }
+  const publicKey33 = args.publicKey33.slice();
+  const ab = await executeSignerWorkerOperation({
+    ctx: args.workerCtx,
+    kind: ETH_SIGNER_WORKER_KIND,
+    request: {
+      type: 'validateSecp256k1PublicKey33',
+      payload: { publicKey33: publicKey33.buffer },
+      transfer: [publicKey33.buffer],
+    },
+  });
+  const validated = new Uint8Array(ab);
+  if (validated.length !== 33) {
+    throw new Error(
+      `validateSecp256k1PublicKey33 expected 33-byte output (got ${validated.length})`,
+    );
+  }
+  return validated;
+}
+
+export async function addSecp256k1PublicKeys33Wasm(args: {
+  left33: Uint8Array;
+  right33: Uint8Array;
+  workerCtx: WorkerOperationContext;
+}): Promise<Uint8Array> {
+  if (!(args.left33 instanceof Uint8Array) || args.left33.length !== 33) {
+    throw new Error('left33 must be 33 bytes');
+  }
+  if (!(args.right33 instanceof Uint8Array) || args.right33.length !== 33) {
+    throw new Error('right33 must be 33 bytes');
+  }
+  const left33 = args.left33.slice();
+  const right33 = args.right33.slice();
+  const ab = await executeSignerWorkerOperation({
+    ctx: args.workerCtx,
+    kind: ETH_SIGNER_WORKER_KIND,
+    request: {
+      type: 'addSecp256k1PublicKeys33',
+      payload: {
+        left33: left33.buffer,
+        right33: right33.buffer,
+      },
+      transfer: [left33.buffer, right33.buffer],
+    },
+  });
+  const groupPublicKey33 = new Uint8Array(ab);
+  if (groupPublicKey33.length !== 33) {
+    throw new Error(
+      `addSecp256k1PublicKeys33 expected 33-byte output (got ${groupPublicKey33.length})`,
+    );
+  }
+  return groupPublicKey33;
+}
+
+export async function buildWebauthnP256SignatureWasm(args: {
+  challenge32: Uint8Array;
+  authenticatorData: Uint8Array;
+  clientDataJSON: Uint8Array;
+  signatureDer: Uint8Array;
+  pubKeyX32: Uint8Array;
+  pubKeyY32: Uint8Array;
+  workerCtx: WorkerOperationContext;
+}): Promise<Uint8Array> {
+  if (!(args.challenge32 instanceof Uint8Array) || args.challenge32.length !== 32) {
+    throw new Error('challenge32 must be 32 bytes');
+  }
+  if (!(args.pubKeyX32 instanceof Uint8Array) || args.pubKeyX32.length !== 32) {
+    throw new Error('pubKeyX32 must be 32 bytes');
+  }
+  if (!(args.pubKeyY32 instanceof Uint8Array) || args.pubKeyY32.length !== 32) {
+    throw new Error('pubKeyY32 must be 32 bytes');
+  }
+  if (!(args.authenticatorData instanceof Uint8Array) || !args.authenticatorData.length) {
+    throw new Error('authenticatorData must be non-empty');
+  }
+  if (!(args.clientDataJSON instanceof Uint8Array) || !args.clientDataJSON.length) {
+    throw new Error('clientDataJSON must be non-empty');
+  }
+  if (!(args.signatureDer instanceof Uint8Array) || !args.signatureDer.length) {
+    throw new Error('signatureDer must be non-empty');
+  }
+
+  const challenge32 = args.challenge32.slice();
+  const authenticatorData = args.authenticatorData.slice();
+  const clientDataJSON = args.clientDataJSON.slice();
+  const signatureDer = args.signatureDer.slice();
+  const pubKeyX32 = args.pubKeyX32.slice();
+  const pubKeyY32 = args.pubKeyY32.slice();
+
+  const ab = await executeSignerWorkerOperation({
+    ctx: args.workerCtx,
+    kind: ETH_SIGNER_WORKER_KIND,
+    request: {
+      type: 'buildWebauthnP256Signature',
+      payload: {
+        challenge32: challenge32.buffer,
+        authenticatorData: authenticatorData.buffer,
+        clientDataJSON: clientDataJSON.buffer,
+        signatureDer: signatureDer.buffer,
+        pubKeyX32: pubKeyX32.buffer,
+        pubKeyY32: pubKeyY32.buffer,
+      },
+      transfer: [
+        challenge32.buffer,
+        authenticatorData.buffer,
+        clientDataJSON.buffer,
+        signatureDer.buffer,
+        pubKeyX32.buffer,
+        pubKeyY32.buffer,
+      ],
+    },
+  });
+  return new Uint8Array(ab);
 }
 
 export type ThresholdEcdsaPresignProgressWasm = {
@@ -217,17 +378,18 @@ type ThresholdEcdsaPresignProgressWasmRaw = {
   presignature97?: unknown;
 };
 
-function asPresignProgress(raw: ThresholdEcdsaPresignProgressWasmRaw): ThresholdEcdsaPresignProgressWasm {
-  const stage = raw.stage === 'triples'
-    || raw.stage === 'triples_done'
-    || raw.stage === 'presign'
-    || raw.stage === 'done'
-    ? raw.stage
-    : 'triples';
+function asPresignProgress(
+  raw: ThresholdEcdsaPresignProgressWasmRaw,
+): ThresholdEcdsaPresignProgressWasm {
+  const stage =
+    raw.stage === 'triples' ||
+    raw.stage === 'triples_done' ||
+    raw.stage === 'presign' ||
+    raw.stage === 'done'
+      ? raw.stage
+      : 'triples';
 
-  const event = raw.event === 'triples_done' || raw.event === 'presign_done'
-    ? raw.event
-    : 'none';
+  const event = raw.event === 'triples_done' || raw.event === 'presign_done' ? raw.event : 'none';
 
   const outgoingMessages = Array.isArray(raw.outgoingMessages)
     ? raw.outgoingMessages.map((entry) => new Uint8Array(entry as ArrayBuffer))

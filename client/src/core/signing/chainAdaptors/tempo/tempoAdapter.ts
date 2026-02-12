@@ -2,7 +2,7 @@ import type { ChainAdapter, SigningIntent, SignatureBytes } from '../../orchestr
 import { bytesToHex } from '../evm/bytes';
 import { computeEip1559TxHashWasm, encodeEip1559SignedTxWasm } from '../evm/ethSignerWasm';
 import type { Eip1559UnsignedTx } from '../evm/types';
-import type { WorkerOperationContext } from '../handlers/executeSignerWorkerOperation';
+import type { WorkerOperationContext } from '../../workers/operations/executeSignerWorkerOperation';
 import type { TempoSigningRequest, TempoUnsignedTx } from './types';
 import { computeTempoSenderHashWasm, encodeTempoSignedTxWasm } from './tempoSignerWasm';
 
