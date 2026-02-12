@@ -106,7 +106,10 @@ export async function rotateThresholdEd25519KeyPostRegistrationHandler(
       });
     }
 
-    const localKeyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(nearAccountId, resolvedDeviceNumber);
+    const localKeyMaterial = await IndexedDBManager.getNearLocalKeyMaterialV2First(
+      nearAccountId,
+      resolvedDeviceNumber,
+    );
     if (!localKeyMaterial) {
       return ok({
         deleteOldKeyAttempted: false,

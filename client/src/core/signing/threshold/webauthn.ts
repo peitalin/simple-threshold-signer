@@ -44,12 +44,7 @@ export type ThresholdPrfFirstCachePort = {
     remainingUses: number;
   }) => Promise<void>;
 };
-
-export type ThresholdSignerWorkerPort = ThresholdEd25519ClientShareDeriverPort & {
-  getContext?: () => {
-    secureConfirmWorkerManager?: Partial<ThresholdPrfFirstCachePort> | null;
-  };
-};
+export type ThresholdSigningKeyOpsPort = ThresholdEd25519ClientShareDeriverPort;
 
 export async function collectAuthenticationCredentialForChallengeB64u(args: {
   indexedDB: ThresholdIndexedDbPort;
@@ -65,17 +60,4 @@ export async function collectAuthenticationCredentialForChallengeB64u(args: {
     challengeB64u: args.challengeB64u,
     includeSecondPrfOutput: args.includeSecondPrfOutput,
   });
-}
-
-export function getThresholdPrfFirstCachePortFromSignerWorker(
-  signingWorkerManager?: ThresholdSignerWorkerPort | null,
-): ThresholdPrfFirstCachePort | null {
-  const ctx = signingWorkerManager?.getContext?.();
-  const cache = ctx?.secureConfirmWorkerManager;
-  if (!cache || typeof cache.putPrfFirstForThresholdSession !== 'function') {
-    return null;
-  }
-  return {
-    putPrfFirstForThresholdSession: cache.putPrfFirstForThresholdSession.bind(cache),
-  };
 }

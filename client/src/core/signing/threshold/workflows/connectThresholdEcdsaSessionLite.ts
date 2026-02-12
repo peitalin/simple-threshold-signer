@@ -1,10 +1,8 @@
 import {
   collectAuthenticationCredentialForChallengeB64u,
   getPrfFirstB64uFromCredential,
-  getThresholdPrfFirstCachePortFromSignerWorker,
   type ThresholdIndexedDbPort,
   type ThresholdPrfFirstCachePort,
-  type ThresholdSignerWorkerPort,
   type ThresholdWebAuthnPromptPort,
 } from '../webauthn';
 import { deriveThresholdSecp256k1ClientShareWasm } from '../../chains/evm/ethSignerWasm';
@@ -30,7 +28,6 @@ import type { ThresholdEcdsaSessionKind } from '../session/thresholdEcdsaAuthSes
 export async function connectThresholdEcdsaSessionLite(args: {
   indexedDB: ThresholdIndexedDbPort;
   touchIdPrompt: ThresholdWebAuthnPromptPort;
-  signingWorkerManager?: ThresholdSignerWorkerPort;
   prfFirstCache?: ThresholdPrfFirstCachePort;
   relayerUrl: string;
   relayerKeyId: string;
@@ -114,8 +111,7 @@ export async function connectThresholdEcdsaSessionLite(args: {
   const sessionId = policy.sessionId;
   const expiresAtMs = minted.expiresAtMs ?? (Date.now() + policy.ttlMs);
   const remainingUses = minted.remainingUses ?? policy.remainingUses;
-  const prfFirstCache =
-    args.prfFirstCache || getThresholdPrfFirstCachePortFromSignerWorker(args.signingWorkerManager);
+  const prfFirstCache = args.prfFirstCache;
   if (prfFirstCache) {
     await prfFirstCache.putPrfFirstForThresholdSession({
       sessionId,

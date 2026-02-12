@@ -30,7 +30,10 @@ export async function decryptPrivateKeyWithPrf({
     console.info('WebAuthnManager: Starting private key decryption with dual PRF (local operation)');
     // Retrieve encrypted key data from IndexedDB in main thread
     const deviceNumber = await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
-    const keyMaterial = await ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceNumber);
+    const keyMaterial =
+      typeof (ctx.indexedDB as any).getNearLocalKeyMaterialV2First === 'function'
+        ? await (ctx.indexedDB as any).getNearLocalKeyMaterialV2First(nearAccountId, deviceNumber)
+        : await ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(nearAccountId, deviceNumber);
     if (!keyMaterial) {
       throw new Error(`No key material found for account: ${nearAccountId}`);
     }

@@ -72,13 +72,51 @@ import {
   type SecureConfirmRequest,
   type ExportPrivateKeyDisplayEntry,
 } from '../secureConfirm/flow/types';
+import type { signDelegateAction as signNearDelegateActionHandler } from '../chains/near/handlers/signDelegateAction';
+import type { signNep413Message as signNearNep413MessageHandler } from '../chains/near/handlers/signNep413Message';
+import type { signTransactionsWithActions as signNearTransactionsWithActionsHandler } from '../chains/near/handlers/signTransactionsWithActions';
 import type {
   TempoSecp256k1SigningRequest,
   TempoSigningRequest,
 } from '../chains/tempo/types';
 import type { TempoSignedResult } from '../chains/tempo/tempoAdapter';
 import type { ThresholdEcdsaSecp256k1KeyRef } from '../orchestration/types';
-import type { NearEd25519SignOutput, NearEd25519SignRequest } from '../engines/ed25519';
+
+type NearEd25519SignKind =
+  | 'near-transactions-with-actions'
+  | 'near-delegate-action'
+  | 'near-nep413-message';
+
+type NearEd25519SignRequestLite =
+  | {
+      kind: 'near-transactions-with-actions';
+      algorithm: 'ed25519';
+      payload: Parameters<typeof signNearTransactionsWithActionsHandler>[0];
+    }
+  | {
+      kind: 'near-delegate-action';
+      algorithm: 'ed25519';
+      payload: Parameters<typeof signNearDelegateActionHandler>[0];
+    }
+  | {
+      kind: 'near-nep413-message';
+      algorithm: 'ed25519';
+      payload: Parameters<typeof signNearNep413MessageHandler>[0];
+    };
+
+type NearEd25519SignOutputLite =
+  | {
+      kind: 'near-transactions-with-actions';
+      result: Awaited<ReturnType<typeof signNearTransactionsWithActionsHandler>>;
+    }
+  | {
+      kind: 'near-delegate-action';
+      result: Awaited<ReturnType<typeof signNearDelegateActionHandler>>;
+    }
+  | {
+      kind: 'near-nep413-message';
+      result: Awaited<ReturnType<typeof signNearNep413MessageHandler>>;
+    };
 
 type ThresholdEcdsaKeygenLiteResult = Awaited<ReturnType<typeof keygenThresholdEcdsaLite>>;
 type ThresholdEcdsaSessionLiteResult = Awaited<ReturnType<typeof connectThresholdEcdsaSessionLite>>;
@@ -98,7 +136,7 @@ const DUMMY_WRAP_KEY_SALT_B64U = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
  *
  * Architecture:
  * - index.ts (this file): Main class orchestrating everything
- * - signingWorkerManager: signer-worker runtime bridge + key operations
+ * - signingWorkerManager: signer-worker runtime bridge + nearKeyOps service
  * - secureConfirmWorkerManager: wallet-origin confirmations + WebAuthn credential collection
  * - touchIdPrompt: TouchID prompt for biometric authentication
  */
@@ -358,7 +396,7 @@ export class WebAuthnManager {
     error?: string;
   }> {
     const sessionId = this.generateSessionId('reg');
-    return this.signingWorkerManager.deriveNearKeypairAndEncryptFromSerialized({
+    return this.signingWorkerManager.nearKeyOps.deriveNearKeypairAndEncryptFromSerialized({
       credential,
       nearAccountId: toAccountId(nearAccountId),
       options,
@@ -604,12 +642,12 @@ export class WebAuthnManager {
   // SIGNER WASM WORKER OPERATIONS
   ///////////////////////////////////////
 
-  private async executeNearEd25519Intent(args: {
-    request: NearEd25519SignRequest;
-    expectedKind: NearEd25519SignOutput['kind'];
+  private async executeNearEd25519Intent<TResult>(args: {
+    request: NearEd25519SignRequestLite;
+    expectedKind: NearEd25519SignOutputLite['kind'];
     uiKind: 'transactionsWithActions' | 'delegateAction' | 'nep413';
     errorScope: 'transactions' | 'delegate' | 'nep413';
-  }): Promise<NearEd25519SignOutput['result']> {
+  }): Promise<TResult> {
     const [{ executeSigningIntent }, { NearEd25519Engine, NEAR_ED25519_KEY_REF }] =
       await Promise.all([
         import('../orchestration/executeSigningIntent'),
@@ -628,13 +666,13 @@ export class WebAuthnManager {
               `[WebAuthnManager][${args.errorScope}] expected one engine output, got ${signed.length}`,
             );
           }
-          const first = signed[0];
+          const first = signed[0] as NearEd25519SignOutputLite;
           if (first.kind !== args.expectedKind) {
             throw new Error(
               `[WebAuthnManager][${args.errorScope}] unexpected engine output kind: ${first.kind}`,
             );
           }
-          return first.result;
+          return first.result as TResult;
         },
       },
       engines: { ed25519: engine },
@@ -753,7 +791,7 @@ export class WebAuthnManager {
             () => 1,
           );
 
-    const localKeyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(
+    const localKeyMaterial = await IndexedDBManager.getNearLocalKeyMaterialV2First(
       nearAccountId,
       resolvedDeviceNumber,
     );
@@ -1029,7 +1067,7 @@ export class WebAuthnManager {
    * Extract COSE public key from WebAuthn attestation object using WASM worker
    */
   async extractCosePublicKey(attestationObjectBase64url: string): Promise<Uint8Array> {
-    return await this.signingWorkerManager.extractCosePublicKey(attestationObjectBase64url);
+    return await this.signingWorkerManager.nearKeyOps.extractCosePublicKey(attestationObjectBase64url);
   }
 
   ///////////////////////////////////////
@@ -1060,10 +1098,10 @@ export class WebAuthnManager {
     }
 
     const [keyMaterial, thresholdKeyMaterial] = await Promise.all([
-      IndexedDBManager.nearKeysDB.getLocalKeyMaterial(accountId, deviceNumber).catch(() => null),
-      IndexedDBManager.nearKeysDB
-        .getThresholdKeyMaterial(accountId, deviceNumber)
-        .catch(() => null),
+      IndexedDBManager.getNearLocalKeyMaterialV2First(accountId, deviceNumber).catch(() => null),
+      IndexedDBManager.getNearThresholdKeyMaterialV2First(accountId, deviceNumber).catch(
+        () => null,
+      ),
     ]);
 
     // === Local-signer export: decrypt stored key material via PRF.first and show UI ===
@@ -1109,7 +1147,7 @@ export class WebAuthnManager {
       const sessionId = requestId;
 
       // Phase 2 + 3: decrypt in signer worker using direct PRF, then show UI.
-      await this.signingWorkerManager.exportNearKeypairUi({
+      await this.signingWorkerManager.nearKeyOps.exportNearKeypairUi({
         nearAccountId,
         variant: options?.variant,
         theme: resolvedTheme,
@@ -1255,10 +1293,10 @@ export class WebAuthnManager {
     }
 
     const [keyMaterial, thresholdKeyMaterial] = await Promise.all([
-      IndexedDBManager.nearKeysDB.getLocalKeyMaterial(accountId, deviceNumber).catch(() => null),
-      IndexedDBManager.nearKeysDB
-        .getThresholdKeyMaterial(accountId, deviceNumber)
-        .catch(() => null),
+      IndexedDBManager.getNearLocalKeyMaterialV2First(accountId, deviceNumber).catch(() => null),
+      IndexedDBManager.getNearThresholdKeyMaterialV2First(accountId, deviceNumber).catch(
+        () => null,
+      ),
     ]);
     if (!keyMaterial && !thresholdKeyMaterial) {
       throw new Error(`No key material found for account ${accountId} device ${deviceNumber}`);
@@ -1306,7 +1344,7 @@ export class WebAuthnManager {
       const localWrapKeySalt = String(keyMaterial?.wrapKeySalt || '').trim();
       if (keyMaterial && localWrapKeySalt) {
         const prfFirstB64u = this.extractPrfFirstB64u(credential);
-        const decrypted = await this.signingWorkerManager.decryptPrivateKeyWithPrf({
+        const decrypted = await this.signingWorkerManager.nearKeyOps.decryptPrivateKeyWithPrf({
           nearAccountId: accountId,
           authenticators: [],
           sessionId: `${requestId}:ed25519`,
@@ -1451,7 +1489,7 @@ export class WebAuthnManager {
       // Orchestrate a SecureConfirm-owned signing session with WrapKeySeed derivation, then ask
       // the signer to recover and re-encrypt the NEAR keypair.
       const sessionId = this.generateSessionId('recover');
-      const result = await this.signingWorkerManager.recoverKeypairFromPasskey({
+      const result = await this.signingWorkerManager.nearKeyOps.recoverKeypairFromPasskey({
         credential: authenticationCredential,
         accountIdHint,
         sessionId,
@@ -1508,7 +1546,7 @@ export class WebAuthnManager {
     signedTransaction: SignedTransaction;
     logs?: string[];
   }> {
-    return await this.signingWorkerManager.signTransactionWithKeyPair({
+    return await this.signingWorkerManager.nearKeyOps.signTransactionWithKeyPair({
       nearPrivateKey,
       signerAccountId,
       receiverId,
@@ -1549,7 +1587,12 @@ export class WebAuthnManager {
     return await connectThresholdEd25519SessionLite({
       indexedDB: IndexedDBManager,
       touchIdPrompt: this.touchIdPrompt,
-      signingWorkerManager: this.signingWorkerManager,
+      signingKeyOps: this.signingWorkerManager.nearKeyOps,
+      prfFirstCache: {
+        putPrfFirstForThresholdSession: this.secureConfirmWorkerManager
+          .putPrfFirstForThresholdSession
+          .bind(this.secureConfirmWorkerManager),
+      },
       relayerUrl,
       relayerKeyId: args.relayerKeyId,
       nearAccountId: toAccountId(args.nearAccountId),
@@ -1608,7 +1651,11 @@ export class WebAuthnManager {
     const session = await connectThresholdEcdsaSessionLite({
       indexedDB: IndexedDBManager,
       touchIdPrompt: this.touchIdPrompt,
-      signingWorkerManager: this.signingWorkerManager,
+      prfFirstCache: {
+        putPrfFirstForThresholdSession: this.secureConfirmWorkerManager
+          .putPrfFirstForThresholdSession
+          .bind(this.secureConfirmWorkerManager),
+      },
       relayerUrl,
       relayerKeyId,
       userId: nearAccountId,
@@ -1710,7 +1757,7 @@ export class WebAuthnManager {
     try {
       const prfFirstB64u = this.extractPrfFirstB64u(args.credential);
       const sessionId = this.generateSessionId('threshold-client-share');
-      return await this.signingWorkerManager.deriveThresholdEd25519ClientVerifyingShare({
+      return await this.signingWorkerManager.nearKeyOps.deriveThresholdEd25519ClientVerifyingShare({
         sessionId,
         nearAccountId,
         prfFirstB64u,
@@ -1814,7 +1861,7 @@ export class WebAuthnManager {
               () => 1,
             );
 
-      const existing = await IndexedDBManager.nearKeysDB.getThresholdKeyMaterial(
+      const existing = await IndexedDBManager.getNearThresholdKeyMaterialV2First(
         nearAccountId,
         resolvedDeviceNumber,
       );
@@ -1914,7 +1961,7 @@ export class WebAuthnManager {
       const prfFirstB64u = this.extractPrfFirstB64u(args.credential);
       const keygen = await enrollThresholdEd25519KeyHandler(
         {
-          signingWorkerManager: this.signingWorkerManager,
+          signingKeyOps: this.signingWorkerManager.nearKeyOps,
           touchIdPrompt: this.touchIdPrompt,
           relayerUrl,
         },
@@ -1953,7 +2000,7 @@ export class WebAuthnManager {
       });
       if (!alreadyActive) {
         // Activate threshold enrollment on-chain by submitting AddKey(publicKey) signed with the local key.
-        const localKeyMaterial = await IndexedDBManager.nearKeysDB.getLocalKeyMaterial(
+        const localKeyMaterial = await IndexedDBManager.getNearLocalKeyMaterialV2First(
           nearAccountId,
           resolvedDeviceNumber,
         );

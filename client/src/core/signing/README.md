@@ -20,6 +20,7 @@ This folder is the signing runtime for NEAR + Tempo/EVM flows.
   - `signingWorkerManager`: unified worker architecture layer.
   - `signingWorkerManager/backends/nearWorkerBackend`: NEAR signer worker backend.
   - `signingWorkerManager/backends/multichainWorkerBackend`: EVM/Tempo worker backend.
+  - `signingWorkerManager/nearKeyOps`: NEAR-only key operations invoked via `SigningWorkerManager.nearKeyOps`.
 - `threshold/`
   - Threshold session, authorization, and signing workflows.
 - `webauthn/`
@@ -55,8 +56,11 @@ flowchart LR
 ```mermaid
 flowchart LR
   NH["NEAR handlers"] --> SWM["SigningWorkerManager"]
+  WM["WebAuthnManager (NEAR key ops)"] --> SWM
   SWM --> NB["NearSignerWorkerBackend"]
+  SWM --> NKO["nearKeyOps service"]
   NB --> NSW["near-signer.worker"]
+  NKO --> NB
 
   WASM["ethSignerWasm / tempoSignerWasm"] --> MB["MultichainSignerWorkerBackend"]
   MB --> EWK["eth-signer.worker"]

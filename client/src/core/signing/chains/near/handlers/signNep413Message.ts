@@ -90,7 +90,17 @@ export async function signNep413Message({ ctx, payload }: {
     }
     const resolvedDeviceNumber = parsedDeviceNumber
       ?? await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
-    const thresholdKeyMaterial = await ctx.indexedDB.nearKeysDB.getThresholdKeyMaterial(nearAccountId, resolvedDeviceNumber);
+    const nearAccount = toAccountId(nearAccountId);
+    const thresholdKeyMaterial =
+      typeof (ctx.indexedDB as any).getNearThresholdKeyMaterialV2First === 'function'
+        ? await (ctx.indexedDB as any).getNearThresholdKeyMaterialV2First(
+          nearAccount,
+          resolvedDeviceNumber,
+        )
+        : await ctx.indexedDB.nearKeysDB.getThresholdKeyMaterial(
+          nearAccount,
+          resolvedDeviceNumber,
+        );
 
     const resolvedSignerMode = await resolveSignerModeForThresholdSigning({
       nearAccountId,
@@ -100,7 +110,14 @@ export async function signNep413Message({ ctx, payload }: {
     });
 
     const localKeyMaterial = (resolvedSignerMode === 'local-signer' || thresholdBehavior === 'fallback')
-      ? await ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(nearAccountId, resolvedDeviceNumber)
+      ? (
+        typeof (ctx.indexedDB as any).getNearLocalKeyMaterialV2First === 'function'
+          ? await (ctx.indexedDB as any).getNearLocalKeyMaterialV2First(
+            nearAccount,
+            resolvedDeviceNumber,
+          )
+          : await ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(nearAccount, resolvedDeviceNumber)
+      )
       : null;
     const localWrapKeySalt = String(localKeyMaterial?.wrapKeySalt || '').trim();
     const thresholdWrapKeySalt = String(thresholdKeyMaterial?.wrapKeySalt || '').trim() || DUMMY_WRAP_KEY_SALT_B64U;

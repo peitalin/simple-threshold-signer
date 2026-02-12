@@ -37,7 +37,9 @@ export async function exportNearKeypairUi({
   // Gather encrypted key + ChaCha20 nonce and public key from IndexedDB
   const deviceNumber = await getLastLoggedInDeviceNumber(accountId, ctx.indexedDB.clientDB);
   const [keyData, user] = await Promise.all([
-    ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(accountId, deviceNumber),
+    typeof (ctx.indexedDB as any).getNearLocalKeyMaterialV2First === 'function'
+      ? (ctx.indexedDB as any).getNearLocalKeyMaterialV2First(accountId, deviceNumber)
+      : ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(accountId, deviceNumber),
     ctx.indexedDB.clientDB.getUserByDevice(accountId, deviceNumber),
   ]);
   const publicKey = user?.clientNearPublicKey || '';

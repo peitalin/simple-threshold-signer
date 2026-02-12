@@ -11,12 +11,14 @@ In scope:
 - `client/src/core/IndexedDBManager/passkeyClientDB.ts`
 - `client/src/core/IndexedDBManager/passkeyNearKeysDB.ts`
 - `client/src/core/IndexedDBManager/index.ts`
+- `client/src/core/signing/README.md` (architecture notes that must stay aligned with DB migration)
 - Call sites that currently require `nearAccountId`-first APIs
 - Signing facade + orchestrators under:
   - `client/src/core/signing/api/*`
   - `client/src/core/signing/chains/*`
   - `client/src/core/signing/engines/*`
   - `client/src/core/signing/orchestration/*`
+  - `client/src/core/signing/threshold/*`
   - `client/src/core/signing/workers/*`
   - `client/src/core/signing/secureConfirm/*`
   - `client/src/core/signing/webauthn/*`
@@ -43,15 +45,20 @@ The plan targets the refactored signing layout currently in this repo:
   - `client/src/core/signing/orchestration/walletOrigin/*`
 - Signing engines:
   - `client/src/core/signing/engines/*`
+- Threshold modules:
+  - `client/src/core/signing/threshold/{session,workflows}/*`
+  - `client/src/core/signing/threshold/{keys.ts,prfSalts.ts,webauthn.ts}`
 - WebAuthn utilities:
   - `client/src/core/signing/webauthn/{credentials,cose,prompt,device,fallbacks}/*`
 - Secure confirm flow:
   - `client/src/core/signing/secureConfirm/*`
+  - `client/src/core/signing/secureConfirm/manager.ts`
   - `client/src/core/signing/secureConfirm/confirmTxFlow/adapters/*`
+  - `client/src/core/signing/secureConfirm/ui/iframe-host.ts`
   - `client/src/core/signing/secureConfirm/ui/lit-components/*`
 - Worker managers and worker RPC:
   - `client/src/core/signing/workers/*`
-  - `client/src/core/signing/workers/signerWorkerManager/{internal,keyOps}/*`
+  - `client/src/core/signing/workers/signingWorkerManager/{internal,keyOps}/*`
 - Browser worker entrypoints:
   - `client/src/core/workers/passkey-confirm.worker.ts`
   - `client/src/core/workers/{near-signer,eth-signer,tempo-signer}.worker.ts`
@@ -393,59 +400,61 @@ Use this section as the execution tracker for this refactor. Mark items as compl
 - [ ] Add chain capability matrix and typed capability error model.
 - [ ] Define hard invariants (`I1`-`I7`) and validation hooks.
 - [ ] Define signer lifecycle state machine + transition guards.
-- [ ] Fix composite-key deletion bugs in legacy stores (`users`, rollback paths).
-- [ ] Remove destructive key-store recreation behavior during DB upgrade.
-- [ ] Add migration telemetry logs (start/end/duration/error/counts).
+- [x] Fix composite-key deletion bugs in legacy stores (`users`, rollback paths).
+- [x] Remove destructive key-store recreation behavior during DB upgrade.
+- [x] Add migration telemetry logs (start/end/duration/error/counts).
 - [ ] Define canonical normalization rules (CAIP/account/address/signer ids).
 - [ ] Add regression tests for existing NEAR login/signing/link-device behavior.
-- [ ] Add regression tests for the refactored signing entrypoints (`signing/api`, `signing/chains/*/handlers`, `signing/orchestration`, `signing/workers`).
+- [ ] Add regression tests for the refactored signing entrypoints (`signing/api`, `signing/chains/*/handlers`, `signing/orchestration`, `signing/threshold`, `signing/workers`, `signing/secureConfirm`).
 - [ ] Document rollback switch/feature flag for emergency fallback.
 - [ ] Phase 0 exit review completed and approved.
 
 ### Phase 1 - Schema + type foundations checklist
-- [ ] Add canonical types: `ProfileId`, `ChainId`, `AccountRef`, `SignerId`.
-- [ ] Add `profiles` store + indexes.
-- [ ] Add `chainAccounts` store + indexes.
-- [ ] Add `accountSigners` store + indexes.
-- [ ] Add `signerOpsOutbox` store + indexes.
-- [ ] Add `profileAuthenticators` store + indexes.
-- [ ] Add `derivedAddressesV2` store + indexes.
-- [ ] Add `recoveryEmailsV2` store + indexes.
-- [ ] Add `keyMaterialV2` store + indexes in key DB.
-- [ ] Add app-state keys for migration checkpoint and `lastProfileState`.
-- [ ] Add migration lock metadata and per-store checkpoint metadata.
+- [x] Add canonical types: `ProfileId`, `ChainId`, `AccountRef`, `SignerId`.
+- [x] Add `profiles` store + indexes.
+- [x] Add `chainAccounts` store + indexes.
+- [x] Add `accountSigners` store + indexes.
+- [x] Add `signerOpsOutbox` store + indexes.
+- [x] Add `profileAuthenticators` store + indexes.
+- [x] Add `derivedAddressesV2` store + indexes.
+- [x] Add `recoveryEmailsV2` store + indexes.
+- [x] Add `keyMaterialV2` store + indexes in key DB.
+- [x] Add app-state keys for migration checkpoint and `lastProfileState`.
+- [x] Add migration lock metadata and per-store checkpoint metadata.
 - [ ] Implement envelope format for encrypted sensitive payloads.
 - [ ] Add invariant checks for writes in generic DB APIs.
-- [ ] Add generic API surface (profile/account/signer/key methods) without removing legacy APIs.
-- [ ] Wire new DB API types into `client/src/core/signing/api/*` contracts.
+- [x] Add generic API surface (profile/account/signer/key methods) without removing legacy APIs.
+- [x] Wire new DB API types into `client/src/core/signing/api/*` contracts.
 - [ ] Phase 1 exit review completed and approved.
 
 ### Phase 2 - Backfill migration checklist
-- [ ] Implement migration lock (`navigator.locks` or equivalent tab-coordination fallback).
-- [ ] Migrate legacy users to `profiles`.
-- [ ] Migrate NEAR account rows to `chainAccounts`.
-- [ ] Backfill `accountSigners` from legacy `deviceNumber`/key material.
-- [ ] Migrate authenticators to `profileAuthenticators`.
-- [ ] Migrate derived addresses to `derivedAddressesV2`.
-- [ ] Migrate recovery emails to `recoveryEmailsV2`.
-- [ ] Migrate key records to `keyMaterialV2`.
-- [ ] Add per-store checkpoints and resumable rerun behavior.
-- [ ] Add parity checks (legacy count vs V2 count) and log results.
-- [ ] Validate invariant checks post-migration and quarantine invalid rows.
+- [x] Implement migration lock (`navigator.locks` or equivalent tab-coordination fallback).
+- [x] Migrate legacy users to `profiles`.
+- [x] Migrate NEAR account rows to `chainAccounts`.
+- [x] Backfill `accountSigners` from legacy `deviceNumber`/key material.
+- [x] Migrate authenticators to `profileAuthenticators`.
+- [x] Migrate derived addresses to `derivedAddressesV2`.
+- [x] Migrate recovery emails to `recoveryEmailsV2`.
+- [x] Migrate key records to `keyMaterialV2`.
+- [x] Add per-store checkpoints and resumable rerun behavior.
+- [x] Add parity checks (legacy count vs V2 count) and log results.
+- [x] Validate invariant checks post-migration and quarantine invalid rows.
 - [ ] Phase 2 exit review completed and approved.
 
 ### Phase 3 - Dual-read / dual-write checklist
-- [ ] Read paths prefer V2 stores with safe fallback to legacy stores.
+- [x] Read paths prefer V2 stores with safe fallback to legacy stores.
 - [ ] Write paths dual-write to V2 + legacy stores.
-- [ ] Route signer mutations through `signerOpsOutbox` with idempotency keys.
-- [ ] Add cross-DB saga recovery for partial failures (client DB vs key DB).
+- [x] Route signer mutations through `signerOpsOutbox` with idempotency keys.
+- [x] Add cross-DB saga recovery for partial failures (client DB vs key DB).
 - [ ] Add one-time warning/deprecation logs for NEAR-specific DB APIs.
 - [ ] Migrate internal consumers to new generic APIs (preserve external compatibility wrappers).
 - [ ] Migrate DB call sites in `client/src/core/signing/chains/near/handlers/*`.
 - [ ] Migrate DB call sites in `client/src/core/signing/chains/tempo/handlers/*`.
 - [ ] Migrate DB call sites in `client/src/core/signing/api/*`, `client/src/core/signing/orchestration/*`, and `client/src/core/signing/workers/*`.
-- [ ] Ensure `client/src/core/signing/secureConfirm/confirmTxFlow/adapters/*` uses generic DB lookups (no legacy direct assumptions).
-- [ ] Ensure worker entrypoints under `client/src/core/workers/*` use the same V2 DB resolution path.
+- [ ] Migrate DB call sites in `client/src/core/signing/threshold/*`.
+- [x] Ensure `client/src/core/signing/secureConfirm/confirmTxFlow/adapters/*` uses generic DB lookups (no legacy direct assumptions).
+- [ ] Ensure `client/src/core/signing/secureConfirm/{manager.ts,ui/iframe-host.ts}` uses generic DB lookups (no legacy direct assumptions).
+- [x] Ensure worker entrypoints under `client/src/core/workers/*` use the same V2 DB resolution path.
 - [ ] Add telemetry dashboards/metrics for V2 read-hit ratio and fallback rate.
 - [ ] Add telemetry for outbox retries, dead-letter count, and saga-repair actions.
 - [ ] Validate NEAR + EVM/Tempo happy-path integration tests in CI.
@@ -526,7 +535,7 @@ Idempotency requirements:
   - Write both V2 and legacy for one release window.
   - Signer updates go through outbox + idempotency keys.
 - Enforce saga repair between wallet DB and key DB on startup.
-- Migrate active refactored signing modules first (`signing/api`, `signing/chains`, `signing/orchestration`, `signing/workers`, `signing/secureConfirm`), then residual compatibility modules.
+- Migrate active refactored signing modules first (`signing/api`, `signing/chains`, `signing/orchestration`, `signing/threshold`, `signing/workers`, `signing/secureConfirm`), then residual compatibility modules.
 
 Exit criteria:
 - Internal metrics show new-store read hit-rate near 100%.
@@ -540,7 +549,7 @@ Exit criteria:
 - Require `G1`-`G6` cutover gates before deleting legacy stores.
 
 Exit criteria:
-- No calls to NEAR-specific DB methods from signing core paths (`signing/api`, `signing/chains`, `signing/engines`, `signing/orchestration`, `signing/workers`, `signing/secureConfirm`, `signing/webauthn`).
+- No calls to NEAR-specific DB methods from signing core paths (`signing/api`, `signing/chains`, `signing/engines`, `signing/orchestration`, `signing/threshold`, `signing/workers`, `signing/secureConfirm`, `signing/webauthn`).
 - Legacy stores removable without user-visible data loss.
 
 ## PR Breakdown

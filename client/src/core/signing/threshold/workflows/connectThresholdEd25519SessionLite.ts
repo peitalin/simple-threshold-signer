@@ -3,10 +3,9 @@ import { toAccountId } from '../../../types/accountIds';
 import {
   collectAuthenticationCredentialForChallengeB64u,
   getPrfFirstB64uFromCredential,
-  getThresholdPrfFirstCachePortFromSignerWorker,
   type ThresholdIndexedDbPort,
   type ThresholdPrfFirstCachePort,
-  type ThresholdSignerWorkerPort,
+  type ThresholdSigningKeyOpsPort,
   type ThresholdWebAuthnPromptPort,
 } from '../webauthn';
 import { buildThresholdSessionPolicy } from '../session/thresholdSessionPolicy';
@@ -33,7 +32,7 @@ const DUMMY_WRAP_KEY_SALT_B64U = base64UrlEncode(new Uint8Array(32));
 export async function connectThresholdEd25519SessionLite(args: {
   indexedDB: ThresholdIndexedDbPort;
   touchIdPrompt: ThresholdWebAuthnPromptPort;
-  signingWorkerManager: ThresholdSignerWorkerPort;
+  signingKeyOps: ThresholdSigningKeyOpsPort;
   prfFirstCache?: ThresholdPrfFirstCachePort;
   relayerUrl: string;
   relayerKeyId: string;
@@ -84,7 +83,7 @@ export async function connectThresholdEd25519SessionLite(args: {
 
   // 2) Derive client verifying share using the signer worker (share stays inside the worker).
   const sessionId = policy.sessionId;
-  const derive = await args.signingWorkerManager.deriveThresholdEd25519ClientVerifyingShare({
+  const derive = await args.signingKeyOps.deriveThresholdEd25519ClientVerifyingShare({
     sessionId,
     nearAccountId: toAccountId(args.nearAccountId),
     prfFirstB64u,
@@ -112,8 +111,7 @@ export async function connectThresholdEd25519SessionLite(args: {
   // dispense the client share seed without prompting again (wallet-origin only).
   const expiresAtMs = minted.expiresAtMs ?? (Date.now() + policy.ttlMs);
   const remainingUses = minted.remainingUses ?? policy.remainingUses;
-  const prfFirstCache =
-    args.prfFirstCache || getThresholdPrfFirstCachePortFromSignerWorker(args.signingWorkerManager);
+  const prfFirstCache = args.prfFirstCache;
   if (prfFirstCache) {
     await prfFirstCache.putPrfFirstForThresholdSession({
       sessionId,

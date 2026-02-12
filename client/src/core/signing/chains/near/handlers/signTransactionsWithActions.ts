@@ -99,7 +99,7 @@ export async function signTransactionsWithActions({
   }>
 > {
   const sessionId = providedSessionId ?? generateSessionId();
-  const nearAccountId = rpcCall.nearAccountId;
+  const nearAccountId = toAccountId(rpcCall.nearAccountId);
   const relayerUrl = ctx.relayerUrl;
 
   const parsedDeviceNumber = parseDeviceNumber(deviceNumber, { min: 1 });
@@ -111,10 +111,13 @@ export async function signTransactionsWithActions({
     (await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB));
 
   // Retrieve threshold key data first; local key material is only loaded when needed.
-  const thresholdKeyMaterial = await ctx.indexedDB.nearKeysDB.getThresholdKeyMaterial(
-    nearAccountId,
-    resolvedDeviceNumber,
-  );
+  const thresholdKeyMaterial =
+    typeof (ctx.indexedDB as any).getNearThresholdKeyMaterialV2First === 'function'
+      ? await (ctx.indexedDB as any).getNearThresholdKeyMaterialV2First(
+        nearAccountId,
+        resolvedDeviceNumber,
+      )
+      : await ctx.indexedDB.nearKeysDB.getThresholdKeyMaterial(nearAccountId, resolvedDeviceNumber);
 
   const warnings: string[] = [];
   const thresholdBehavior = getThresholdBehaviorFromSignerMode(signerMode);
@@ -128,7 +131,14 @@ export async function signTransactionsWithActions({
 
   const localKeyMaterial =
     resolvedSignerMode === 'local-signer' || thresholdBehavior === 'fallback'
-      ? await ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(nearAccountId, resolvedDeviceNumber)
+      ? (
+        typeof (ctx.indexedDB as any).getNearLocalKeyMaterialV2First === 'function'
+          ? await (ctx.indexedDB as any).getNearLocalKeyMaterialV2First(
+            nearAccountId,
+            resolvedDeviceNumber,
+          )
+          : await ctx.indexedDB.nearKeysDB.getLocalKeyMaterial(nearAccountId, resolvedDeviceNumber)
+      )
       : null;
   const localWrapKeySalt = String(localKeyMaterial?.wrapKeySalt || '').trim();
   // Threshold share derivation must use the same wrapKeySalt that was used at keygen time.
