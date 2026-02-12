@@ -27,10 +27,11 @@ export interface SigningRuntimeDeps {
   nearExplorerUrl?: string;
   relayerUrl: string;
   secureConfirmWorkerManager?: SecureConfirmWorkerManager;
-  requestWorkerOperation: <K extends SignerWorkerKind, T extends SignerWorkerOperationType<K>>(
-    args: {
-      kind: K;
-      request: SignerWorkerOperationRequest<K, T>;
-    }
-  ) => Promise<SignerWorkerOperationResult<K, T>>;
+  requestWorkerOperation: <
+    K extends SignerWorkerKind,
+    T extends SignerWorkerOperationType<K>,
+  >(args: {
+    kind: K;
+    request: SignerWorkerOperationRequest<K, T>;
+  }) => Promise<SignerWorkerOperationResult<K, T>>;
 }

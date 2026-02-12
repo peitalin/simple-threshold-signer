@@ -2,10 +2,7 @@ import type { RlpValue } from '../evm/rlp';
 import { rlpEncode } from '../evm/rlp';
 import { hexToBytes, concatBytes } from '../evm/bytes';
 import { keccak256 } from '../evm/keccak';
-import type {
-  TempoFeePayerSignature,
-  TempoUnsignedTx,
-} from './types';
+import type { TempoFeePayerSignature, TempoUnsignedTx } from './types';
 
 const TYPE_TEMPO_TX = 0x76;
 const FEE_PAYER_MAGIC_BYTE = 0x78;
@@ -69,7 +66,8 @@ function feePayerFieldValue(sig: TempoFeePayerSignature | undefined): RlpValue {
   // signed: RLP list [v, r, s]
   const r = hexToBytes(sig.r);
   const s = hexToBytes(sig.s);
-  if (r.length !== 32 || s.length !== 32) throw new Error('tempoTx: fee payer r/s must be 32 bytes each');
+  if (r.length !== 32 || s.length !== 32)
+    throw new Error('tempoTx: fee payer r/s must be 32 bytes each');
   return [u256Bytes(BigInt(sig.v)), stripLeadingZeros(r), stripLeadingZeros(s)];
 }
 
@@ -102,16 +100,15 @@ export function computeTempoSenderHash(tx: TempoUnsignedTx): Uint8Array {
   const feeTokenForSender = hasFeePayer ? new Uint8Array() : encodeFeeToken(tx.feeToken);
   const feePayerFieldForSender = hasFeePayer ? Uint8Array.from([0x00]) : new Uint8Array();
 
-  const fields: RlpValue = [
-    ...baseFields(tx),
-    feeTokenForSender,
-    feePayerFieldForSender,
-  ];
+  const fields: RlpValue = [...baseFields(tx), feeTokenForSender, feePayerFieldForSender];
 
   return keccak256(concatBytes([Uint8Array.from([TYPE_TEMPO_TX]), rlpEncode(fields)]));
 }
 
-export function computeTempoFeePayerHash(args: { tx: TempoUnsignedTx; senderAddress: string }): Uint8Array {
+export function computeTempoFeePayerHash(args: {
+  tx: TempoUnsignedTx;
+  senderAddress: string;
+}): Uint8Array {
   const sender = hexToBytes(args.senderAddress);
   if (sender.length !== 20) throw new Error('tempoTx: senderAddress must be 20 bytes');
 
@@ -137,12 +134,7 @@ export function encodeTempoSignedTx(args: {
     throw new Error('tempoTx: aaAuthorizationList must be an RLP list (use [] for empty)');
   }
 
-  const fields: RlpValue[] = [
-    ...baseFields(args.tx),
-    feeToken,
-    feePayerSigField,
-    aaAuthList,
-  ];
+  const fields: RlpValue[] = [...baseFields(args.tx), feeToken, feePayerSigField, aaAuthList];
 
   if (args.tx.keyAuthorization !== undefined) {
     fields.push(args.tx.keyAuthorization);

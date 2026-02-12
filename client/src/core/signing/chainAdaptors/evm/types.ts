@@ -19,4 +19,3 @@ export type Eip1559UnsignedTx = {
   data?: EvmBytes; // defaults to 0x
   accessList?: EvmAccessListItem[]; // defaults to []
 };
-

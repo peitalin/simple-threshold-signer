@@ -47,7 +47,8 @@ export function encodeEip1559SignedTx(args: {
   r: Uint8Array; // 32
   s: Uint8Array; // 32
 }): Uint8Array {
-  if (args.r.length !== 32 || args.s.length !== 32) throw new Error('EIP-1559 signature r/s must be 32 bytes each');
+  if (args.r.length !== 32 || args.s.length !== 32)
+    throw new Error('EIP-1559 signature r/s must be 32 bytes each');
 
   const toBytes = args.tx.to ? hexToBytes(args.tx.to) : new Uint8Array();
   const dataBytes = args.tx.data ? hexToBytes(args.tx.data) : new Uint8Array();
@@ -90,4 +91,3 @@ function stripLeadingZeros(bytes: Uint8Array): Uint8Array {
   while (i < bytes.length && bytes[i] === 0) i++;
   return bytes.slice(i);
 }
-

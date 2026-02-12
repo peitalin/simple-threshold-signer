@@ -45,4 +45,3 @@ export function rlpEncode(value: RlpValue): Uint8Array {
 export function rlpEncodeU256(v: bigint): Uint8Array {
   return rlpEncode(bigintToBytesBE(v));
 }
-

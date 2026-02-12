@@ -1,4 +1,8 @@
-import { validateActionArgsWasm, type TransactionInputWasm } from '../../../types/actions';
+import {
+  toActionArgsWasm,
+  validateActionArgsWasm,
+  type TransactionInputWasm,
+} from '../../../types/actions';
 import type { TransactionPayload } from '../../../types/signer-worker';
 import type { ChainAdapter, SigningIntent } from '../../orchestration/types';
 import type { signDelegateAction } from './handlers/signDelegateAction';
@@ -113,13 +117,25 @@ function normalizeNearTransactionInput(args: {
   };
 }
 
-export class NearAdapter
-implements ChainAdapter<NearSigningRequest, NearIntentUiModel, NearSignedResult, NearEd25519SignRequest, NearEd25519SignOutput> {
+export class NearAdapter implements ChainAdapter<
+  NearSigningRequest,
+  NearIntentUiModel,
+  NearSignedResult,
+  NearEd25519SignRequest,
+  NearEd25519SignOutput
+> {
   readonly chain = 'near' as const;
 
   async buildIntent(
     request: NearSigningRequest,
-  ): Promise<SigningIntent<NearIntentUiModel, NearSignedResult, NearEd25519SignRequest, NearEd25519SignOutput>> {
+  ): Promise<
+    SigningIntent<
+      NearIntentUiModel,
+      NearSignedResult,
+      NearEd25519SignRequest,
+      NearEd25519SignOutput
+    >
+  > {
     if (request.chain !== 'near') {
       throw new Error('[NearAdapter] invalid chain');
     }
@@ -128,7 +144,9 @@ implements ChainAdapter<NearSigningRequest, NearIntentUiModel, NearSignedResult,
       if (!nearAccountId) {
         throw new Error('[NearAdapter] nearAccountId is required');
       }
-      const transactions = Array.isArray(request.payload.transactions) ? request.payload.transactions : [];
+      const transactions = Array.isArray(request.payload.transactions)
+        ? request.payload.transactions
+        : [];
       if (transactions.length === 0) {
         throw new Error('[NearAdapter] transactions must be non-empty');
       }
@@ -149,11 +167,13 @@ implements ChainAdapter<NearSigningRequest, NearIntentUiModel, NearSignedResult,
       return {
         chain: 'near',
         uiModel,
-        signRequests: [{
-          kind: 'near-transactions-with-actions',
-          algorithm: 'ed25519',
-          payload: request.payload,
-        }],
+        signRequests: [
+          {
+            kind: 'near-transactions-with-actions',
+            algorithm: 'ed25519',
+            payload: request.payload,
+          },
+        ],
         finalize: async (signed) => expectNearOutput(signed, 'near-transactions-with-actions'),
       };
     }
@@ -176,7 +196,7 @@ implements ChainAdapter<NearSigningRequest, NearIntentUiModel, NearSignedResult,
         throw new Error('[NearAdapter] delegate.actions must be non-empty');
       }
       for (let i = 0; i < actions.length; i++) {
-        validateActionArgsWasm(actions[i] as any);
+        validateActionArgsWasm(toActionArgsWasm(actions[i]));
       }
 
       return {
@@ -187,11 +207,13 @@ implements ChainAdapter<NearSigningRequest, NearIntentUiModel, NearSignedResult,
           receiverId,
           actionCount: actions.length,
         },
-        signRequests: [{
-          kind: 'near-delegate-action',
-          algorithm: 'ed25519',
-          payload: request.payload,
-        }],
+        signRequests: [
+          {
+            kind: 'near-delegate-action',
+            algorithm: 'ed25519',
+            payload: request.payload,
+          },
+        ],
         finalize: async (signed) => expectNearOutput(signed, 'near-delegate-action'),
       };
     }
@@ -217,11 +239,13 @@ implements ChainAdapter<NearSigningRequest, NearIntentUiModel, NearSignedResult,
           nearAccountId,
           recipient,
         },
-        signRequests: [{
-          kind: 'near-nep413-message',
-          algorithm: 'ed25519',
-          payload: request.payload,
-        }],
+        signRequests: [
+          {
+            kind: 'near-nep413-message',
+            algorithm: 'ed25519',
+            payload: request.payload,
+          },
+        ],
         finalize: async (signed) => expectNearOutput(signed, 'near-nep413-message'),
       };
     }

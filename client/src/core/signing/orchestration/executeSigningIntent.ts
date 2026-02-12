@@ -1,22 +1,20 @@
-import type {
-  SigningEngine,
-  SigningIntent,
-} from './types';
+import type { SigningEngineMap, SigningIntent } from './types';
 
 export async function executeSigningIntent<
   Result,
   Request extends { algorithm: string },
-  Key,
   Signed,
+  ResolvedSignInput extends { signReq: Request; keyRef: unknown },
 >(args: {
   intent: SigningIntent<unknown, Result, Request, Signed>;
-  engines: Record<string, SigningEngine<Request, Key, Signed>>;
-  resolveSignInput: (req: Request) => Promise<{ signReq: Request; keyRef: Key }>;
+  engines: SigningEngineMap<Request, ResolvedSignInput['keyRef'], Signed>;
+  resolveSignInput: (req: Request) => Promise<ResolvedSignInput>;
 }): Promise<Result> {
   const signatures: Signed[] = [];
   for (const pendingReq of args.intent.signRequests) {
     const { signReq, keyRef } = await args.resolveSignInput(pendingReq);
-    const engine = args.engines[signReq.algorithm];
+    const algorithm = signReq.algorithm as Request['algorithm'] & string;
+    const engine = args.engines[algorithm];
     if (!engine) throw new Error(`[chains] missing engine for algorithm: ${signReq.algorithm}`);
     signatures.push(await engine.sign(signReq, keyRef));
   }

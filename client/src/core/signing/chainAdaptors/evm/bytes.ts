@@ -44,4 +44,3 @@ export function bigintToBytesBE(v: bigint): Uint8Array {
   out.reverse();
   return Uint8Array.from(out);
 }
-

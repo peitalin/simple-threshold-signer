@@ -2,7 +2,7 @@ import { UnifiedIndexedDBManager } from '../../../IndexedDBManager';
 import { IndexedDBManager } from '../../../IndexedDBManager';
 import { type NearClient } from '../../../near/NearClient';
 import { SecureConfirmWorkerManager } from '../../secureConfirm/manager';
-import { TouchIdPrompt } from "../../webauthn/prompt/touchIdPrompt";
+import { TouchIdPrompt } from '../../webauthn/prompt/touchIdPrompt';
 import type { SigningRuntimeDeps } from '../../chainAdaptors/types';
 import type {
   MultichainOperationType,
@@ -11,18 +11,12 @@ import type {
   NearWorkerOperationRequest,
   NearWorkerOperationResult,
   NearWorkerOperationType,
-  SignerWorkerKind,
-  SignerWorkerOperationRequest,
-  SignerWorkerOperationResult,
-  SignerWorkerOperationType,
 } from './backends/types';
 import { UserPreferencesManager } from '../../api/userPreferences';
 import { NonceManager } from '../../../near/nonceManager';
 import type { ThemeName } from '../../../types/tatchi';
 import { NearSignerWorkerBackend } from './backends/nearWorkerBackend';
-import {
-  requestMultichainWorkerOperation,
-} from './gateway';
+import { requestMultichainWorkerOperation } from './gateway';
 import { NearSigningKeyOpsService } from './nearKeyOpsService';
 import type { MultichainWorkerKind } from '../../../runtimeAssetPaths/multichainWorkers';
 
@@ -33,6 +27,25 @@ export interface SignerWorkerManagerContext extends SigningRuntimeDeps {
   nearExplorerUrl?: string;
 }
 
+type NearWorkerOperationArgs<T extends NearWorkerOperationType = NearWorkerOperationType> = {
+  kind: 'nearSigner';
+  request: NearWorkerOperationRequest<T>;
+};
+
+type MultichainWorkerOperationArgs<
+  K extends MultichainWorkerKind = MultichainWorkerKind,
+  T extends MultichainOperationType<K> = MultichainOperationType<K>,
+> = {
+  kind: K;
+  request: MultichainWorkerOperationRequest<K, T>;
+};
+
+type AnyWorkerOperationArgs =
+  | NearWorkerOperationArgs
+  | {
+      [K in MultichainWorkerKind]: MultichainWorkerOperationArgs<K, MultichainOperationType<K>>;
+    }[MultichainWorkerKind];
+
 /**
  * WebAuthnWorkers handles PRF, workers, and COSE operations
  *
@@ -40,7 +53,6 @@ export interface SignerWorkerManagerContext extends SigningRuntimeDeps {
  * (e.g. login) or derived from intent/session digests (e.g. threshold sessions).
  */
 export class SignerWorkerManager {
-
   private indexedDB: UnifiedIndexedDBManager;
   private touchIdPrompt: TouchIdPrompt;
   private secureConfirmWorkerManager: SecureConfirmWorkerManager;
@@ -65,7 +77,10 @@ export class SignerWorkerManager {
     getTheme?: () => ThemeName,
   ) {
     this.indexedDB = IndexedDBManager;
-    this.touchIdPrompt = new TouchIdPrompt(rpIdOverride, enableSafariGetWebauthnRegistrationFallback);
+    this.touchIdPrompt = new TouchIdPrompt(
+      rpIdOverride,
+      enableSafariGetWebauthnRegistrationFallback,
+    );
     this.secureConfirmWorkerManager = secureConfirmWorkerManager;
     this.nearClient = nearClient;
     this.userPreferencesManager = userPreferencesManager;
@@ -109,42 +124,40 @@ export class SignerWorkerManager {
     await this.nearWorkerBackend.preWarmWorkerPool();
   }
 
-  requestWorkerOperation<T extends NearWorkerOperationType>(
-    args: {
-      kind: 'nearSigner';
-      request: NearWorkerOperationRequest<T>;
-    },
-  ): Promise<NearWorkerOperationResult<T>>;
+  requestWorkerOperation<T extends NearWorkerOperationType>(args: {
+    kind: 'nearSigner';
+    request: NearWorkerOperationRequest<T>;
+  }): Promise<NearWorkerOperationResult<T>>;
   requestWorkerOperation<
     K extends MultichainWorkerKind,
     T extends MultichainOperationType<K>,
-  >(
-    args: {
-      kind: K;
-      request: MultichainWorkerOperationRequest<K, T>;
-    },
-  ): Promise<MultichainWorkerOperationResult<K, T>>;
-  async requestWorkerOperation<
-    K extends SignerWorkerKind,
-    T extends SignerWorkerOperationType<K>,
-  >(
-    args: {
-      kind: K;
-      request: SignerWorkerOperationRequest<K, T>;
-    },
-  ): Promise<SignerWorkerOperationResult<K, T>> {
-    if (args.kind === 'nearSigner') {
-      return await this.nearWorkerBackend.requestOperation(
-        args.request as NearWorkerOperationRequest<NearWorkerOperationType>,
-      ) as SignerWorkerOperationResult<K, T>;
-    }
-    return await requestMultichainWorkerOperation({
-      kind: args.kind as MultichainWorkerKind,
-      request: args.request as MultichainWorkerOperationRequest<
+  >(args: {
+    kind: K;
+    request: MultichainWorkerOperationRequest<K, T>;
+  }): Promise<MultichainWorkerOperationResult<K, T>>;
+  async requestWorkerOperation(
+    args: AnyWorkerOperationArgs,
+  ): Promise<
+    | NearWorkerOperationResult<NearWorkerOperationType>
+    | MultichainWorkerOperationResult<
         MultichainWorkerKind,
         MultichainOperationType<MultichainWorkerKind>
-      >,
-    }) as SignerWorkerOperationResult<K, T>;
-  }
+      >
+  > {
+    if (args.kind === 'nearSigner') {
+      return await this.nearWorkerBackend.requestOperation(args.request);
+    }
 
+    if (args.kind === 'ethSigner') {
+      return await requestMultichainWorkerOperation({
+        kind: 'ethSigner',
+        request: args.request,
+      });
+    }
+
+    return await requestMultichainWorkerOperation({
+      kind: 'tempoSigner',
+      request: args.request,
+    });
+  }
 }

@@ -1,6 +1,6 @@
 # Crypto-in-WASM Refactor Plan
 
-Status: Draft  
+Status: In Progress  
 Last updated: 2026-02-12
 
 ## Objective
@@ -65,12 +65,12 @@ Deliverable:
 
 ### Phase 2: secp256k1 PRF.second Derivation Cutover
 
-- [ ] Add Rust implementation in `wasm/eth_signer/src/derive.rs` for deterministic secp256k1 keypair + address derivation from `PRF.second`.
-- [ ] Export from `wasm/eth_signer/src/lib.rs`.
-- [ ] Wire worker request/response path and typed wrapper.
-- [ ] Replace dynamic import callsite in:
+- [x] Add Rust implementation in `wasm/eth_signer/src/derive.rs` for deterministic secp256k1 keypair + address derivation from `PRF.second`.
+- [x] Export from `wasm/eth_signer/src/lib.rs`.
+- [x] Wire worker request/response path and typed wrapper.
+- [x] Replace dynamic import callsite in:
   - `client/src/core/signing/api/WebAuthnManager.ts`
-- [ ] Remove runtime dependency on `client/src/core/signing/chainAdaptors/evm/deriveSecp256k1KeypairFromPrfSecond.ts` (or keep only as temporary test oracle).
+- [x] Remove runtime dependency on `client/src/core/signing/chainAdaptors/evm/deriveSecp256k1KeypairFromPrfSecond.ts` (kept only as a deprecated shim).
 
 Deliverable:
 
@@ -78,13 +78,13 @@ Deliverable:
 
 ### Phase 3: Threshold ECDSA Math Cutover
 
-- [ ] Move additive-share mapping logic from:
+- [x] Move additive-share mapping logic from:
   - `shared/src/threshold/secp256k1Ecdsa2pShareMapping.ts`
   into `wasm/eth_signer`.
-- [ ] Move group public key reconstruction/validation (`Point.fromBytes`, point add/validate) from:
+- [x] Move group public key reconstruction/validation (`Point.fromBytes`, point add/validate) from:
   - `client/src/core/signing/orchestration/walletOrigin/thresholdEcdsaCoordinator.ts`
   into wasm operations.
-- [ ] Update coordinator to call wasm only for curve/share math.
+- [x] Update coordinator to call wasm only for curve/share math.
 
 Deliverable:
 
