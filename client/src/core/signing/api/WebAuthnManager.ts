@@ -59,7 +59,6 @@ import { rotateThresholdEd25519KeyPostRegistrationHandler } from '../threshold/w
 import { connectThresholdEd25519SessionLite } from '../threshold/workflows/connectThresholdEd25519SessionLite';
 import { collectAuthenticationCredentialForChallengeB64u } from '../webauthn/credentials/collectAuthenticationCredentialForChallengeB64u';
 import { computeThresholdEd25519KeygenIntentDigest } from '../../../utils/intentDigest';
-import { deriveNearKeypairFromPrfSecondB64u } from '../../near/nearCrypto';
 import { runSecureConfirm } from '../secureConfirm/secureConfirmBridge';
 import {
   SecureConfirmationType,
@@ -279,6 +278,12 @@ export class WebAuthnManager {
     return trimmed;
   }
 
+  private isWebAuthnRegistrationCredential(
+    credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential,
+  ): credential is WebAuthnRegistrationCredential {
+    return typeof (credential as WebAuthnRegistrationCredential)?.response?.attestationObject === 'string';
+  }
+
   private getOrCreateActiveSigningSessionId(nearAccountId: AccountId): string {
     const key = String(toAccountId(nearAccountId));
     const existing = this.activeSigningSessionIds.get(key);
@@ -370,6 +375,55 @@ export class WebAuthnManager {
       options,
       sessionId,
     });
+  }
+
+  async deriveNearKeypairFromCredentialViaWorker(args: {
+    credential: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
+    nearAccountId: AccountId;
+  }): Promise<{ publicKey: string; privateKey: string }> {
+    const nearAccountId = toAccountId(args.nearAccountId);
+    const prfFirstB64u = this.extractPrfFirstB64u(args.credential);
+    const decryptSessionId = this.generateSessionId('derive-near-prf2-decrypt');
+
+    if (this.isWebAuthnRegistrationCredential(args.credential)) {
+      const derived = await this.deriveNearKeypairAndEncryptFromSerialized({
+        credential: args.credential,
+        nearAccountId,
+        options: { persistToDb: false },
+      });
+      if (!derived.success || !derived.publicKey || !derived.wrapKeySalt) {
+        throw new Error(derived.error || 'Failed to derive NEAR keypair from registration credential');
+      }
+
+      const decrypted = await this.signerWorkerManager.nearKeyOps.decryptPrivateKeyWithPrf({
+        nearAccountId,
+        authenticators: [],
+        sessionId: decryptSessionId,
+        prfFirstB64u,
+        wrapKeySalt: derived.wrapKeySalt,
+      });
+      return {
+        publicKey: derived.publicKey,
+        privateKey: decrypted.decryptedPrivateKey,
+      };
+    }
+
+    const recovered = await this.signerWorkerManager.nearKeyOps.recoverKeypairFromPasskey({
+      credential: args.credential,
+      accountIdHint: String(nearAccountId),
+      sessionId: this.generateSessionId('derive-near-prf2-recover'),
+    });
+    const decrypted = await this.signerWorkerManager.nearKeyOps.decryptPrivateKeyWithPrf({
+      nearAccountId,
+      authenticators: [],
+      sessionId: decryptSessionId,
+      prfFirstB64u,
+      wrapKeySalt: recovered.wrapKeySalt,
+    });
+    return {
+      publicKey: recovered.publicKey,
+      privateKey: decrypted.decryptedPrivateKey,
+    };
   }
 
   ///////////////////////////////////////
@@ -1007,18 +1061,9 @@ export class WebAuthnManager {
         throw new Error('Missing WebAuthn credential for export request');
       }
 
-      const prfSecondB64u = String(
-        (decision.credential as any)?.clientExtensionResults?.prf?.results?.second || '',
-      ).trim();
-      if (!prfSecondB64u) {
-        throw new Error(
-          'Missing PRF.second output from credential (requires a PRF-enabled passkey)',
-        );
-      }
-
-      const derived = await deriveNearKeypairFromPrfSecondB64u({
-        prfSecondB64u,
-        nearAccountId: String(accountId),
+      const derived = await this.deriveNearKeypairFromCredentialViaWorker({
+        credential: decision.credential as WebAuthnAuthenticationCredential,
+        nearAccountId: accountId,
       });
       await runSecureConfirm(this.secureConfirmWorkerManager.getContext(), {
         requestId: `${requestId}-show`,
@@ -1169,10 +1214,9 @@ export class WebAuthnManager {
           privateKey: String(decrypted.decryptedPrivateKey || '').trim(),
         });
       } else {
-        const prfSecondB64u = this.extractPrfSecondB64u(credential);
-        const derived = await deriveNearKeypairFromPrfSecondB64u({
-          prfSecondB64u,
-          nearAccountId: String(accountId),
+        const derived = await this.deriveNearKeypairFromCredentialViaWorker({
+          credential,
+          nearAccountId: accountId,
         });
         exportKeys.push({
           scheme: 'ed25519',

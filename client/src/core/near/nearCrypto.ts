@@ -1,10 +1,7 @@
 import * as ed25519 from '@noble/ed25519';
 import bs58 from 'bs58';
-import { hkdf } from '@noble/hashes/hkdf.js';
-import { sha256 } from '@noble/hashes/sha2.js';
 
 import { ensureEd25519Prefix } from '../../../../shared/src/utils/validation';
-import { base64UrlDecode } from '../../../../shared/src/utils/encoders';
 export { ensureEd25519Prefix };
 
 export const NEAR_ED25519_KEY_PREFIX = 'ed25519:' as const;
@@ -66,38 +63,4 @@ export function toSecretKeyString(seed: Uint8Array, pub: Uint8Array): string {
   secret.set(seed, 0);
   secret.set(pub, 32);
   return ensureEd25519Prefix(bs58.encode(secret));
-}
-
-/**
- * Deterministically derive a NEAR Ed25519 keypair from a PRF.second output (base64url string).
- *
- * NOTE: This matches the current signer-worker (Rust) derivation:
- * - HKDF-SHA256(ikm=prfSecond, salt="near-key-derivation:<accountId>", info="ed25519-signing-key-dual-prf-v1", len=32)
- * - seed -> Ed25519 keypair
- */
-export async function deriveNearKeypairFromPrfSecondB64u(args: {
-  prfSecondB64u: string;
-  nearAccountId: string;
-}): Promise<{ publicKey: string; privateKey: string }> {
-  const accountId = String(args.nearAccountId || '').trim();
-  if (!accountId) throw new Error('Missing nearAccountId for PRF.second key derivation');
-
-  const prfSecondB64u = String(args.prfSecondB64u || '').trim();
-  if (!prfSecondB64u) throw new Error('Missing prfSecondB64u for PRF.second key derivation');
-
-  const ikm = base64UrlDecode(prfSecondB64u);
-  if (ikm.length === 0) throw new Error('Invalid PRF.second: empty after base64url decode');
-
-  const saltStr = `near-key-derivation:${accountId}`;
-  const infoStr = 'ed25519-signing-key-dual-prf-v1';
-  const salt = new TextEncoder().encode(saltStr);
-  const info = new TextEncoder().encode(infoStr);
-
-  const seed = hkdf(sha256, ikm, salt, info, 32);
-  if (seed.length !== 32) throw new Error(`HKDF derived seed must be 32 bytes, got ${seed.length}`);
-
-  const pub = await ed25519.getPublicKeyAsync(seed);
-  const publicKey = ensureEd25519Prefix(bs58.encode(pub));
-  const privateKey = toSecretKeyString(seed, pub);
-  return { publicKey, privateKey };
 }

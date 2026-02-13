@@ -21,7 +21,6 @@ import type { AccountId } from '../types/accountIds';
 import { errorMessage, getUserFriendlyErrorMessage } from '../../../../shared/src/utils/errors';
 import { buildThresholdEd25519Participants2pV1 } from '../../../../shared/src/threshold/participants';
 import { checkNearAccountExistsBestEffort } from '../near/rpcCalls';
-import { deriveNearKeypairFromPrfSecondB64u } from '../near/nearCrypto';
 import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
 // Registration forces a visible, clickable confirmation for cross‑origin safety
 
@@ -115,13 +114,9 @@ export async function registerPasskeyInternal(
     if (requestedSignerModeStr === 'threshold-signer') {
       // Option B bootstrap: derive a local/backup key from PRF.second.
       // The relay creates the account with this key, and then the client adds the threshold key.
-      const prfSecondB64u = String(credential?.clientExtensionResults?.prf?.results?.second || '').trim();
-      if (!prfSecondB64u) {
-        throw new Error('Missing PRF.second output from registration credential (required for backup key)');
-      }
-      const backupKeypair = await deriveNearKeypairFromPrfSecondB64u({
-        prfSecondB64u,
-        nearAccountId: String(nearAccountId),
+      const backupKeypair = await webAuthnManager.deriveNearKeypairFromCredentialViaWorker({
+        credential,
+        nearAccountId,
       });
       nearPublicKey = backupKeypair.publicKey;
       nearPrivateKeyForBootstrap = backupKeypair.privateKey;
@@ -492,21 +487,9 @@ async function enableNearEscapeHatchBackupKeyBestEffort(args: {
       });
     };
 
-    const prfSecondB64u = String(registrationCredential?.clientExtensionResults?.prf?.results?.second || '').trim();
-    if (!prfSecondB64u) {
-      onEvent?.({
-        step: 9,
-        phase: RegistrationPhase.STEP_9_ESCAPE_HATCH,
-        status: RegistrationStatus.SUCCESS,
-        message: 'Backup key skipped (PRF.second unavailable)',
-        error: 'Missing PRF.second output in registration credential',
-      });
-      return;
-    }
-
-    const { publicKey: backupPublicKey } = await deriveNearKeypairFromPrfSecondB64u({
-      prfSecondB64u,
-      nearAccountId: String(nearAccountId),
+    const { publicKey: backupPublicKey } = await context.webAuthnManager.deriveNearKeypairFromCredentialViaWorker({
+      credential: registrationCredential,
+      nearAccountId,
     });
 
     const alreadyPresent = await verifyAccountAccessKeysPresent(

@@ -93,4 +93,22 @@ if rg -n \
   exit 1
 fi
 
+echo "[check-signing-architecture] checking NEAR derivation wasm boundary..."
+if rg -n \
+  -e "deriveNearKeypairFromPrfSecondB64u" \
+  client/src/core/signing \
+  client/src/core/TatchiPasskey \
+  tests; then
+  echo "[check-signing-architecture] failed: deterministic NEAR PRF.second derivation must route through near-signer wasm worker"
+  exit 1
+fi
+
+if rg -n \
+  -e "near-key-derivation:" \
+  -e "ed25519-signing-key-dual-prf-v1" \
+  client/src/core/near/nearCrypto.ts; then
+  echo "[check-signing-architecture] failed: deterministic NEAR PRF.second derivation logic must not live in nearCrypto.ts"
+  exit 1
+fi
+
 echo "[check-signing-architecture] OK"

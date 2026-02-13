@@ -1,7 +1,7 @@
 # Crypto-in-WASM Refactor Plan
 
 Status: In Progress  
-Last updated: 2026-02-12
+Last updated: 2026-02-13
 
 ## Objective
 
@@ -29,7 +29,6 @@ Out of scope:
 ## Current TS Crypto Hotspots
 
 - `client/src/core/signing/chainAdaptors/evm/deriveSecp256k1KeypairFromPrfSecond.ts`
-- `client/src/core/near/nearCrypto.ts`
 
 ## Phased Todo Plan
 
@@ -114,13 +113,13 @@ Deliverable:
 
 ### Phase 6: NEAR Key Derivation Cutover
 
-- [ ] Move deterministic near key derivation from:
+- [x] Move deterministic near key derivation from:
   - `client/src/core/near/nearCrypto.ts`
   into `wasm/near_signer`.
-- [ ] Replace runtime callsites in:
+- [x] Replace runtime callsites in:
   - `client/src/core/signing/api/WebAuthnManager.ts`
   - `client/src/core/TatchiPasskey/registration.ts`
-- [ ] Keep only non-crypto formatting helpers in TS (if needed).
+- [x] Keep only non-crypto formatting helpers in TS (if needed).
 
 Deliverable:
 
