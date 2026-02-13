@@ -1,14 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 import { secp256k1 } from '@noble/curves/secp256k1.js';
-import { recoverTransactionAddress, parseTransaction } from 'viem';
+import { keccak256, parseTransaction, recoverTransactionAddress, serializeTransaction } from 'viem';
 import { publicKeyToAddress } from 'viem/accounts';
 import { corsHeadersForRoute } from '../e2e/thresholdEd25519.testUtils';
 import {
   runThresholdEcdsaTempoFlow,
   setupThresholdEcdsaTempoHarness,
 } from '../helpers/thresholdEcdsaTempoFlow';
-import { computeEip1559TxHash } from '@/core/signing/chainAdaptors/evm/eip1559';
-import { bytesToHex } from '@/core/signing/chainAdaptors/evm/bytes';
 
 type CounterKey = 'authorize' | 'presignInit' | 'presignStep' | 'signInit' | 'signFinalize';
 type Counters = Record<CounterKey, number>;
@@ -104,7 +102,20 @@ test.describe('Threshold ECDSA Tempo high-level API', () => {
         throw new Error('Expected eip1559 signed result');
       }
 
-      const expectedSigningHashHex = bytesToHex(computeEip1559TxHash(EIP1559_TEST_TX));
+      const expectedSigningHashHex = keccak256(
+        serializeTransaction({
+          type: 'eip1559',
+          chainId: EIP1559_TEST_TX.chainId,
+          nonce: EIP1559_TEST_TX.nonce,
+          maxPriorityFeePerGas: EIP1559_TEST_TX.maxPriorityFeePerGas,
+          maxFeePerGas: EIP1559_TEST_TX.maxFeePerGas,
+          gas: EIP1559_TEST_TX.gasLimit,
+          to: EIP1559_TEST_TX.to,
+          value: EIP1559_TEST_TX.value,
+          data: EIP1559_TEST_TX.data,
+          accessList: EIP1559_TEST_TX.accessList,
+        }),
+      );
       expect(result.signed.txHashHex).toBe(expectedSigningHashHex);
       expect(result.signed.rawTxHex.startsWith('0x02')).toBe(true);
 

@@ -29,11 +29,7 @@ Out of scope:
 ## Current TS Crypto Hotspots
 
 - `client/src/core/signing/chainAdaptors/evm/deriveSecp256k1KeypairFromPrfSecond.ts`
-- `client/src/core/signing/chainAdaptors/evm/{keccak.ts,eip1559.ts,rlp.ts}`
-- `client/src/core/signing/orchestration/walletOrigin/thresholdEcdsaCoordinator.ts`
-- `shared/src/threshold/secp256k1Ecdsa2pShareMapping.ts`
 - `client/src/core/near/nearCrypto.ts`
-- `client/src/core/signing/engines/webauthnP256.ts` (DER parsing + signature packing)
 
 ## Phased Todo Plan
 
@@ -92,13 +88,13 @@ Deliverable:
 
 ### Phase 4: Hashing/Serialization Runtime Cutover (EVM/Tempo)
 
-- [ ] Ensure runtime paths exclusively use wasm for:
+- [x] Ensure runtime paths exclusively use wasm for:
   - EIP-1559 digest and encoding
   - Tempo sender hash and signed tx encoding
-- [ ] Remove runtime imports/usages of:
+- [x] Remove runtime imports/usages of:
   - `client/src/core/signing/chainAdaptors/evm/{keccak.ts,eip1559.ts,rlp.ts}`
   - `client/src/core/signing/chainAdaptors/tempo/tempoTx.ts`
-- [ ] Update tests that currently import TS implementations to use wasm wrappers.
+- [x] Update tests that currently import TS implementations to use wasm wrappers.
 
 Deliverable:
 
@@ -106,7 +102,7 @@ Deliverable:
 
 ### Phase 5: WebAuthn P-256 Low-Level Parsing Cutover
 
-- [ ] Keep credential collection in browser TS.
+- [x] Keep credential collection in browser TS.
 - [x] Move DER signature parsing, challenge binding verification, and packed signature byte assembly from:
   - `client/src/core/signing/engines/webauthnP256.ts`
   into wasm operation(s).
