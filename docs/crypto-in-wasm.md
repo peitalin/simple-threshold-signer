@@ -3,6 +3,15 @@
 Status: In Progress  
 Last updated: 2026-02-13
 
+## Architecture Direction Update (Locked)
+
+This plan now assumes a shared Rust library architecture:
+
+- Canonical signer implementation lives in `crates/signer-core`.
+- Web execution reaches signer logic through `crates/signer-platform-web` bindings consumed by WASM workers.
+- iOS will consume the same signer logic via Swift bindings over `signer-core`.
+- Existing `wasm/{eth_signer,tempo_signer,near_signer}` crates are transition wrappers and should be reduced to binding glue.
+
 ## Objective
 
 Move all low-level cryptographic operations out of TypeScript runtime code and into WASM worker modules.
@@ -19,6 +28,7 @@ In scope:
 - `client/src/core/signing/**`
 - `client/src/core/near/nearCrypto.ts`
 - `client/src/core/workers/{eth-signer.worker.ts,tempo-signer.worker.ts,near-signer.worker.ts}`
+- `crates/{signer-core,signer-platform-web,signer-platform-ios}`
 - `wasm/{eth_signer,tempo_signer,near_signer}`
 
 Out of scope:
@@ -29,14 +39,15 @@ Out of scope:
 ## Current TS Crypto Hotspots
 
 - None under `client/src/core/signing` runtime paths.
+- Inventory and classifications: `docs/signing-crypto-inventory.md`.
 
 ## Phased Todo Plan
 
 ### Phase 0: Boundary Lock + Inventory
 
-- [ ] Document strict boundary in signing architecture docs.
-- [ ] Classify each remaining TS crypto helper as `migrate`, `test-only`, or `delete`.
-- [ ] Add temporary tracking checklist in PR template for crypto migration progress.
+- [x] Document strict boundary in signing architecture docs.
+- [x] Classify each remaining TS crypto helper as `migrate`, `test-only`, or `delete`.
+- [x] Add temporary tracking checklist in PR template for crypto migration progress.
 
 Deliverable:
 
@@ -44,13 +55,13 @@ Deliverable:
 
 ### Phase 1: Worker API Expansion
 
-- [ ] Extend multichain worker operation map with new crypto ops in:
+- [x] Extend multichain worker operation map with new crypto ops in:
   - `client/src/core/signing/workers/signerWorkerManager/backends/types.ts`
-- [ ] Implement new RPC handlers in:
+- [x] Implement new RPC handlers in:
   - `client/src/core/workers/eth-signer.worker.ts`
   - `client/src/core/workers/tempo-signer.worker.ts` (if needed)
   - `client/src/core/workers/near-signer.worker.ts` (if needed)
-- [ ] Add wrappers in:
+- [x] Add wrappers in:
   - `client/src/core/signing/chainAdaptors/evm/ethSignerWasm.ts`
   - `client/src/core/signing/chainAdaptors/tempo/tempoSignerWasm.ts`
 
@@ -94,6 +105,7 @@ Deliverable:
   - `client/src/core/signing/chainAdaptors/evm/{keccak.ts,eip1559.ts,rlp.ts}`
   - `client/src/core/signing/chainAdaptors/tempo/tempoTx.ts`
 - [x] Update tests that currently import TS implementations to use wasm wrappers.
+- [x] Lock deterministic tx-finalization vectors in `crates/signer-core/src/{eip1559.rs,tempo_tx.rs}` and enforce via `sdk/scripts/check-signer-parity.sh`.
 
 Deliverable:
 
@@ -137,6 +149,31 @@ Deliverable:
 
 - CI enforces the boundary and prevents regressions.
 
+### Phase 8: Shared Rust Core Extraction
+
+- [x] Stand up `crates/signer-core` and migrate common signer logic from platform-specific wasm crates.
+- [x] Ensure `wasm/{eth_signer,tempo_signer}` consume the shared Rust platform layer for shared codec, secp256k1 derivation/public-key operations, and chain-finalization helpers (EIP-1559/Tempo tx hashing+encoding).
+- [x] Migrate initial shared primitive from `wasm/near_signer` into `signer-core` and repoint near signer bindings (Ed25519 PRF.second key derivation).
+- [x] Migrate remaining near shared primitives (KEK derivation + ChaCha20 helpers) into `signer-core` and repoint near signer bindings.
+- [x] Add explicit workspace boundaries so new signer logic cannot land outside `signer-core` (architecture check enforces `signer-platform-web` delegation in wasm signer wrappers).
+- [x] Introduce `crates/signer-platform-web` as the canonical long-term web binding surface and repoint wasm wrappers through it.
+
+Deliverable:
+
+- One Rust signer core shared by all platform bindings.
+
+### Phase 9: iOS Binding Parity Path
+
+- [x] Scaffold `crates/signer-platform-ios` bindings over `signer-core` with a versioned `v1` API surface and parity tests against web bindings.
+- [ ] Add UniFFI (or equivalent Swift ABI) on top of `signer-platform-ios`.
+- [x] Lock canonical vector corpus under `crates/signer-core/fixtures/signing-vectors/v1.json` and replay it through `signer-platform-web` + `signer-platform-ios` Rust tests.
+- [ ] Replay canonical signing vectors across Rust native + Web WASM + iOS Swift harnesses.
+- [x] Lock Rust binding CI parity checks to prevent cross-platform signer drift (`pnpm check` now runs `check:signer-parity`).
+
+Deliverable:
+
+- Web and iOS run the same signer logic through different binding layers.
+
 ## Final Architecture and Ownership Model
 
 ### Ownership by Module
@@ -167,6 +204,12 @@ Deliverable:
 - `client/src/core/signing/workers`
   - Typed RPC boundary (`workers/operations/executeSignerWorkerOperation.ts`) and worker backends.
   - All runtime low-level crypto execution crosses this boundary into wasm workers.
+- `crates/signer-core`
+  - Canonical signer logic shared across Web and iOS.
+  - Owns signing-critical crypto, threshold state transitions, and chain-critical finalization.
+- `crates/signer-platform-web` / `wasm/*`
+  - Web binding/adaptation layer for workers only (`signer-platform-web` as the API surface, `wasm/*` as operational wrappers).
+  - Must not own canonical signer logic.
 
 ### Canonical Runtime Sequences
 
@@ -198,6 +241,7 @@ Per phase, run:
 - `pnpm exec tsc --noEmit -p sdk/tsconfig.build.json`
 - `pnpm -C sdk run build`
 - `bash sdk/scripts/check-signing-architecture.sh`
+- `bash sdk/scripts/check-signer-parity.sh`
 - targeted tests:
   - `pnpm -C tests exec playwright test ./unit/thresholdEcdsa.tempoHighLevel.unit.test.ts --reporter=line`
   - `pnpm -C tests exec playwright test ./unit/signingPipeline.unified.unit.test.ts --reporter=line`
@@ -209,3 +253,5 @@ Per phase, run:
 - [ ] No low-level crypto operations in runtime TypeScript signing paths.
 - [ ] All runtime crypto is executed via wasm worker RPC.
 - [ ] CI checks block reintroduction of TS crypto primitives in signing runtime.
+- [ ] Canonical signer logic is centralized in `crates/signer-core`.
+- [ ] Web wasm wrappers are binding-only and free of duplicated signer implementations.
