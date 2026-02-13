@@ -3,6 +3,9 @@
 Status: Draft  
 Last updated: 2026-02-12
 
+Implementation tracker:
+- See `/Users/pta/Dev/rust/simple-threshold-signer/docs/db-refactor.md` for phased file-splitting and module-boundary execution status.
+
 ## Scope
 
 Refactor IndexedDB persistence so account, key, and derived-address storage are chain-agnostic while preserving compatibility with current NEAR flows.

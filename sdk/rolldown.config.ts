@@ -384,6 +384,10 @@ const configs = [
       // Treat this as an entry so Rolldown doesn't tree-shake its re-exported WASM enums.
       // Tests (and some internal tools) import `core/types/signer-worker` directly.
       '../client/src/core/types/signer-worker.ts',
+      // Keep IndexedDB manager internals as stable deep-import entries for DB migration tests/tools.
+      '../client/src/core/IndexedDBManager/index.ts',
+      '../client/src/core/IndexedDBManager/passkeyClientDB.ts',
+      '../client/src/core/IndexedDBManager/passkeyNearKeysDB.ts',
     ],
     output: {
       dir: BUILD_PATHS.BUILD.ESM,

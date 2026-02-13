@@ -818,4 +818,166 @@ test.describe('DB multichain migration + saga', () => {
     expect(result.opStatusBySigner['tempo-signer']).toBe('confirmed');
     expect(result.opStatusBySigner['evm-signer']).toBe('confirmed');
   });
+
+  test('phase5 index queries preserve due-op and derived-address semantics', async ({ page }) => {
+    const result = await page.evaluate(async ({ paths }) => {
+      const { PasskeyClientDBManager } = await import(paths.clientDB);
+      const now = Date.now();
+      const dbm = new PasskeyClientDBManager();
+      dbm.setDbName(`PasskeyClientDB-phase5-index-${now}-${Math.random().toString(16).slice(2)}`);
+
+      await dbm.upsertProfile({
+        profileId: 'profile-phase5',
+        defaultDeviceNumber: 1,
+        passkeyCredential: { id: 'cred-phase5', rawId: 'raw-phase5' },
+      });
+      await dbm.upsertChainAccount({
+        profileId: 'profile-phase5',
+        chainId: 'near:testnet',
+        accountAddress: 'alice.testnet',
+        accountModel: 'near-native',
+        isPrimary: true,
+      });
+
+      await dbm.enqueueSignerOperation({
+        opId: 'op-confirmed',
+        idempotencyKey: 'idem-confirmed',
+        opType: 'add-signer',
+        chainId: 'near:testnet',
+        accountAddress: 'alice.testnet',
+        signerId: 's-confirmed',
+        status: 'confirmed',
+        nextAttemptAt: now + 70,
+      });
+      await dbm.enqueueSignerOperation({
+        opId: 'op-failed',
+        idempotencyKey: 'idem-failed',
+        opType: 'add-signer',
+        chainId: 'near:testnet',
+        accountAddress: 'alice.testnet',
+        signerId: 's-failed',
+        status: 'failed',
+        nextAttemptAt: now + 80,
+      });
+      await dbm.enqueueSignerOperation({
+        opId: 'op-submitted',
+        idempotencyKey: 'idem-submitted',
+        opType: 'add-signer',
+        chainId: 'near:testnet',
+        accountAddress: 'alice.testnet',
+        signerId: 's-submitted',
+        status: 'submitted',
+        nextAttemptAt: now + 90,
+      });
+      await dbm.enqueueSignerOperation({
+        opId: 'op-queued-due',
+        idempotencyKey: 'idem-queued-due',
+        opType: 'add-signer',
+        chainId: 'near:testnet',
+        accountAddress: 'alice.testnet',
+        signerId: 's-queued-due',
+        status: 'queued',
+        nextAttemptAt: now + 120,
+      });
+      await dbm.enqueueSignerOperation({
+        opId: 'op-queued-future',
+        idempotencyKey: 'idem-queued-future',
+        opType: 'add-signer',
+        chainId: 'near:testnet',
+        accountAddress: 'alice.testnet',
+        signerId: 's-queued-future',
+        status: 'queued',
+        nextAttemptAt: now + 300,
+      });
+
+      const defaultDue = await dbm.listSignerOperations({
+        dueBefore: now + 150,
+        limit: 20,
+      });
+      const explicitDue = await dbm.listSignerOperations({
+        statuses: ['queued', 'submitted', 'failed', 'confirmed'],
+        dueBefore: now + 150,
+        limit: 20,
+      });
+
+      await dbm.setDerivedAddressV2({
+        profileId: 'profile-phase5',
+        sourceChainId: 'near:testnet',
+        sourceAccountAddress: 'alice.testnet',
+        targetChainId: 'eip155:1',
+        providerRef: 'v1.signer',
+        path: 'evm:1:0',
+        address: '0x111',
+        updatedAt: now + 1,
+      });
+      await dbm.setDerivedAddressV2({
+        profileId: 'profile-phase5',
+        sourceChainId: 'near:testnet',
+        sourceAccountAddress: 'alice.testnet',
+        targetChainId: 'eip155:8453',
+        providerRef: 'v1.signer',
+        path: 'evm:1:0',
+        address: '0x8453',
+        updatedAt: now + 2,
+      });
+      await dbm.setDerivedAddressV2({
+        profileId: 'profile-phase5',
+        sourceChainId: 'near:testnet',
+        sourceAccountAddress: 'alice.testnet',
+        targetChainId: 'eip155:1',
+        providerRef: 'different.signer',
+        path: 'evm:1:0',
+        address: '0x999',
+        updatedAt: now + 3,
+      });
+
+      const selectedDerived = await dbm.getDerivedAddressV2({
+        profileId: 'profile-phase5',
+        sourceChainId: 'near:testnet',
+        sourceAccountAddress: 'alice.testnet',
+        providerRef: 'v1.signer',
+        path: 'evm:1:0',
+      });
+      const missingDerived = await dbm.getDerivedAddressV2({
+        profileId: 'profile-phase5',
+        sourceChainId: 'near:testnet',
+        sourceAccountAddress: 'alice.testnet',
+        providerRef: 'missing.signer',
+        path: 'evm:1:0',
+      });
+
+      const raw = await (dbm as any).getDB();
+      const outboxIndexNames = Array.from(
+        raw.transaction('signerOpsOutbox', 'readonly').store.indexNames as any,
+      );
+      const derivedIndexNames = Array.from(
+        raw.transaction('derivedAddressesV2', 'readonly').store.indexNames as any,
+      );
+
+      return {
+        outboxIndexNames,
+        derivedIndexNames,
+        defaultDueOrder: defaultDue.map((row: any) => row.opId),
+        explicitDueOrder: explicitDue.map((row: any) => row.opId),
+        selectedDerivedAddress: selectedDerived?.address || null,
+        selectedDerivedTargetChainId: selectedDerived?.targetChainId || null,
+        missingDerived: missingDerived || null,
+      };
+    }, { paths: IMPORT_PATHS });
+
+    expect(result.outboxIndexNames).toContain('status_nextAttemptAt');
+    expect(result.derivedIndexNames).toContain(
+      'profileId_sourceChainId_sourceAccountAddress_providerRef_path',
+    );
+    expect(result.defaultDueOrder).toEqual(['op-failed', 'op-submitted', 'op-queued-due']);
+    expect(result.explicitDueOrder).toEqual([
+      'op-confirmed',
+      'op-failed',
+      'op-submitted',
+      'op-queued-due',
+    ]);
+    expect(result.selectedDerivedAddress).toBe('0x8453');
+    expect(result.selectedDerivedTargetChainId).toBe('eip155:8453');
+    expect(result.missingDerived).toBeNull();
+  });
 });
