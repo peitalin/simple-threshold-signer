@@ -50,6 +50,7 @@ echo "[check-signing-architecture] checking TS crypto helper cleanup..."
 if rg -n \
   -e "chainAdaptors/evm/(eip1559|keccak|rlp)" \
   -e "chainAdaptors/tempo/tempoTx" \
+  -e "chainAdaptors/evm/deriveSecp256k1KeypairFromPrfSecond" \
   client/src/core/signing \
   tests; then
   echo "[check-signing-architecture] failed: runtime/tests must not import removed TS crypto helpers"
@@ -60,12 +61,21 @@ for stale_file in \
   client/src/core/signing/chainAdaptors/evm/eip1559.ts \
   client/src/core/signing/chainAdaptors/evm/keccak.ts \
   client/src/core/signing/chainAdaptors/evm/rlp.ts \
-  client/src/core/signing/chainAdaptors/tempo/tempoTx.ts; do
+  client/src/core/signing/chainAdaptors/tempo/tempoTx.ts \
+  client/src/core/signing/chainAdaptors/evm/deriveSecp256k1KeypairFromPrfSecond.ts; do
   if [[ -e "$stale_file" ]]; then
     echo "[check-signing-architecture] failed: stale TS crypto helper still exists: $stale_file"
     exit 1
   fi
 done
+
+echo "[check-signing-architecture] checking runtime signing noble imports..."
+if rg -n \
+  -e "@noble/" \
+  client/src/core/signing; then
+  echo "[check-signing-architecture] failed: runtime signing path must not import noble crypto modules directly"
+  exit 1
+fi
 
 echo "[check-signing-architecture] checking execute helper context enforcement..."
 if rg -n \

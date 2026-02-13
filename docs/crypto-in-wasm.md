@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current TS Crypto Hotspots
 
-- `client/src/core/signing/chainAdaptors/evm/deriveSecp256k1KeypairFromPrfSecond.ts`
+- None under `client/src/core/signing` runtime paths.
 
 ## Phased Todo Plan
 
@@ -65,7 +65,7 @@ Deliverable:
 - [x] Wire worker request/response path and typed wrapper.
 - [x] Replace dynamic import callsite in:
   - `client/src/core/signing/api/WebAuthnManager.ts`
-- [x] Remove runtime dependency on `client/src/core/signing/chainAdaptors/evm/deriveSecp256k1KeypairFromPrfSecond.ts` (kept only as a deprecated shim).
+- [x] Remove runtime dependency on `client/src/core/signing/chainAdaptors/evm/deriveSecp256k1KeypairFromPrfSecond.ts` and delete the compatibility shim.
 
 Deliverable:
 
@@ -127,15 +127,69 @@ Deliverable:
 
 ### Phase 7: Enforcement + Cleanup
 
-- [ ] Extend `sdk/scripts/check-signing-architecture.sh` with crypto boundary checks:
+- [x] Extend `sdk/scripts/check-signing-architecture.sh` with crypto boundary checks:
   - fail on `@noble/*` imports under runtime signing paths
   - fail on banned TS crypto helper modules in runtime imports
-- [ ] Remove dead modules and compatibility shims.
-- [ ] Update docs to final architecture and ownership model.
+- [x] Remove dead modules and compatibility shims.
+- [x] Update docs to final architecture and ownership model.
 
 Deliverable:
 
 - CI enforces the boundary and prevents regressions.
+
+## Final Architecture and Ownership Model
+
+### Ownership by Module
+
+- `client/src/core/signing/api`
+  - Public SDK-facing methods and flow selection (`WebAuthnManager`).
+  - Owns high-level defaults and backward-compatible API behavior.
+- `client/src/core/signing/chainAdaptors`
+  - Chain shaping/finalization only.
+  - Builds `SigningIntent` per chain and finalizes chain-specific outputs.
+  - Uses wasm wrappers for runtime hashing/encoding (`ethSignerWasm`, `tempoSignerWasm`).
+- `client/src/core/signing/orchestration`
+  - Canonical sign runner is `executeSigningIntent.ts`.
+  - Activation entrypoint is `activation/activateThresholdKeyForChain.ts`.
+  - Wallet-origin resolvers/coordinators live under `walletOrigin`.
+- `client/src/core/signing/engines`
+  - Algorithm adapters (`ed25519`, `secp256k1`, `webauthnP256`).
+  - No low-level curve/hash/DER parsing in TS runtime paths.
+- `client/src/core/signing/secureConfirm`
+  - User confirmation, challenge/intent binding, warm-session vs webauthn mode selection.
+  - Collects credentials and returns signing context; does not own crypto math.
+- `client/src/core/signing/threshold`
+  - Threshold workflows (keygen/session authorize/presign/sign orchestration).
+  - Uses wasm worker RPC for crypto primitives and share math.
+- `client/src/core/signing/webauthn`
+  - Browser WebAuthn prompt, serialization, allow-credential selection, fallback bridges.
+  - No runtime signature parsing/packing logic (moved to wasm worker ops).
+- `client/src/core/signing/workers`
+  - Typed RPC boundary (`workers/operations/executeSignerWorkerOperation.ts`) and worker backends.
+  - All runtime low-level crypto execution crosses this boundary into wasm workers.
+
+### Canonical Runtime Sequences
+
+1. NEAR intent signing
+   - `WebAuthnManager.sign*` -> `signWithIntent` -> `executeSigningIntent`.
+   - `NearAdapter` builds intent and `NearEd25519Engine` dispatches to near handlers.
+   - Near handlers run SecureConfirm + session logic and call near worker ops through context.
+2. Tempo/EVM digest signing
+   - `WebAuthnManager.signTempo` -> `signTempoWithSecureConfirm`.
+   - `TempoAdapter` computes digest/hash via wasm wrappers, then `executeSigningIntent` runs engines.
+   - `Secp256k1Engine` / `WebAuthnP256Engine` sign via wasm worker ops; adapter finalizes raw tx bytes via wasm.
+3. Threshold-ECDSA bootstrap activation
+   - `WebAuthnManager.bootstrapThresholdEcdsaSessionLite` -> `activateThresholdKeyForChain`.
+   - Chain adapters (`activation/evm`, `activation/tempo`) route into shared `activation/thresholdEcdsa`.
+   - Shared flow runs keygen + session connect workflows and returns `threshold-ecdsa-secp256k1` keyRef.
+
+### Enforced Boundary Rules
+
+- Runtime `client/src/core/signing/**` must not import `@noble/*`.
+- Removed TS crypto helper modules must not reappear or be imported.
+- WebAuthn DER parsing/packing stays in wasm worker operations.
+- Deterministic PRF-based key derivation routes through wasm worker operations.
+- `executeSignerWorkerOperation` requires runtime context (`ctx`) for near + multichain calls.
 
 ## Validation Gates
 
