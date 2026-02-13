@@ -179,6 +179,8 @@ After (decomposed):
   - Invariant validation + quarantine.
 - `client/src/core/IndexedDBManager/passkeyClientDB/nearCompat.ts`
   - NEAR compatibility parsing/projection/backfill helpers.
+- `client/src/core/IndexedDBManager/passkeyClientDB/profileCleanup.ts`
+  - Profile-scoped deletion helper for V2 stores.
 - `client/src/core/IndexedDBManager/passkeyClientDB/outbox.ts`
   - Outbox creation/query/status helpers.
 - `client/src/core/IndexedDBManager/passkeyNearKeysDB.ts`

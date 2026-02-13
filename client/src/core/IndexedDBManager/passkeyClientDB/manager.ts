@@ -73,6 +73,7 @@ import {
   type DbMultichainMigrationLock,
   runMigrationsIfNeeded as runMigrationsIfNeededValue,
 } from './migrations';
+import { deleteV2ProfileData as deleteV2ProfileDataValue } from './profileCleanup';
 
 export type {
   AccountAddress,
@@ -1704,66 +1705,19 @@ export class PasskeyClientDBManager {
   }
 
   private async deleteV2DataForProfile(profileId: string): Promise<void> {
-    const normalizedProfileId = String(profileId || '').trim();
-    if (!normalizedProfileId) return;
     const db = await this.getDB();
-
-    try {
-      const tx = db.transaction(DB_CONFIG.accountSignersStore, 'readwrite');
-      const idx = tx.store.index('profileId');
-      let cursor = await idx.openCursor(IDBKeyRange.only(normalizedProfileId));
-      while (cursor) {
-        await tx.store.delete(cursor.primaryKey);
-        cursor = await cursor.continue();
-      }
-      await tx.done;
-    } catch {}
-
-    try {
-      const tx = db.transaction(DB_CONFIG.chainAccountsStore, 'readwrite');
-      const idx = tx.store.index('profileId');
-      let cursor = await idx.openCursor(IDBKeyRange.only(normalizedProfileId));
-      while (cursor) {
-        await tx.store.delete(cursor.primaryKey);
-        cursor = await cursor.continue();
-      }
-      await tx.done;
-    } catch {}
-
-    try {
-      const tx = db.transaction(DB_CONFIG.derivedAddressV2Store, 'readwrite');
-      const idx = tx.store.index('profileId');
-      let cursor = await idx.openCursor(IDBKeyRange.only(normalizedProfileId));
-      while (cursor) {
-        await tx.store.delete(cursor.primaryKey);
-        cursor = await cursor.continue();
-      }
-      await tx.done;
-    } catch {}
-
-    try {
-      const tx = db.transaction(DB_CONFIG.recoveryEmailV2Store, 'readwrite');
-      const idx = tx.store.index('profileId');
-      let cursor = await idx.openCursor(IDBKeyRange.only(normalizedProfileId));
-      while (cursor) {
-        await tx.store.delete(cursor.primaryKey);
-        cursor = await cursor.continue();
-      }
-      await tx.done;
-    } catch {}
-
-    try {
-      const tx = db.transaction(DB_CONFIG.profileAuthenticatorStore, 'readwrite');
-      const idx = tx.store.index('profileId');
-      let cursor = await idx.openCursor(IDBKeyRange.only(normalizedProfileId));
-      while (cursor) {
-        await tx.store.delete(cursor.primaryKey);
-        cursor = await cursor.continue();
-      }
-      await tx.done;
-    } catch {}
-
-    try { await db.delete(DB_CONFIG.profilesStore, normalizedProfileId); } catch {}
+    await deleteV2ProfileDataValue({
+      db,
+      profileId,
+      stores: {
+        profilesStore: DB_CONFIG.profilesStore,
+        chainAccountsStore: DB_CONFIG.chainAccountsStore,
+        accountSignersStore: DB_CONFIG.accountSignersStore,
+        derivedAddressV2Store: DB_CONFIG.derivedAddressV2Store,
+        recoveryEmailV2Store: DB_CONFIG.recoveryEmailV2Store,
+        profileAuthenticatorStore: DB_CONFIG.profileAuthenticatorStore,
+      },
+    });
   }
 
   async clearAllAppState(): Promise<void> {
