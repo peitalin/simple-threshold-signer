@@ -35,6 +35,10 @@ wasm/near_signer/pkg
 wasm/near_signer/target
 wasm/tempo_signer/pkg
 wasm/tempo_signer/target
+crates/*/target
+
+# Local tooling caches
+.tooling/
 
 # editor configs
 .vscode/*

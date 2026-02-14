@@ -3,8 +3,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
+source "$ROOT_DIR/sdk/scripts/wasm-toolchain.sh"
 
-FEATURES="secp256k1,near-ed25519,near-crypto"
+FEATURES="secp256k1,near-ed25519,near-crypto,near-threshold-ed25519,tx-finalization"
 VECTORS_FILE="crates/signer-core/fixtures/signing-vectors/v1.json"
 WEB_WASM_REPLAY_TEST="./unit/signingVectors.webWasmReplay.unit.test.ts"
 IOS_SWIFT_REPLAY_SCRIPT="crates/signer-platform-ios/scripts/run-swift-vector-replay.sh"
@@ -39,6 +40,11 @@ cargo test \
   --locked \
   --features "$FEATURES" \
   vectors_v1_match_expected_outputs
+cargo test \
+  --manifest-path crates/signer-platform-web/Cargo.toml \
+  --locked \
+  --features "$FEATURES" \
+  invalid_tx_finalization_vectors_match_expected_errors
 
 echo "[check-signer-parity] replaying vectors through signer-platform-ios..."
 cargo test \
@@ -46,6 +52,11 @@ cargo test \
   --locked \
   --features "$FEATURES" \
   vectors_v1_match_expected_outputs
+cargo test \
+  --manifest-path crates/signer-platform-ios/Cargo.toml \
+  --locked \
+  --features "$FEATURES" \
+  parity_invalid_tx_finalization_vectors_with_web_binding
 
 if [[ "${RUN_IOS_SWIFT_REPLAY:-0}" == "1" ]]; then
   echo "[check-signer-parity] replaying vectors through iOS Swift harness..."

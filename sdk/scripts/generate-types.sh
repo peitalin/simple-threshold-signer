@@ -60,6 +60,12 @@ log ""
 log "+ ensure_wasm32_cc"
 ensure_wasm32_cc
 log "CC_wasm32_unknown_unknown=$CC_wasm32_unknown_unknown"
+log "+ ensure_wasm_pack_cache"
+ensure_wasm_pack_cache
+log "WASM_PACK_CACHE=$WASM_PACK_CACHE"
+
+log ""
+log "+ wasm-bindgen CLI resolved per crate lockfile (using with_wasm_bindgen_cli_for_lockfile)"
 
 # 1. Build WASM crates and generate TypeScript definitions
 echo "Building WASM near signer worker..."
@@ -69,7 +75,7 @@ echo "Running cargo check first..."
 run cargo check
 
 echo "Running wasm-pack build..."
-run wasm-pack build --target web --out-dir pkg --out-name wasm_signer_worker
+run with_wasm_bindgen_cli_for_lockfile "$SDK_ROOT/$SOURCE_WASM_SIGNER/Cargo.lock" wasm-pack build --target web --out-dir pkg --out-name wasm_signer_worker
 popd >/dev/null
 
 echo "Building eth signer WASM..."
@@ -77,7 +83,7 @@ pushd "$SDK_ROOT/$SOURCE_WASM_ETH_SIGNER" >/dev/null
 echo "Running cargo check first..."
 run cargo check
 echo "Running wasm-pack build..."
-run wasm-pack build --target web --out-dir pkg --out-name eth_signer
+run with_wasm_bindgen_cli_for_lockfile "$SDK_ROOT/$SOURCE_WASM_ETH_SIGNER/Cargo.lock" wasm-pack build --target web --out-dir pkg --out-name eth_signer
 popd >/dev/null
 
 echo "Building tempo signer WASM..."
@@ -85,7 +91,7 @@ pushd "$SDK_ROOT/$SOURCE_WASM_TEMPO_SIGNER" >/dev/null
 echo "Running cargo check first..."
 run cargo check
 echo "Running wasm-pack build..."
-run wasm-pack build --target web --out-dir pkg --out-name tempo_signer
+run with_wasm_bindgen_cli_for_lockfile "$SDK_ROOT/$SOURCE_WASM_TEMPO_SIGNER/Cargo.lock" wasm-pack build --target web --out-dir pkg --out-name tempo_signer
 popd >/dev/null
 
 # 2. Check if wasm-bindgen generated types exist
