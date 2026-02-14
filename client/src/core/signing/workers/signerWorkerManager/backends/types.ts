@@ -2,6 +2,22 @@ import type { onProgressEvents } from '../../../../types/sdkSentEvents';
 import type { WorkerRequestTypeMap, WorkerResponseForRequest } from '../../../../types/signer-worker';
 import type { MultichainWorkerKind } from '../../../../runtimeAssetPaths/multichainWorkers';
 
+export const SIGNER_WORKER_CONTRACT_VERSION = 1 as const;
+
+export function getSignerWorkerContractVersion(): number {
+  return SIGNER_WORKER_CONTRACT_VERSION;
+}
+
+export function resolveSignerWorkerContractVersion(version?: number): number {
+  if (version === undefined) return getSignerWorkerContractVersion();
+  if (version !== SIGNER_WORKER_CONTRACT_VERSION) {
+    throw new Error(
+      `[signer-worker] unsupported contract version ${version}; expected ${SIGNER_WORKER_CONTRACT_VERSION}`,
+    );
+  }
+  return version;
+}
+
 export type ThresholdEcdsaPresignStage = 'triples' | 'triples_done' | 'presign' | 'done';
 export type ThresholdEcdsaPresignEvent = 'none' | 'triples_done' | 'presign_done';
 
@@ -132,6 +148,7 @@ export type MultichainWorkerOperationRequest<
   K extends MultichainWorkerKind,
   T extends MultichainOperationType<K>,
 > = {
+  version?: number;
   type: T;
   payload: MultichainWorkerOperationEntry<K, T>['payload'];
   transfer?: Transferable[];
@@ -142,7 +159,7 @@ export type MultichainWorkerOperationResult<
   T extends MultichainOperationType<K>,
 > = MultichainWorkerOperationEntry<K, T>['result'];
 
-export interface MultichainWorkerBackendContract<K extends MultichainWorkerKind = MultichainWorkerKind> {
+export interface MultichainWorkerTransportContract<K extends MultichainWorkerKind = MultichainWorkerKind> {
   requestOperation<T extends MultichainOperationType<K>>(
     args: MultichainWorkerOperationRequest<K, T>,
   ): Promise<MultichainWorkerOperationResult<K, T>>;
@@ -160,6 +177,7 @@ type NearWorkerOperationEntry<T extends NearWorkerOperationType> = {
 };
 
 export type NearWorkerOperationRequest<T extends NearWorkerOperationType> = {
+  version?: number;
   sessionId?: string;
   type: T;
   payload: NearWorkerOperationEntry<T>['payload'];
@@ -171,7 +189,7 @@ export type NearWorkerOperationRequest<T extends NearWorkerOperationType> = {
 export type NearWorkerOperationResult<T extends NearWorkerOperationType> =
   NearWorkerOperationEntry<T>['result'];
 
-export interface NearSignerWorkerBackendContract {
+export interface NearSignerWorkerTransportContract {
   requestOperation<T extends NearWorkerOperationType>(
     args: NearWorkerOperationRequest<T>,
   ): Promise<NearWorkerOperationResult<T>>;

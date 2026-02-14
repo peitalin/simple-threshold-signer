@@ -18,8 +18,8 @@ This folder is the signing runtime for NEAR + Tempo/EVM flows.
 - `workers/`
   - Worker transports:
   - `signerWorkerManager`: unified worker architecture layer.
-  - `signerWorkerManager/backends/nearWorkerBackend`: NEAR signer worker backend.
-  - `signerWorkerManager/backends/multichainWorkerBackend`: EVM/Tempo worker backend.
+  - `signerWorkerManager/backends/nearWorkerBackend`: NEAR signer worker transport.
+  - `signerWorkerManager/backends/multichainWorkerBackend`: EVM/Tempo worker transport.
   - `signerWorkerManager/nearKeyOps`: NEAR-only key operations invoked via `SignerWorkerManager.nearKeyOps`.
 - `threshold/`
   - Threshold session, authorization, and signing workflows.
@@ -51,13 +51,13 @@ flowchart LR
   ENGINE --> FINALIZE["intent.finalize(signatures)"]
 ```
 
-### 3) Worker backends
+### 3) Worker transports
 
 ```mermaid
 flowchart LR
   NH["NEAR handlers"] --> SWM["SignerWorkerManager"]
   WM["WebAuthnManager (NEAR key ops)"] --> SWM
-  SWM --> NB["NearSignerWorkerBackend"]
+  SWM --> NB["NearSignerWorkerTransport"]
   SWM --> NKO["nearKeyOps service"]
   NB --> NSW["near-signer.worker"]
   NKO --> NB
@@ -110,7 +110,7 @@ flowchart LR
 
 1. Chain wasm wrapper (`ethSignerWasm` or `tempoSignerWasm`) calls `executeSignerWorkerOperation(...)`.
 2. Helper dispatches via `SignerWorkerManager.requestWorkerOperation({ kind, request })` (runtime context is required).
-3. `MultichainSignerWorkerBackend` lazily creates a dedicated module worker by kind.
+3. `MultichainSignerWorkerTransport` lazily creates a dedicated module worker by kind.
 4. Request/response is correlated by message `id`.
 5. Returned `ArrayBuffer` is decoded to `Uint8Array` in caller.
 
@@ -120,4 +120,4 @@ flowchart LR
 - `orchestration/` owns the generic signing execution contract.
 - `engines/` own algorithm-level signing behavior.
 - `chainAdaptors/` own chain-specific intent shape and final serialization.
-- `workers/` own runtime transport to WASM worker backends.
+- `workers/` own runtime transport to WASM worker transports.

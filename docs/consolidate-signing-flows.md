@@ -1,7 +1,7 @@
 # Consolidate Signing Flows Plan
 
 Status: In Progress  
-Last updated: 2026-02-12
+Last updated: 2026-02-13
 
 ## Objective
 
@@ -26,6 +26,7 @@ No bespoke parallel signing flow should remain after cutover.
 - Registration/provisioning activation is a separate internal flow (not public API).
 - NEAR no-prompt AddKey helper is internal-only (`#activateNearThresholdKeyNoPrompt`).
 - ctx-less multichain fallback has been removed; tests/utilities must pass explicit manager context.
+- Canonical signer implementation ownership is moving to shared Rust library crates (`crates/signer-core`), with WASM workers as thin binding layers.
 
 ## Current State
 
@@ -40,8 +41,8 @@ No bespoke parallel signing flow should remain after cutover.
 - Manager naming/runtime-deps naming/method naming were migrated to new names.
 - `SignerWorkerManager` now owns:
   - unified kind-based operation dispatch (`requestWorkerOperation`)
-    - `kind: 'nearSigner'` -> `NearSignerWorkerBackend`
-    - `kind: 'ethSigner' | 'tempoSigner'` -> multichain backend gateway
+    - `kind: 'nearSigner'` -> `NearSignerWorkerTransport`
+    - `kind: 'ethSigner' | 'tempoSigner'` -> multichain worker transport gateway
 - Worker module ownership naming is now consistent:
   - `client/src/core/signing/workers/signerWorkerManager/*`
 - Threshold-ECDSA bootstrap activation now routes through chain adapters:
@@ -64,7 +65,7 @@ No bespoke parallel signing flow should remain after cutover.
 - [x] Rename `requestNearWorkerOperation` -> `requestWorkerOperation`.
 - [x] Replace near/multichain execute helpers with `executeSignerWorkerOperation`.
 - [x] Update imports/usages in one pass (no compatibility aliases kept).
-- [ ] Rename backend public type/class names to `*Transport` (optional cleanup).
+- [x] Rename backend public type/class names to `*Transport` (optional cleanup).
 
 ### Phase 2: Unified Worker Operation API
 
@@ -139,6 +140,24 @@ No bespoke parallel signing flow should remain after cutover.
 - Warm-session auth mode for Tempo/EVM intent-digest signing now checks threshold PRF cache preflight and throws a reconnect-required error when the session is expired.
 - Removed `secureConfirm/flow/*` wrapper modules and rewired all imports to canonical `secureConfirmBridge` + `confirmTxFlow/types`.
 
+## Acceptance Criteria (EVM/Tempo Threshold Signing Policy)
+
+- Registration/bootstrap for EVM/Tempo must produce a `threshold-ecdsa-secp256k1` keyRef and counterfactual smart-account metadata, without requiring immediate on-chain deployment.
+- EVM/Tempo runtime signing entrypoints must reject secp256k1 signing when a threshold keyRef is not provided.
+- EVM/Tempo runtime signing must not use `local-secp256k1` key refs in production signing flows.
+- Local secp256k1 derivation is permitted only for explicit private-key export UX and must not be used as a signing-path key source.
+- First EVM/Tempo outbound transaction flow must include a deployment gate (`ensureSmartAccountDeployed`) before submit when DB/account state is undeployed.
+- Deployment result must be written back to DB/account state (`deployed`, `deploymentTxHash` when available) so later signing paths do not re-run deployment checks unnecessarily.
+- NEAR registration defaults to threshold enrollment; local encrypted key material is backup/export-only data and does not set `new_public_key` in threshold registration payloads.
+
+## Export Semantics and Account-Control Caveats
+
+- Runtime signing policy is threshold-first: production EVM/Tempo signing uses `threshold-ecdsa-secp256k1` key refs.
+- Exported local keys are for user-controlled backup/export UX only; they are not accepted in runtime signing paths.
+- Exporting a secp256k1 private key does **not** automatically grant control of an ERC-4337 smart account unless that key is explicitly configured as an authorized owner on-chain.
+- Counterfactual smart-account registration remains non-custodial: users can export key material, but account-control changes require explicit owner-management operations.
+- NEAR local encrypted key material generated during threshold registration is backup data and is blocked from runtime signing selection.
+
 ## Next Steps
 
 1. [x] Remove ctx-less multichain fallback from `executeSignerWorkerOperation` and require manager context everywhere (migrate tests/utilities first).
@@ -150,3 +169,57 @@ No bespoke parallel signing flow should remain after cutover.
    - remove obsolete type aliases/redundant wrappers
    - run dead-code/import checks and remove unreachable paths
 6. [x] Restrict remaining chain modules to adapter-specific normalization/finalization only.
+7. [x] Extract canonical signer logic into `crates/signer-core` and ensure existing `wasm/*` crates consume that library instead of owning duplicate logic.
+8. [x] Add `crates/signer-platform-ios` planning/execution track and parity fixtures so iOS reuses the same signer core.
+9. [x] Finalize smart-account deploy adapter rollout (backend route + default mode flip to `enforce`).
+10. [x] Finish export-only local-key guardrails (runtime path cannot consume backup/export local keys).
+11. [x] Close rollout gates: full signing validation (targeted deploy-path tests + docs lock landed).
+
+## Phased Todo (Post-Consolidation: Smart Account + Threshold Policy)
+
+### Phase 8: Counterfactual Registration Persistence
+
+- [x] Persist counterfactual smart-account metadata during EVM/Tempo bootstrap (no on-chain deploy side effect).
+- [x] Add DB fields for smart-account provisioning state:
+  - `chainId`, `factory`, `entryPoint`, `salt`, `counterfactualAddress`
+  - `deployed`, optional `deploymentTxHash`, `lastDeploymentCheckAt`
+- [x] Ensure initial state is `deployed=false` after registration/bootstrap.
+- [x] Add migration + backward-compat reads for existing users with missing smart-account metadata.
+
+### Phase 9: Deploy-On-First-Use Gate
+
+- [x] Introduce `ensureSmartAccountDeployed` orchestration helper for EVM/Tempo outbound signing flows.
+  - Initial rollout is observe-mode preflight in Tempo secp256k1 signing (stamps `lastDeploymentCheckAt`, no hard block until deploy adapter wiring lands).
+- [x] Run deployment check/gate before first user operation/transaction submit when account state is undeployed.
+  - Gate now runs in enforce mode by default; `relayer.smartAccountDeploymentMode='observe'` remains available as an explicit compatibility override.
+- [x] Update DB state on successful deployment (`deployed=true`, `deploymentTxHash` when available).
+  - State writeback is handled by `ensureSmartAccountDeployed` once deploy adapter returns success.
+- [x] Add retry/error semantics for deployment failures that preserve user-facing signing clarity.
+
+### Phase 10: Threshold-Only Runtime Signing Enforcement
+
+- [x] Remove/disable production runtime usage of `local-secp256k1` in secp256k1 signing engines.
+- [x] Keep runtime secp256k1 signing paths bound to `threshold-ecdsa-secp256k1` key refs only.
+- [x] Add architecture checks in `sdk/scripts/check-signing-architecture.sh` that fail on local-secp runtime signing imports/usages.
+- [x] Update/replace tests that currently rely on local-secp runtime signing in unified pipeline tests.
+
+### Phase 10A: NEAR Threshold-First Registration Defaults
+
+- [x] Make registration default to `threshold-signer` when no per-call `signerMode` override is provided.
+- [x] In threshold registration, derive/store local encrypted NEAR key material as backup/export data by default (`backupLocalKey=true`), while omitting `new_public_key` from relay payload.
+- [x] Add explicit export-flow guardrails so backup local key material cannot be selected as runtime signing source.
+
+### Phase 11: Export-Only Local Key Path
+
+- [x] Keep secp256k1 local key derivation path available only for explicit private-key export UX.
+- [x] Add guardrails to prevent export-derived local keys from being injected into runtime signing flows.
+- [x] Document non-custodial export semantics and account-control caveats for smart accounts.
+
+### Phase 12: Final Validation + Rollout
+
+- [x] Add targeted test: registration persists counterfactual state without deployment.
+- [x] Add targeted test: first EVM/Tempo send deploys when undeployed.
+- [x] Add targeted test: subsequent sends skip deployment when already deployed.
+- [x] Add targeted test: runtime secp signing rejects missing threshold keyRef.
+- [x] Run full signing validation gates and architecture checks.
+- [x] Update SDK/wallet integration docs with deployment lifecycle and threshold-only signing policy.

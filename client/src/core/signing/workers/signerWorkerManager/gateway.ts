@@ -1,5 +1,5 @@
 import type { MultichainWorkerKind } from '../../../runtimeAssetPaths/multichainWorkers';
-import { getMultichainSignerWorkerBackend } from './backends/multichainWorkerBackend';
+import { getMultichainSignerWorkerTransport } from './backends/multichainWorkerBackend';
 import type {
   MultichainOperationType,
   MultichainWorkerOperationRequest,
@@ -13,6 +13,6 @@ export async function requestMultichainWorkerOperation<
   kind: K;
   request: MultichainWorkerOperationRequest<K, T>;
 }): Promise<MultichainWorkerOperationResult<K, T>> {
-  const backend = getMultichainSignerWorkerBackend(args.kind);
-  return await backend.requestOperation(args.request);
+  const transport = getMultichainSignerWorkerTransport(args.kind);
+  return await transport.requestOperation(args.request);
 }

@@ -13,13 +13,14 @@ import { withSessionId } from '../internal/session';
 import { isObject } from '../../../../../../../shared/src/utils/validation';
 import { toError } from '../../../../../../../shared/src/utils/errors';
 import type {
-  NearSignerWorkerBackendContract,
+  NearSignerWorkerTransportContract,
   NearWorkerOperationRequest,
   NearWorkerOperationResult,
   NearWorkerOperationType,
 } from './types';
+import { resolveSignerWorkerContractVersion } from './types';
 
-export class NearSignerWorkerBackend implements NearSignerWorkerBackendContract {
+export class NearSignerWorkerTransport implements NearSignerWorkerTransportContract {
   private workerBaseOrigin: string | undefined;
   private workerPool: Worker[] = [];
   private readonly maxWorkerPoolSize = 3;
@@ -89,7 +90,7 @@ export class NearSignerWorkerBackend implements NearSignerWorkerBackendContract 
         worker.terminate();
       }
     } catch (error: unknown) {
-      console.warn('NearSignerWorkerBackend: Failed to create replacement worker:', error);
+      console.warn('NearSignerWorkerTransport: Failed to create replacement worker:', error);
     }
   }
 
@@ -112,7 +113,7 @@ export class NearSignerWorkerBackend implements NearSignerWorkerBackendContract 
             worker.addEventListener('message', onReady);
             worker.onerror = (error) => {
               worker.removeEventListener('message', onReady);
-              console.error(`NearSignerWorkerBackend: Worker ${i + 1} pre-warm failed:`, error);
+              console.error(`NearSignerWorkerTransport: Worker ${i + 1} pre-warm failed:`, error);
               reject(error);
             };
 
@@ -121,7 +122,7 @@ export class NearSignerWorkerBackend implements NearSignerWorkerBackendContract 
               reject(new Error('Pre-warm timeout'));
             }, 5000);
           } catch (error: unknown) {
-            console.error(`NearSignerWorkerBackend: Failed to create worker ${i + 1}:`, error);
+            console.error(`NearSignerWorkerTransport: Failed to create worker ${i + 1}:`, error);
             reject(toError(error));
           }
         }),
@@ -131,17 +132,19 @@ export class NearSignerWorkerBackend implements NearSignerWorkerBackendContract 
     try {
       await Promise.allSettled(promises);
     } catch (error: unknown) {
-      console.warn('NearSignerWorkerBackend: Some workers failed to pre-warm:', error);
+      console.warn('NearSignerWorkerTransport: Some workers failed to pre-warm:', error);
     }
   }
 
   async requestOperation<T extends NearWorkerOperationType>({
+    version,
     sessionId,
     type,
     payload,
     onEvent,
     timeoutMs = SIGNER_WORKER_MANAGER_CONFIG.TIMEOUTS.DEFAULT,
   }: NearWorkerOperationRequest<T>): Promise<NearWorkerOperationResult<T>> {
+    resolveSignerWorkerContractVersion(version);
     const payloadSessionId = (payload as any)?.sessionId as string | undefined;
     if (sessionId && payloadSessionId && payloadSessionId !== sessionId) {
       throw new Error(

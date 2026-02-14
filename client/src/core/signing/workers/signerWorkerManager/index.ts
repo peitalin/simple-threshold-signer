@@ -15,7 +15,7 @@ import type {
 import { UserPreferencesManager } from '../../api/userPreferences';
 import { NonceManager } from '../../../near/nonceManager';
 import type { ThemeName } from '../../../types/tatchi';
-import { NearSignerWorkerBackend } from './backends/nearWorkerBackend';
+import { NearSignerWorkerTransport } from './backends/nearWorkerBackend';
 import { requestMultichainWorkerOperation } from './gateway';
 import { NearSigningKeyOpsService } from './nearKeyOpsService';
 import type { MultichainWorkerKind } from '../../../runtimeAssetPaths/multichainWorkers';
@@ -62,7 +62,7 @@ export class SignerWorkerManager {
   private relayerUrl: string;
   private nearExplorerUrl?: string;
   private getTheme?: () => ThemeName;
-  private nearWorkerBackend: NearSignerWorkerBackend;
+  private nearWorkerTransport: NearSignerWorkerTransport;
   readonly nearKeyOps: NearSigningKeyOpsService;
 
   constructor(
@@ -88,12 +88,12 @@ export class SignerWorkerManager {
     this.relayerUrl = relayerUrl;
     this.nearExplorerUrl = nearExplorerUrl;
     this.getTheme = getTheme;
-    this.nearWorkerBackend = new NearSignerWorkerBackend();
+    this.nearWorkerTransport = new NearSignerWorkerTransport();
     this.nearKeyOps = new NearSigningKeyOpsService(() => this.getContext());
   }
 
   setWorkerBaseOrigin(origin: string | undefined): void {
-    this.nearWorkerBackend.setWorkerBaseOrigin(origin);
+    this.nearWorkerTransport.setWorkerBaseOrigin(origin);
   }
 
   getContext(): SignerWorkerManagerContext {
@@ -113,7 +113,7 @@ export class SignerWorkerManager {
   }
 
   createSecureWorker(): Worker {
-    return this.nearWorkerBackend.createSecureWorker();
+    return this.nearWorkerTransport.createSecureWorker();
   }
 
   /**
@@ -121,7 +121,7 @@ export class SignerWorkerManager {
    * This reduces latency for the first transaction by having workers ready
    */
   async preWarmWorkerPool(): Promise<void> {
-    await this.nearWorkerBackend.preWarmWorkerPool();
+    await this.nearWorkerTransport.preWarmWorkerPool();
   }
 
   requestWorkerOperation<T extends NearWorkerOperationType>(args: {
@@ -145,7 +145,7 @@ export class SignerWorkerManager {
       >
   > {
     if (args.kind === 'nearSigner') {
-      return await this.nearWorkerBackend.requestOperation(args.request);
+      return await this.nearWorkerTransport.requestOperation(args.request);
     }
 
     if (args.kind === 'ethSigner') {

@@ -4,10 +4,11 @@ import { resolveMultichainWorkerUrl } from '../../../../runtimeAssetPaths/multic
 import { WorkerControlMessage } from '../../../../workers/workerControlMessages';
 import type {
   MultichainOperationType,
-  MultichainWorkerBackendContract,
+  MultichainWorkerTransportContract,
   MultichainWorkerOperationRequest,
   MultichainWorkerOperationResult,
 } from './types';
+import { resolveSignerWorkerContractVersion as resolveContractVersion } from './types';
 
 type RpcOk<T = unknown> = { id: string; ok: true; result: T };
 type RpcErr = { id: string; ok: false; error: string };
@@ -19,9 +20,9 @@ function makeId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export class MultichainSignerWorkerBackend<
+export class MultichainSignerWorkerTransport<
   K extends MultichainWorkerKind = MultichainWorkerKind,
-> implements MultichainWorkerBackendContract<K> {
+> implements MultichainWorkerTransportContract<K> {
   private readonly kind: K;
   private worker: Worker | null = null;
   private readonly pending = new Map<
@@ -70,6 +71,7 @@ export class MultichainSignerWorkerBackend<
   async requestOperation<T extends MultichainOperationType<K>>(
     args: MultichainWorkerOperationRequest<K, T>,
   ): Promise<MultichainWorkerOperationResult<K, T>> {
+    const version = resolveContractVersion(args.version);
     const worker = this.getOrCreateWorker();
     const id = makeId(this.kind);
 
@@ -79,7 +81,10 @@ export class MultichainSignerWorkerBackend<
         reject,
       });
       try {
-        worker.postMessage({ id, type: args.type, payload: args.payload }, args.transfer || []);
+        worker.postMessage(
+          { id, version, type: args.type, payload: args.payload },
+          args.transfer || [],
+        );
       } catch (e) {
         this.pending.delete(id);
         reject(new Error(`[${this.kind}] failed to postMessage: ${errorMessage(e)}`));
@@ -88,22 +93,22 @@ export class MultichainSignerWorkerBackend<
   }
 }
 
-const multichainSignerWorkerBackends = new Map<
+const multichainSignerWorkerTransports = new Map<
   MultichainWorkerKind,
-  MultichainSignerWorkerBackend<MultichainWorkerKind>
+  MultichainSignerWorkerTransport<MultichainWorkerKind>
 >();
 
-export function getMultichainSignerWorkerBackend<K extends MultichainWorkerKind>(
+export function getMultichainSignerWorkerTransport<K extends MultichainWorkerKind>(
   kind: K,
-): MultichainSignerWorkerBackend<K> {
-  const existing = multichainSignerWorkerBackends.get(kind) as
-    | MultichainSignerWorkerBackend<K>
+): MultichainSignerWorkerTransport<K> {
+  const existing = multichainSignerWorkerTransports.get(kind) as
+    | MultichainSignerWorkerTransport<K>
     | undefined;
   if (existing) return existing;
-  const backend = new MultichainSignerWorkerBackend(kind);
-  multichainSignerWorkerBackends.set(
+  const transport = new MultichainSignerWorkerTransport(kind);
+  multichainSignerWorkerTransports.set(
     kind,
-    backend as MultichainSignerWorkerBackend<MultichainWorkerKind>,
+    transport as MultichainSignerWorkerTransport<MultichainWorkerKind>,
   );
-  return backend;
+  return transport;
 }
