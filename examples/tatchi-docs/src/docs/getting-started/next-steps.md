@@ -2,150 +2,236 @@
 title: Next Steps
 ---
 
-# Next Steps: Register, Login, Send
+# Next Steps: Register, Auto-Provision, Sign NEAR/Tempo/EVM
 
-Now that you've finished [wallet installation](./installation), let's walk through the core flow: registering a passkey, logging in, and sending your first transaction.
+After [installation](./installation.md), the fastest path is:
 
-The simplest way to get started is with a single component that registers a passkey-backed account:
+1. Register a passkey account.
+2. Auto-provision threshold signers for all chains.
+3. Sign one transaction per chain (NEAR, Tempo, EVM).
 
-## Register a Passkey Wallet
+## 1. Register and Auto-Provision Threshold Signers
 
-```tsx
-import { useTatchi } from '@tatchi-xyz/sdk/react'
+In this setup:
 
-export default function App() {
-  return (
-    <main>
-      <Registration/>
-    </main>
-  )
-}
-
-function Registration() {
-  const { registerPasskey, tatchi } = useTatchi()
-  return (
-    <button onClick={() => {
-      const id = Date.now();
-      registerPasskey(`tatchi-test-${id}.${tatchi.configs.contractId}`, {
-        onEvent: (event) => {
-          console.log('registration event: ', event)
-        }
-      });
-    }}>
-      Register Account
-    </button>
-  )
-}
-```
-
-Behind the scenes, this triggers a WebAuthn registration, derives a deterministic NEAR keypair from the credential, and stores everything you need in IndexedDB (the WebAuthn credential ID, NEAR public key, and encrypted SecureConfirm keypair). If you've configured a relay, it'll also store server-encrypted SecureConfirm material for smoother future logins.
-
-## Login
-
-Once you've registered an account, you can retrieve recent logins and let users authenticate:
-
-```tsx
-import { useState, useEffect } from 'react'
-import { useTatchi } from '@tatchi-xyz/sdk/react'
-
-function Login() {
-  const { tatchi, loginState, loginAndCreateSession } = useTatchi()
-  return (
-    <>
-      <button onClick={async () => {
-          const { lastUsedAccount } = await tatchi.getRecentLogins();
-          if (!lastUsedAccount?.nearAccountId) { return null; }
-          loginAndCreateSession(lastUsedAccount.nearAccountId)
-        }}
-      >
-        Log In
-      </button>
-      {loginState.isLoggedIn && (
-        <>
-          <button onClick={() => tatchi.logoutAndClearSession()}>
-            Logout
-          </button>
-          <p>{JSON.stringify(loginState)}</p>
-        </>
-      )}
-    </>
-  )
-}
-```
-
-When you call `loginAndCreateSession()`, the SDK establishes a SecureConfirm session and mints a warm signing session. If you've configured a relay, it can unlock the SecureConfirm key via Shamir 3-pass without prompting for TouchID. Otherwise it falls back to a biometric prompt to decrypt the SecureConfirm keypair. Once logged in, you're ready to sign transactions.
-
-## Send Transaction
-
-Once logged in (SecureConfirm key is unlocked) you can call `executeAction()` which takes your account ID, the receiver contract, and an array of actions (in this case, a function call).
+- NEAR threshold signer is created during registration (`signerMode: threshold-signer`).
+- Tempo + EVM threshold signers are created immediately after registration via `bootstrapThresholdEcdsaSession()`.
 
 ```tsx
 import { useState } from 'react'
 import { useTatchi } from '@tatchi-xyz/sdk/react'
-import { ActionType } from '@tatchi-xyz/sdk'
 
-function Transactions() {
-  const { tatchi, loginState } = useTatchi()
-  const [tx, setTx] = useState(null);
+type KeyRef = {
+  tempo: unknown | null
+  evm: unknown | null
+}
 
-  if (!loginState.isLoggedIn) return null;
+const THRESHOLD_TTL_MS = 30 * 60 * 1000
+const THRESHOLD_REMAINING_USES = 12
+
+export function RegisterAndProvision() {
+  const { registerPasskey, tatchi } = useTatchi()
+  const [accountId, setAccountId] = useState<string | null>(null)
+  const [keyRefs, setKeyRefs] = useState<KeyRef>({ tempo: null, evm: null })
+
+  async function onRegister(): Promise<void> {
+    const id = Date.now()
+    const nextAccountId = `tatchi-test-${id}.${tatchi.configs.contractId}`
+
+    const result = await registerPasskey(nextAccountId, {
+      onEvent: (event) => console.log('registration event:', event),
+    })
+    if (!result.success || !result.nearAccountId) return
+
+    setAccountId(result.nearAccountId)
+
+    const [tempo, evm] = await Promise.all([
+      tatchi.bootstrapThresholdEcdsaSession({
+        nearAccountId: result.nearAccountId,
+        options: {
+          chain: 'tempo',
+          ttlMs: THRESHOLD_TTL_MS,
+          remainingUses: THRESHOLD_REMAINING_USES,
+        },
+      }),
+      tatchi.bootstrapThresholdEcdsaSession({
+        nearAccountId: result.nearAccountId,
+        options: {
+          chain: 'evm',
+          ttlMs: THRESHOLD_TTL_MS,
+          remainingUses: THRESHOLD_REMAINING_USES,
+        },
+      }),
+    ])
+
+    setKeyRefs({
+      tempo: tempo.thresholdEcdsaKeyRef,
+      evm: evm.thresholdEcdsaKeyRef,
+    })
+  }
 
   return (
-    <>
-      <button onClick={async () => {
-        const result = await tatchi.executeAction({
-          nearAccountId: loginState.nearAccountId,
-          receiverId: tatchi.configs.contractId,
-          actionArgs: [
-            {
-              type: ActionType.FunctionCall,
-              methodName: 'set_greeting',
-              args: { greeting: 'hello test tachi!' },
-              gas: '30000000000000',
-              deposit: '0',
-            },
-          ],
-          options: {
-            confirmationConfig: { behavior: 'requireClick' },
-            onEvent: (event) => console.log(event),
-            afterCall: (success, result) => {
-              if (success) {
-                setTx(result.result)
-              }
-            }
-          },
-        })
-        setTx(result)
-      }}>
-        Send Transaction
-      </button>
-      {tx && <p>{JSON.stringify(tx)}</p>}
-    </>
+    <div>
+      <button onClick={onRegister}>Register Account</button>
+      {accountId ? <p>account: {accountId}</p> : null}
+      <p>tempo signer: {keyRefs.tempo ? 'ready' : 'pending'}</p>
+      <p>evm signer: {keyRefs.evm ? 'ready' : 'pending'}</p>
+    </div>
   )
 }
 ```
 
-You can set `confirmationConfig: { behavior: 'requireClick' | 'skipClick' }` to  either force explicit user confirmation in the wallet UI or skip it.
+## 2. Login and Create a Warm Signing Session
 
-The `onEvent()` callback streams progress events (authentication, signing, broadcasting, completion) that you can use to update your UI or handle errors.
+```tsx
+import { useTatchi } from '@tatchi-xyz/sdk/react'
 
-When you're done, call `logoutAndClearSession()` to clear the in-memory SecureConfirm key and update `loginState` accordingly.
+export function LoginButton(props: { nearAccountId: string }) {
+  const { loginAndCreateSession } = useTatchi()
 
+  async function onLogin(): Promise<void> {
+    await loginAndCreateSession(props.nearAccountId, {
+      signingSession: {
+        ttlMs: 5 * 60 * 1000,
+        remainingUses: 5,
+      },
+    })
+  }
+
+  return <button onClick={onLogin}>Log In</button>
+}
+```
+
+## 3. Sign a NEAR Transaction (Threshold Ed25519)
+
+```tsx
+import { ActionType, useTatchi } from '@tatchi-xyz/sdk/react'
+
+export function SignNear(props: { nearAccountId: string }) {
+  const { tatchi } = useTatchi()
+
+  async function onSignNear(): Promise<void> {
+    const signed = await tatchi.signTransactionsWithActions({
+      nearAccountId: props.nearAccountId,
+      transactions: [
+        {
+          receiverId: tatchi.configs.contractId,
+          actions: [
+            {
+              type: ActionType.FunctionCall,
+              methodName: 'set_greeting',
+              args: { greeting: 'hello from threshold near' },
+              gas: '30000000000000',
+              deposit: '0',
+            },
+          ],
+        },
+      ],
+    })
+    console.log('near signed tx:', signed)
+  }
+
+  return <button onClick={onSignNear}>Sign NEAR Tx</button>
+}
+```
+
+## 4. Sign a Tempo Transaction (Threshold secp256k1)
+
+```tsx
+import { useTatchi } from '@tatchi-xyz/sdk/react'
+
+export function SignTempo(props: { nearAccountId: string; thresholdEcdsaKeyRef: any }) {
+  const { tatchi } = useTatchi()
+
+  async function onSignTempo(): Promise<void> {
+    const signed = await tatchi.signTempoWithThresholdEcdsa({
+      nearAccountId: props.nearAccountId,
+      thresholdEcdsaKeyRef: props.thresholdEcdsaKeyRef,
+      request: {
+        chain: 'tempo',
+        kind: 'tempoTransaction',
+        senderSignatureAlgorithm: 'secp256k1',
+        tx: {
+          chainId: 42431n,
+          maxPriorityFeePerGas: 1n,
+          maxFeePerGas: 2n,
+          gasLimit: 21_000n,
+          calls: [{ to: `0x${'11'.repeat(20)}`, value: 0n, input: '0x' }],
+          accessList: [],
+          nonceKey: 0n,
+          nonce: 1n,
+          validBefore: null,
+          validAfter: null,
+          feePayerSignature: { kind: 'none' },
+          aaAuthorizationList: [],
+        },
+      },
+    })
+    console.log('tempo signed tx:', signed)
+  }
+
+  return <button onClick={onSignTempo}>Sign Tempo Tx</button>
+}
+```
+
+## 5. Sign an EVM EIP-1559 Transaction (Threshold secp256k1)
+
+```tsx
+import { useTatchi } from '@tatchi-xyz/sdk/react'
+
+export function SignEvm(props: { nearAccountId: string; thresholdEcdsaKeyRef: any }) {
+  const { tatchi } = useTatchi()
+
+  async function onSignEvm(): Promise<void> {
+    const signed = await tatchi.signTempoWithThresholdEcdsa({
+      nearAccountId: props.nearAccountId,
+      thresholdEcdsaKeyRef: props.thresholdEcdsaKeyRef,
+      request: {
+        chain: 'tempo',
+        kind: 'eip1559',
+        senderSignatureAlgorithm: 'secp256k1',
+        tx: {
+          chainId: 11155111n,
+          nonce: 7n,
+          maxPriorityFeePerGas: 1_500_000_000n,
+          maxFeePerGas: 3_000_000_000n,
+          gasLimit: 21_000n,
+          to: `0x${'22'.repeat(20)}`,
+          value: 12_345n,
+          data: '0x',
+          accessList: [],
+        },
+      },
+    })
+    console.log('evm signed tx:', signed)
+  }
+
+  return <button onClick={onSignEvm}>Sign EVM Tx</button>
+}
+```
 
 ## Recap
 
-**Registration**: `registerPasskey()` triggers WebAuthn registration, derives a deterministic NEAR keypair, encrypts and persists the data in IndexedDB. In iframe mode, this happens in the wallet origin for isolation.
+- Registration creates your NEAR threshold signer.
+- Registration flow can immediately bootstrap Tempo + EVM threshold signers.
+- With those key refs, you can sign:
+  - NEAR transactions (`signTransactionsWithActions`)
+  - Tempo transactions (`signTempoWithThresholdEcdsa`, `kind: 'tempoTransaction'`)
+  - EVM EIP-1559 transactions (`signTempoWithThresholdEcdsa`, `kind: 'eip1559'`)
 
-**Login**: `getRecentLogins()` reads from IndexedDB and tracks the last-used account. `loginAndCreateSession()` unlocks the SecureConfirm key and ensures a warm signing session exists. With a relay server configured, you can unlock the SecureConfirm key automatically without biometrics, otherwise it uses TouchID to unlock (serverless). The SecureConfirm key is used to generate verifiable challenges for stateless Passkey authentication with the onchain webauthn contract.
+## Troubleshooting
 
-*Logout*: `logoutAndClearSession()` clears the in-memory SecureConfirm key and updates loginState.
+- `threshold session expired` or `No cached threshold-ecdsa session token`
+  - Re-bootstrap the chain signer with `bootstrapThresholdEcdsaSession({ chain: 'tempo' | 'evm' })`, then retry signing.
+- Missing Tempo/EVM keyRef in memory after reload
+  - Re-run provisioning for both chains and cache the returned `thresholdEcdsaKeyRef` values.
+- Signing fails right after login due to session state
+  - Run `loginAndCreateSession()` first, then sign again.
+- Repeated failures on one chain only
+  - Re-provision only that chain (`chain: 'tempo'` or `chain: 'evm'`) to refresh the threshold session/keyRef pair.
 
-**Transactions**: `executeAction()` builds, signs, and broadcasts transactions to the NEAR blockchain. `onEvent` handlers stream progress events back for UI updates.
+## Next Steps
 
-## Next steps
-
-- [Set up other frameworks](./other-frameworks.md): Next.js, Vue, Svelte, Express
-- [React Recipes](/docs/getting-started/react-recipes): convenience components for registration, login, and managing accounts.
-- [Concepts](../concepts/index.md): security model, SecureConfirm/PRF, architecture
-  - [Architecture](../concepts/architecture.md)
-  - [SecureConfirm challenges](../concepts/secureconfirm-webauthn.md)
+- [React Recipes](/docs/getting-started/react-recipes): patterns for auth, sessions, and account UX.
+- [Other Frameworks](./other-frameworks.md): Next.js, Vue, Svelte, Express.
+- [Concepts](../concepts/index.md): security model, threshold signing, architecture.

@@ -11,54 +11,80 @@ import {
   type DeviceLinkingSSEEvent,
   type EmailRecoverySSEEvent,
   PasskeyAuthMenu,
-} from '@tatchi-xyz/sdk/react'
-import React from 'react'
-import { toast } from 'sonner'
+} from '@tatchi-xyz/sdk/react';
+import React from 'react';
+import { toast } from 'sonner';
 
-import './PasskeyLoginMenu.css'
-import { useAuthMenuControl } from '../contexts/AuthMenuControl'
-
+import './PasskeyLoginMenu.css';
+import { useAuthMenuControl } from '../contexts/AuthMenuControl';
+import {
+  provisionTempoAndEvmThresholdSigners,
+  readCachedThresholdKeyRef,
+} from '../utils/thresholdSigners';
 
 export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) => void }) {
   const {
-    accountInputState: {
-      targetAccountId,
-      accountExists
-    },
+    accountInputState: { targetAccountId, accountExists },
     loginAndCreateSession,
     registerPasskey,
-    refreshLoginState,
     tatchi,
-    loginState,
-    logout,
   } = useTatchi();
-
-  const [device2QrDataUrl, setDevice2QrDataUrl] = React.useState<string | null>(null);
-  const [device2Busy, setDevice2Busy] = React.useState(false);
 
   // let tutorial control the menu (programmatically open/close menus)
   const authMenuControl = useAuthMenuControl();
+
+  const provisionThresholdSignersForAccount = React.useCallback(
+    async (nearAccountId: string) => {
+      const toastId = 'registration-threshold-provision';
+      toast.loading('Provisioning Tempo + EVM threshold signers…', { id: toastId });
+      try {
+        await provisionTempoAndEvmThresholdSigners({
+          tatchi,
+          nearAccountId,
+          ttlMs: 30 * 60 * 1000,
+          remainingUses: 12,
+        });
+        toast.success('Provisioned NEAR + Tempo + EVM threshold signers', { id: toastId });
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : String(e);
+        toast.error(`Account was created, but Tempo/EVM signer provisioning failed: ${message}`, {
+          id: toastId,
+        });
+      }
+    },
+    [tatchi],
+  );
+
+  const ensureThresholdSignersForAccount = React.useCallback(
+    async (nearAccountId: string) => {
+      const evmKeyRef = readCachedThresholdKeyRef(nearAccountId, 'evm');
+      const tempoKeyRef = readCachedThresholdKeyRef(nearAccountId, 'tempo');
+      if (evmKeyRef && tempoKeyRef) return;
+      await provisionThresholdSignersForAccount(nearAccountId);
+    },
+    [provisionThresholdSignersForAccount],
+  );
 
   const onRegister = async () => {
     const result = await registerPasskey(targetAccountId, {
       onEvent: (event: RegistrationSSEEvent) => {
         switch (event.phase) {
           case RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION:
-            toast.loading("Starting registration...", { id: 'registration' });
+            toast.loading('Starting registration...', { id: 'registration' });
             break;
           case RegistrationPhase.STEP_2_KEY_GENERATION:
             if (event.status === RegistrationStatus.SUCCESS) {
-              toast.success("Keys generated...", { id: 'registration' });
+              toast.success('Keys generated...', { id: 'registration' });
             }
             break;
           case RegistrationPhase.STEP_3_CONTRACT_PRE_CHECK:
-            toast.loading("Checking account availability...", { id: 'registration' });
+            toast.loading('Checking account availability...', { id: 'registration' });
             break;
           case RegistrationPhase.STEP_4_ACCESS_KEY_ADDITION:
-            toast.loading("Creating account...", { id: 'registration' });
+            toast.loading('Creating account...', { id: 'registration' });
             break;
           case RegistrationPhase.STEP_5_CONTRACT_REGISTRATION:
-            toast.loading("Registering with Web3Authn contract...", { id: 'registration' });
+            toast.loading('Registering with Web3Authn contract...', { id: 'registration' });
             break;
           case RegistrationPhase.STEP_6_ACCOUNT_VERIFICATION:
             toast.loading(event.message, { id: 'registration' });
@@ -83,7 +109,8 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
     if (result.success && result.nearAccountId) {
       const tx = result.transactionId ? ` tx: ${result.transactionId}` : '';
       toast.success(`Registration completed: ${tx}`, { id: 'registration' });
-      return;
+      await ensureThresholdSignersForAccount(String(result.nearAccountId));
+      return result;
     } else {
       throw new Error(result.error || 'Registration failed');
     }
@@ -97,7 +124,7 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
       // },
       signingSession: {
         ttlMs: 24 * 60 * 60, // 1 day
-        remainingUses: 3
+        remainingUses: 3,
       },
       onEvent: (event) => {
         switch (event.phase) {
@@ -117,7 +144,7 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
             toast.error(event.error, { id: 'login' });
             break;
         }
-      }
+      },
     });
     if (result?.success) {
       // Surface the minted JWT via toast (truncate to 8 chars)
@@ -126,9 +153,12 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
         toast.success(`Session JWT minted: ${short}…`, { id: 'jwt' });
         console.log('[tatchi-docs] JWT returned:', result.jwt);
       }
+      if (result.nearAccountId) {
+        await ensureThresholdSignersForAccount(result.nearAccountId);
+      }
       props.onLoggedIn?.(result?.nearAccountId);
     }
-    return result
+    return result;
   };
 
   // Only handle Device2 events here
@@ -166,19 +196,24 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
         break;
       }
       default:
-        console.warn("Unexpected Link Device event")
+        console.warn('Unexpected Link Device event');
         break;
     }
-  }
+  };
 
   const onEmailRecoveryEvents = (event: EmailRecoverySSEEvent) => {
     const toastId = 'email-recovery';
-    if (event.phase === EmailRecoveryPhase.STEP_6_COMPLETE && event.status === EmailRecoveryStatus.SUCCESS) {
+    if (
+      event.phase === EmailRecoveryPhase.STEP_6_COMPLETE &&
+      event.status === EmailRecoveryStatus.SUCCESS
+    ) {
       toast.success(event.message || 'Email recovery complete', { id: toastId });
       return;
     }
     if (event.phase === EmailRecoveryPhase.ERROR || event.status === EmailRecoveryStatus.ERROR) {
-      toast.error((event as any)?.error || event.message || 'Email recovery failed', { id: toastId });
+      toast.error((event as any)?.error || event.message || 'Email recovery failed', {
+        id: toastId,
+      });
       return;
     }
 
@@ -190,10 +225,14 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
         toast.loading(event.message || 'Preparing email recovery…', { id: toastId });
         return;
       case EmailRecoveryPhase.STEP_2_TOUCH_ID_REGISTRATION:
-        toast.loading(event.message || 'Registering this device (Touch ID / Passkey)…', { id: toastId });
+        toast.loading(event.message || 'Registering this device (Touch ID / Passkey)…', {
+          id: toastId,
+        });
         return;
       case EmailRecoveryPhase.STEP_3_AWAIT_EMAIL:
-        toast.loading(event.message || 'Waiting for the recovery email to be sent and verified…', { id: toastId });
+        toast.loading(event.message || 'Waiting for the recovery email to be sent and verified…', {
+          id: toastId,
+        });
         return;
       case EmailRecoveryPhase.STEP_4_POLLING_ADD_KEY:
       case EmailRecoveryPhase.STEP_4_POLLING_VERIFICATION_RESULT:
@@ -209,10 +248,9 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
 
   const startDevice2Linking = async () => {
     const toastId = 'device-linking';
-    setDevice2Busy(true);
     try {
       toast.loading('Generating QR code…', { id: toastId });
-      const { qrCodeDataURL } = await tatchi.startDevice2LinkingFlow({
+      await tatchi.startDevice2LinkingFlow({
         accountId: targetAccountId,
         ui: 'inline',
         options: {
@@ -221,23 +259,25 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
             console.error('Device linking error:', error);
             toast.error(error.message || 'Device linking failed', { id: toastId });
           },
-          onCancelled: () => { toast.dismiss(toastId); },
+          onCancelled: () => {
+            toast.dismiss(toastId);
+          },
         } as any,
       } as any);
-      setDevice2QrDataUrl(qrCodeDataURL);
     } catch (error: any) {
       console.error('Device linking start failed:', error);
       toast.error(error?.message || 'Failed to start device linking', { id: toastId });
-    } finally {
-      setDevice2Busy(false);
     }
   };
 
   const stopDevice2Linking = async () => {
     const toastId = 'device-linking';
-    try { await tatchi.stopDevice2LinkingFlow(); } catch {}
-    setDevice2QrDataUrl(null);
-    try { toast.dismiss(toastId); } catch {}
+    try {
+      await tatchi.stopDevice2LinkingFlow();
+    } catch {}
+    try {
+      toast.dismiss(toastId);
+    } catch {}
   };
 
   const startEmailRecovery = async () => {
@@ -256,7 +296,9 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
       } as any);
 
       // Kick the user into their mail client.
-      try { window.location.href = mailtoUrl; } catch {}
+      try {
+        window.location.href = mailtoUrl;
+      } catch {}
 
       // Best-effort: start polling immediately (user can reload and resume later).
       try {
@@ -278,7 +320,10 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
         // Keep the key stable across accountExists changes to avoid
         // remounting the menu (which causes input focus + content flashes).
         key={`pam2-${authMenuControl.defaultModeOverride ?? 'auto'}-${authMenuControl.remountKey}`}
-        defaultMode={authMenuControl.defaultModeOverride ?? (accountExists ? AuthMenuMode.Login : AuthMenuMode.Register)}
+        defaultMode={
+          authMenuControl.defaultModeOverride ??
+          (accountExists ? AuthMenuMode.Login : AuthMenuMode.Register)
+        }
         showSDKEvents={true}
         loadingScreenDelayMs={100}
         headings={{
@@ -290,7 +335,6 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
         onLogin={onLogin}
         onRegister={onRegister}
       />
-
     </div>
   );
 }

@@ -1,6 +1,6 @@
 # Threshold Multichain Plan — Clean TODO
 
-Last updated: 2026-02-10
+Last updated: 2026-02-14
 
 ## Locked decisions (no reopen without explicit approval)
 
@@ -98,6 +98,46 @@ Last updated: 2026-02-10
 - [x] Add dedicated wallet-iframe normalization e2e proving receiver normalization is applied before signer-worker digest/signing (`tests/e2e/nearMultichain.seamNormalization.walletIframe.test.ts`).
 - [x] Normalize retry-path confirm inputs for NEAR signing:
   - warm-session fallback and threshold-session refresh retries now pass adapter-normalized `txSigningRequests` into `confirmAndPrepareSigningSession` (no raw caller `transactions` fallback path)
+
+### Smart-account deployment lifecycle + threshold-only policy
+
+- [x] Registration/bootstrap persists counterfactual smart-account metadata without immediate deployment side effects (`deployed=false` on initial row).
+- [x] EVM/Tempo secp256k1 signing path runs deploy-on-first-use gate before submit when account state is undeployed.
+- [x] Deploy success writes back account state (`deployed=true`, optional `deploymentTxHash`, deployment check timestamp).
+- [x] Runtime secp256k1 signing is threshold-only (`threshold-ecdsa-secp256k1` keyRef required).
+- [x] Local secp256k1 key derivation is retained for explicit private-key export UX only and is blocked from runtime signing flow selection.
+- [x] Default deployment mode flipped to `enforce` (explicit `observe` override remains available per deployment).
+
+## Examples/Docs Frontend Checklist (`examples/tatchi-docs`)
+
+### Account bootstrap + signer provisioning
+
+- [x] Registration flow creates NEAR threshold signer (`signerMode: threshold-signer`).
+- [x] Registration auto-provisions Tempo + EVM threshold signers via `bootstrapThresholdEcdsaSession`.
+- [x] Login path backfills Tempo + EVM threshold signer provisioning when missing.
+- [x] Threshold keyRef cache layer added (`examples/tatchi-docs/src/utils/thresholdSigners.ts`).
+
+### Demo signing flows
+
+- [x] NEAR threshold signing action wired in demo UI (`signTransactionsWithActions`).
+- [x] Tempo threshold signing action wired in demo UI (`signTempoWithThresholdEcdsa`, `kind=tempoTransaction`).
+- [x] EVM threshold signing action wired in demo UI (`signTempoWithThresholdEcdsa`, `kind=eip1559`).
+- [x] Threshold-session expiry retry path implemented (force re-provision + retry).
+
+### Docs + guidance
+
+- [x] Next-steps guide updated with register -> auto-provision -> sign NEAR/Tempo/EVM flow.
+- [x] Add a compact troubleshooting subsection for threshold session expiry and signer re-provisioning.
+
+### Verification
+
+- [x] `pnpm -C examples/tatchi-docs build` passes after wiring updates.
+- [x] Add focused unit coverage for threshold signer helper cache/provision behavior in docs frontend utilities (`tests/unit/thresholdSigners.docs.unit.test.ts`).
+
+### Immediate next steps
+
+- [ ] Add UI-level unit coverage for register/login hooks in `PasskeyLoginMenu` to verify auto-provision invocation conditions (missing cache vs cached keyRefs).
+- [ ] Add one docs/e2e smoke path that validates all three actions are visible and callable after login (NEAR, Tempo, EVM signing buttons).
 
 ## Distributed Presign Sessions + Atomic Transitions (Implementation Status)
 
