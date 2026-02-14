@@ -133,6 +133,8 @@ Last updated: 2026-02-14
 
 - [x] `pnpm -C examples/tatchi-docs build` passes after wiring updates.
 - [x] Add focused unit coverage for threshold signer helper cache/provision behavior in docs frontend utilities (`tests/unit/thresholdSigners.docs.unit.test.ts`).
+- [x] Add docs integration e2e for register -> auto-provision -> login -> sign NEAR/Tempo/EVM (`tests/e2e/docs.thresholdRegisterAndSigning.integration.test.ts`).
+- [x] Add docs coverage for threshold-session expiry retry and provisioning UI busy/ready contract (`tests/e2e/docs.thresholdRegisterAndSigning.integration.test.ts`).
 
 ### Immediate next steps
 
