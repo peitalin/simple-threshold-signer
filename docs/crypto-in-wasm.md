@@ -171,7 +171,7 @@ Deliverable:
 - [x] Lock canonical vector corpus under `crates/signer-core/fixtures/signing-vectors/v1.json` and replay it through `signer-platform-web` + `signer-platform-ios` Rust tests.
 - [x] Split platform binding parity tests out of `src/lib.rs` into dedicated `src/tests.rs` files and deduplicate shared vector helpers in `crates/signer-core/fixtures/signing-vectors/v1_test_vectors.rs`.
 - [x] Add initial Web WASM replay test consuming canonical vectors through worker-facing bindings (`tests/unit/signingVectors.webWasmReplay.unit.test.ts`).
-- [ ] Replay canonical signing vectors across Rust native + Web WASM + iOS Swift harnesses end-to-end (deferred for now; keep Swift harness scaffolded and re-enable via `RUN_IOS_SWIFT_REPLAY=1`).
+- [x] Replay canonical signing vectors across Rust native + Web WASM + iOS Swift harnesses end-to-end (`RUN_IOS_SWIFT_REPLAY=1 bash sdk/scripts/check-signer-parity.sh` + `pnpm -C tests exec playwright test ./unit/signingVectors.webWasmReplay.unit.test.ts --reporter=line`).
 - [x] Lock Rust binding CI parity checks to prevent cross-platform signer drift (`pnpm check` runs `check:signer-parity`, with Swift replay currently scaffolded/opt-in).
 
 Deliverable:
@@ -238,6 +238,12 @@ Deliverable:
 - WebAuthn DER parsing/packing stays in wasm worker operations.
 - Deterministic PRF-based key derivation routes through wasm worker operations.
 - `executeSignerWorkerOperation` requires runtime context (`ctx`) for near + multichain calls.
+
+### Canonical Operation Contract
+
+- Canonical signer operation + typed error-code mapping is documented in:
+  - `docs/signer-operation-contract.md`
+- Runtime and platform bindings should treat `SignerCoreErrorCode` as the normative error taxonomy.
 
 ## Validation Gates
 
