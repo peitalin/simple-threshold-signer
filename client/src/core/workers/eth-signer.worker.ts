@@ -3,7 +3,7 @@ import init, {
   compute_eip1559_tx_hash,
   derive_secp256k1_keypair_from_prf_second,
   derive_threshold_secp256k1_client_share,
-  encode_eip1559_signed_tx,
+  encode_eip1559_signed_tx_from_signature65,
   init_eth_signer,
   map_additive_share_to_threshold_signatures_share_2p,
   sign_secp256k1_recoverable,
@@ -15,10 +15,11 @@ import * as ethSignerWasmModule from '../../../../wasm/eth_signer/pkg/eth_signer
 import { initializeWasm, resolveWasmUrl } from '../runtimeAssetPaths/wasm-loader';
 import { errorMessage } from '../../../../shared/src/utils/errors';
 import { WorkerControlMessage } from './workerControlMessages';
+import { resolveSignerWorkerContractVersion } from '../signing/workers/signerWorkerManager/backends/types';
 
 type EthSignerWorkerRequest =
   | { id: string; type: 'computeEip1559TxHash'; payload: { tx: any } }
-  | { id: string; type: 'encodeEip1559SignedTx'; payload: { tx: any; yParity: number; r: any; s: any } }
+  | { id: string; type: 'encodeEip1559SignedTxFromSignature65'; payload: { tx: any; signature65: any } }
   | { id: string; type: 'signSecp256k1Recoverable'; payload: { digest32: any; privateKey32: any } }
   | {
       id: string;
@@ -228,6 +229,7 @@ self.addEventListener('message', async (event: MessageEvent) => {
   if (!msg?.id || !msg?.type) return;
 
   try {
+    resolveSignerWorkerContractVersion((msg as { version?: number }).version);
     await ensureWasm();
     switch (msg.type) {
       case 'computeEip1559TxHash': {
@@ -236,12 +238,10 @@ self.addEventListener('message', async (event: MessageEvent) => {
         (self as any).postMessage({ id: msg.id, ok: true, result: ab }, [ab]);
         return;
       }
-      case 'encodeEip1559SignedTx': {
-        const out = encode_eip1559_signed_tx(
+      case 'encodeEip1559SignedTxFromSignature65': {
+        const out = encode_eip1559_signed_tx_from_signature65(
           msg.payload.tx,
-          msg.payload.yParity,
-          toU8(msg.payload.r),
-          toU8(msg.payload.s),
+          toU8(msg.payload.signature65),
         ) as Uint8Array;
         const ab = out.slice().buffer;
         (self as any).postMessage({ id: msg.id, ok: true, result: ab }, [ab]);

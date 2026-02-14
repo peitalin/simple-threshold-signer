@@ -37,7 +37,7 @@ test.describe('unified signing pipeline', () => {
             case 'computeEip1559TxHash':
             case 'computeTempoSenderHash':
               return new Uint8Array(32).buffer;
-            case 'encodeEip1559SignedTx':
+            case 'encodeEip1559SignedTxFromSignature65':
               return new Uint8Array([0x02, 0xaa, 0xbb]).buffer;
             case 'encodeTempoSignedTx':
               return new Uint8Array([0x76, 0xaa, 0xbb]).buffer;
@@ -127,8 +127,11 @@ test.describe('unified signing pipeline', () => {
         },
         engines: { secp256k1: makeSecpEngine('evm') as any },
         resolveSignInput: makeResolve('evm', {
-          type: 'local-secp256k1',
-          privateKey: new Uint8Array(32),
+          type: 'threshold-ecdsa-secp256k1',
+          userId: 'alice',
+          relayerUrl: 'https://relayer.example',
+          relayerKeyId: 'rk-1',
+          clientVerifyingShareB64u: 'AQ',
         }),
       });
 
@@ -155,8 +158,11 @@ test.describe('unified signing pipeline', () => {
         },
         engines: { secp256k1: makeSecpEngine('tempo') as any },
         resolveSignInput: makeResolve('tempo', {
-          type: 'local-secp256k1',
-          privateKey: new Uint8Array(32),
+          type: 'threshold-ecdsa-secp256k1',
+          userId: 'alice',
+          relayerUrl: 'https://relayer.example',
+          relayerKeyId: 'rk-1',
+          clientVerifyingShareB64u: 'AQ',
         }),
       });
 
@@ -175,7 +181,7 @@ test.describe('unified signing pipeline', () => {
 
     expect(result.workerOps).toEqual([
       'ethSigner:computeEip1559TxHash',
-      'ethSigner:encodeEip1559SignedTx',
+      'ethSigner:encodeEip1559SignedTxFromSignature65',
       'tempoSigner:computeTempoSenderHash',
       'tempoSigner:encodeTempoSignedTx',
     ]);
@@ -183,6 +189,66 @@ test.describe('unified signing pipeline', () => {
     expect(result.nearResult?.path).toBe('near');
     expect(result.evmResult?.kind).toBe('eip1559');
     expect(result.tempoResult?.kind).toBe('tempoTransaction');
+  });
+
+  test('EIP-1559 finalize never requests the legacy split-signature worker op', async ({ page }) => {
+    const result = await page.evaluate(async ({ paths }) => {
+      const { executeSigningIntent } = await import(paths.executeSigningIntent);
+      const { TempoAdapter } = await import(paths.tempoAdapter);
+
+      const workerTypes: string[] = [];
+      const workerCtx = {
+        requestWorkerOperation: async ({ request }: { request: any }) => {
+          const type = String(request?.type || '');
+          workerTypes.push(type);
+
+          if (type === 'computeEip1559TxHash') return new Uint8Array(32).buffer;
+          if (type === 'encodeEip1559SignedTxFromSignature65') return new Uint8Array([0x02, 0xaa]).buffer;
+          if (type === 'encodeEip1559SignedTx') {
+            throw new Error('legacy split-signature op requested');
+          }
+          throw new Error(`Unexpected worker operation: ${type}`);
+        },
+      };
+
+      const adapter = new TempoAdapter(workerCtx as any);
+      const intent = await adapter.buildIntent({
+        chain: 'tempo',
+        kind: 'eip1559',
+        senderSignatureAlgorithm: 'secp256k1',
+        tx: {
+          chainId: 11155111n,
+          nonce: 7n,
+          maxPriorityFeePerGas: 1_500_000_000n,
+          maxFeePerGas: 3_000_000_000n,
+          gasLimit: 21_000n,
+          to: '0x' + '22'.repeat(20),
+          value: 12_345n,
+          data: '0x',
+          accessList: [],
+        },
+      } as any);
+
+      await executeSigningIntent({
+        intent,
+        engines: {
+          secp256k1: {
+            algorithm: 'secp256k1',
+            sign: async () => {
+              const sig = new Uint8Array(65);
+              sig[64] = 0;
+              return sig;
+            },
+          },
+        } as any,
+        resolveSignInput: async (signReq: any) => ({ signReq, keyRef: {} }),
+      });
+
+      return { workerTypes };
+    }, { paths: IMPORT_PATHS });
+
+    expect(result.workerTypes).toContain('encodeEip1559SignedTxFromSignature65');
+    expect(result.workerTypes).not.toContain('encodeEip1559SignedTx');
   });
 
   test('chain entrypoints stay wired to the unified intent runner', () => {
@@ -220,5 +286,15 @@ test.describe('unified signing pipeline', () => {
     expect(webAuthnManagerSource).toContain('bootstrapThresholdEcdsaSessionLite');
     expect(webAuthnManagerSource).toContain("chain: 'near'");
     expect(webAuthnManagerSource).toContain('activateThresholdKeyForChain({');
+  });
+
+  test('runtime secp signing enforces threshold keyRef guardrail', () => {
+    const secpEngineSource = fs.readFileSync(
+      path.resolve(process.cwd(), '../client/src/core/signing/engines/secp256k1.ts'),
+      'utf8',
+    );
+
+    expect(secpEngineSource).toContain("if (keyRef.type !== 'threshold-ecdsa-secp256k1')");
+    expect(secpEngineSource).toContain('runtime signing requires threshold-ecdsa-secp256k1 keyRef');
   });
 });

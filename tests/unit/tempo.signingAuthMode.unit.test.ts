@@ -19,7 +19,8 @@ test.describe('tempo signing auth-mode resolution', () => {
         requestWorkerOperation: async ({ request }: { request: any }) => {
           const type = String(request?.type || '');
           if (type === 'computeEip1559TxHash') return new Uint8Array(32).buffer;
-          if (type === 'encodeEip1559SignedTx') return new Uint8Array([0x02, 0xaa]).buffer;
+          if (type === 'encodeEip1559SignedTxFromSignature65')
+            return new Uint8Array([0x02, 0xaa]).buffer;
           throw new Error(`Unexpected worker operation: ${type}`);
         },
       };
@@ -104,7 +105,8 @@ test.describe('tempo signing auth-mode resolution', () => {
         requestWorkerOperation: async ({ request }: { request: any }) => {
           const type = String(request?.type || '');
           if (type === 'computeEip1559TxHash') return new Uint8Array(32).buffer;
-          if (type === 'encodeEip1559SignedTx') return new Uint8Array([0x02, 0xaa]).buffer;
+          if (type === 'encodeEip1559SignedTxFromSignature65')
+            return new Uint8Array([0x02, 0xaa]).buffer;
           throw new Error(`Unexpected worker operation: ${type}`);
         },
       };

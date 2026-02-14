@@ -101,6 +101,7 @@ Deliverable:
 - [x] Ensure runtime paths exclusively use wasm for:
   - EIP-1559 digest and encoding
   - Tempo sender hash and signed tx encoding
+- [x] Remove split-signature EIP-1559 encode path and keep signature65-only finalize path (`encodeEip1559SignedTxFromSignature65`).
 - [x] Remove runtime imports/usages of:
   - `client/src/core/signing/chainAdaptors/evm/{keccak.ts,eip1559.ts,rlp.ts}`
   - `client/src/core/signing/chainAdaptors/tempo/tempoTx.ts`
@@ -233,6 +234,7 @@ Deliverable:
 
 - Runtime `client/src/core/signing/**` must not import `@noble/*`.
 - Removed TS crypto helper modules must not reappear or be imported.
+- Split-signature EIP-1559 finalize path (`encodeEip1559SignedTx`) remains removed; runtime uses signature65-only worker API.
 - WebAuthn DER parsing/packing stays in wasm worker operations.
 - Deterministic PRF-based key derivation routes through wasm worker operations.
 - `executeSignerWorkerOperation` requires runtime context (`ctx`) for near + multichain calls.

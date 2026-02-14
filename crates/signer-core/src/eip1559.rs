@@ -5,6 +5,7 @@ use crate::codec::{
     hex_to_bytes, rlp_encode_bytes, rlp_encode_list, strip_leading_zeros_slice,
     u256_bytes_be_from_dec,
 };
+use crate::error::{CoreResult, SignerCoreError};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -27,18 +28,22 @@ pub struct Eip1559Tx {
     pub access_list: Option<Vec<Eip1559AccessListItem>>,
 }
 
-fn encode_access_list(access: &[Eip1559AccessListItem]) -> Result<Vec<u8>, String> {
+fn encode_access_list(access: &[Eip1559AccessListItem]) -> CoreResult<Vec<u8>> {
     let mut items_enc: Vec<Vec<u8>> = Vec::with_capacity(access.len());
     for item in access {
         let addr = hex_to_bytes(&item.address)?;
         if addr.len() != 20 {
-            return Err("accessList.address must be 20 bytes".to_string());
+            return Err(SignerCoreError::invalid_length(
+                "accessList.address must be 20 bytes",
+            ));
         }
         let mut storage_enc: Vec<Vec<u8>> = Vec::with_capacity(item.storage_keys.len());
         for k in &item.storage_keys {
             let b = hex_to_bytes(k)?;
             if b.len() != 32 {
-                return Err("accessList.storageKeys must be 32 bytes".to_string());
+                return Err(SignerCoreError::invalid_length(
+                    "accessList.storageKeys must be 32 bytes",
+                ));
             }
             storage_enc.push(rlp_encode_bytes(&b));
         }
@@ -49,12 +54,12 @@ fn encode_access_list(access: &[Eip1559AccessListItem]) -> Result<Vec<u8>, Strin
     Ok(rlp_encode_list(&items_enc))
 }
 
-fn base_fields(tx: &Eip1559Tx) -> Result<Vec<Vec<u8>>, String> {
+fn base_fields(tx: &Eip1559Tx) -> CoreResult<Vec<Vec<u8>>> {
     let to_bytes = match &tx.to {
         Some(t) => {
             let b = hex_to_bytes(t)?;
             if b.len() != 20 {
-                return Err("to must be 20 bytes".to_string());
+                return Err(SignerCoreError::invalid_length("to must be 20 bytes"));
             }
             b
         }
@@ -77,7 +82,7 @@ fn base_fields(tx: &Eip1559Tx) -> Result<Vec<Vec<u8>>, String> {
     ])
 }
 
-pub fn compute_eip1559_tx_hash(tx: &Eip1559Tx) -> Result<Vec<u8>, String> {
+pub fn compute_eip1559_tx_hash(tx: &Eip1559Tx) -> CoreResult<Vec<u8>> {
     let fields = base_fields(tx)?;
     let rlp = rlp_encode_list(&fields);
     let mut preimage = Vec::with_capacity(1 + rlp.len());
@@ -87,17 +92,17 @@ pub fn compute_eip1559_tx_hash(tx: &Eip1559Tx) -> Result<Vec<u8>, String> {
     Ok(hash.to_vec())
 }
 
-pub fn encode_eip1559_signed_tx(
+fn encode_eip1559_signed_tx_parts(
     tx: &Eip1559Tx,
     y_parity: u8,
     r: &[u8],
     s: &[u8],
-) -> Result<Vec<u8>, String> {
+) -> CoreResult<Vec<u8>> {
     if y_parity > 1 {
-        return Err("yParity must be 0 or 1".to_string());
+        return Err(SignerCoreError::invalid_input("yParity must be 0 or 1"));
     }
     if r.len() != 32 || s.len() != 32 {
-        return Err("r/s must be 32 bytes".to_string());
+        return Err(SignerCoreError::invalid_length("r/s must be 32 bytes"));
     }
 
     let mut fields = base_fields(tx)?;
@@ -112,6 +117,21 @@ pub fn encode_eip1559_signed_tx(
     out.push(0x02);
     out.extend_from_slice(&rlp);
     Ok(out)
+}
+
+pub fn encode_eip1559_signed_tx_from_signature65(
+    tx: &Eip1559Tx,
+    signature65: &[u8],
+) -> CoreResult<Vec<u8>> {
+    if signature65.len() != 65 {
+        return Err(SignerCoreError::invalid_length(
+            "signature65 must be 65 bytes",
+        ));
+    }
+    let y_parity = signature65[64] & 1;
+    let r = &signature65[0..32];
+    let s = &signature65[32..64];
+    encode_eip1559_signed_tx_parts(tx, y_parity, r, s)
 }
 
 #[cfg(test)]
@@ -145,9 +165,11 @@ mod tests {
     fn eip1559_vectors_are_stable() {
         let tx = test_tx();
         let hash = compute_eip1559_tx_hash(&tx).expect("hash");
-        let r = vec![0x11; 32];
-        let s = vec![0x22; 32];
-        let raw = encode_eip1559_signed_tx(&tx, 1, r.as_slice(), s.as_slice()).expect("raw");
+        let mut signature65 = vec![0u8; 65];
+        signature65[0..32].copy_from_slice(&[0x11; 32]);
+        signature65[32..64].copy_from_slice(&[0x22; 32]);
+        signature65[64] = 1;
+        let raw = encode_eip1559_signed_tx_from_signature65(&tx, &signature65).expect("raw");
 
         assert_eq!(
             to_hex(hash.as_slice()),
@@ -157,5 +179,20 @@ mod tests {
             to_hex(raw.as_slice()),
             "02f86f83aa36a7078459682f0084b2d05e0082520894222222222222222222222222222222222222222282303980c001a01111111111111111111111111111111111111111111111111111111111111111a02222222222222222222222222222222222222222222222222222222222222222"
         );
+    }
+
+    #[test]
+    fn encode_from_signature65_matches_split_path() {
+        let tx = test_tx();
+        let mut signature65 = vec![0u8; 65];
+        signature65[0..32].copy_from_slice(&[0x11; 32]);
+        signature65[32..64].copy_from_slice(&[0x22; 32]);
+        signature65[64] = 1;
+
+        let split =
+            encode_eip1559_signed_tx_parts(&tx, 1, &signature65[0..32], &signature65[32..64])
+            .expect("split");
+        let joined = encode_eip1559_signed_tx_from_signature65(&tx, &signature65).expect("joined");
+        assert_eq!(joined, split);
     }
 }

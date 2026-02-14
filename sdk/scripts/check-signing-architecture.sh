@@ -391,6 +391,38 @@ if rg -n \
   exit 1
 fi
 
+if rg -n \
+  -e "assertTempoWebAuthnSignature" \
+  -e "Tempo signatures must be 65 bytes" \
+  -e "parseRecoveredSecp256k1Signature" \
+  -e "secp256k1 recovered signature must be 65 bytes" \
+  -e "encodeEip1559SignedTxWasm\\(" \
+  -e "const yParity = \\(recovery & 1\\)" \
+  client/src/core/signing/chainAdaptors/tempo/tempoAdapter.ts >/dev/null; then
+  echo "[check-signing-architecture] failed: TempoAdapter host-side signature shape/parsing should be handled by wasm encoder validation"
+  exit 1
+fi
+
+echo "[check-signing-architecture] checking EIP-1559 split-signature path removal..."
+if rg -n \
+  -e "encodeEip1559SignedTxWasm\\(" \
+  -e "type: 'encodeEip1559SignedTx'" \
+  -e "case 'encodeEip1559SignedTx'" \
+  client/src/core/signing \
+  client/src/core/workers \
+  tests >/dev/null; then
+  echo "[check-signing-architecture] failed: split-signature EIP-1559 worker path must remain removed (signature65-only)"
+  exit 1
+fi
+
+if rg -n \
+  -e "pub fn encode_eip1559_signed_tx\\(" \
+  wasm/eth_signer/src/eip1559.rs \
+  wasm/eth_signer/src/lib.rs >/dev/null; then
+  echo "[check-signing-architecture] failed: eth wasm wrapper must not expose split-signature EIP-1559 encode export"
+  exit 1
+fi
+
 if ! rg -n -e "signer_platform_web::near_ed25519::derive_ed25519_key_from_prf_output" \
   wasm/near_signer/src/crypto.rs >/dev/null; then
   echo "[check-signing-architecture] failed: near ed25519 derivation must delegate to signer-platform-web::near_ed25519"
@@ -463,6 +495,84 @@ if rg -n \
   -e "borsh::to_vec\\(&payload_borsh\\)" \
   wasm/near_signer/src/threshold/threshold_digests.rs >/dev/null; then
   echo "[check-signing-architecture] failed: near threshold_digests wrapper must not contain local nonce decode/borsh hashing logic for NEP-413"
+  exit 1
+fi
+
+if ! rg -n \
+  -e "protocol::client_round1_commit\\(" \
+  -e "protocol::build_signing_package\\(" \
+  -e "protocol::client_round2_signature_share\\(" \
+  -e "protocol::aggregate_signature\\(" \
+  wasm/near_signer/src/threshold/coordinator.rs >/dev/null; then
+  echo "[check-signing-architecture] failed: near coordinator must route FROST operations via protocol wrapper delegates"
+  exit 1
+fi
+
+if rg -n \
+  -e "frost_ed25519::round1::commit" \
+  -e "frost_ed25519::round2::sign" \
+  -e "frost_ed25519::aggregate\\(" \
+  wasm/near_signer/src/threshold/coordinator.rs >/dev/null; then
+  echo "[check-signing-architecture] failed: near coordinator must not contain direct FROST round/aggregate calls"
+  exit 1
+fi
+
+if rg -n \
+  -e "SigningShare::deserialize\\(" \
+  -e "VerifyingShare::deserialize\\(" \
+  -e "VerifyingKey::deserialize\\(" \
+  wasm/near_signer/src/threshold/signer_backend.rs >/dev/null; then
+  echo "[check-signing-architecture] failed: near signer_backend must not rebuild key packages locally; delegate to signer-platform-web::near_threshold_ed25519"
+  exit 1
+fi
+
+if rg -n \
+  -e "pub\\(super\\) async fn authorize_mpc_session_id\\(" \
+  wasm/near_signer/src/threshold/relayer_http.rs >/dev/null; then
+  echo "[check-signing-architecture] failed: near relayer_http legacy authorize_mpc_session_id helper must be removed"
+  exit 1
+fi
+
+if rg -n \
+  -e "fn commitments_to_wire\\(" \
+  wasm/near_signer/src/threshold/protocol.rs >/dev/null; then
+  echo "[check-signing-architecture] failed: near protocol wrapper must not keep unused local commitments_to_wire shim"
+  exit 1
+fi
+
+if ! rg -n \
+  -e "super::relayer_http::authorize_mpc_session_id_with_threshold_session" \
+  -e "super::relayer_http::mint_threshold_session" \
+  -e "super::relayer_http::sign_init" \
+  -e "super::relayer_http::sign_finalize" \
+  wasm/near_signer/src/threshold/transport.rs >/dev/null; then
+  echo "[check-signing-architecture] failed: near transport wrapper must delegate all relayer calls to relayer_http"
+  exit 1
+fi
+
+if rg -n \
+  -e "fetch_with_init" \
+  -e "build_json_post_init" \
+  -e "response_json" \
+  wasm/near_signer/src/threshold/transport.rs >/dev/null; then
+  echo "[check-signing-architecture] failed: near transport wrapper must not contain HTTP/fetch logic"
+  exit 1
+fi
+
+if rg -n \
+  -e "frost_ed25519::" \
+  -e "curve25519_dalek::" \
+  -e "Hkdf::" \
+  -e "Sha256" \
+  wasm/near_signer/src/threshold/relayer_http.rs >/dev/null; then
+  echo "[check-signing-architecture] failed: near relayer_http must not contain local threshold crypto primitives"
+  exit 1
+fi
+
+if rg -n \
+  -e "super::relayer_http::" \
+  wasm/near_signer/src/threshold/signer_backend.rs >/dev/null; then
+  echo "[check-signing-architecture] failed: near signer_backend must route relayer operations through transport abstraction"
   exit 1
 fi
 

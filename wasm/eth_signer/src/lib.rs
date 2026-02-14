@@ -69,13 +69,11 @@ pub fn compute_eip1559_tx_hash(tx: JsValue) -> Result<Vec<u8>, JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn encode_eip1559_signed_tx(
+pub fn encode_eip1559_signed_tx_from_signature65(
     tx: JsValue,
-    y_parity: u8,
-    r: Vec<u8>,
-    s: Vec<u8>,
+    signature65: Vec<u8>,
 ) -> Result<Vec<u8>, JsValue> {
-    eip1559::encode_eip1559_signed_tx(tx, y_parity, r, s)
+    eip1559::encode_eip1559_signed_tx_from_signature65(tx, signature65)
 }
 
 #[wasm_bindgen]
@@ -117,10 +115,7 @@ pub fn validate_secp256k1_public_key_33(public_key33: Vec<u8>) -> Result<Vec<u8>
 }
 
 #[wasm_bindgen]
-pub fn add_secp256k1_public_keys_33(
-    left33: Vec<u8>,
-    right33: Vec<u8>,
-) -> Result<Vec<u8>, JsValue> {
+pub fn add_secp256k1_public_keys_33(left33: Vec<u8>, right33: Vec<u8>) -> Result<Vec<u8>, JsValue> {
     derive::add_secp256k1_public_keys_33(left33, right33)
 }
 

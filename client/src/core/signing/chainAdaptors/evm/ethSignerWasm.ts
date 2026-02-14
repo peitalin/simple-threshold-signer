@@ -54,22 +54,19 @@ export async function computeEip1559TxHashWasm(
   return new Uint8Array(ab);
 }
 
-export async function encodeEip1559SignedTxWasm(args: {
+export async function encodeEip1559SignedTxFromSignature65Wasm(args: {
   tx: Eip1559UnsignedTx;
-  yParity: 0 | 1;
-  r: Uint8Array; // 32
-  s: Uint8Array; // 32
+  signature65: Uint8Array; // recovered secp256k1 signature (r||s||v)
   workerCtx: WorkerOperationContext;
 }): Promise<Uint8Array> {
-  const rBuf = args.r.slice().buffer;
-  const sBuf = args.s.slice().buffer;
+  const signature65 = args.signature65.slice().buffer;
   const ab = await executeSignerWorkerOperation({
     ctx: args.workerCtx,
     kind: ETH_SIGNER_WORKER_KIND,
     request: {
-      type: 'encodeEip1559SignedTx',
-      payload: { tx: toWasmTx(args.tx), yParity: args.yParity, r: rBuf, s: sBuf },
-      transfer: [rBuf, sBuf],
+      type: 'encodeEip1559SignedTxFromSignature65',
+      payload: { tx: toWasmTx(args.tx), signature65 },
+      transfer: [signature65],
     },
   });
   return new Uint8Array(ab);

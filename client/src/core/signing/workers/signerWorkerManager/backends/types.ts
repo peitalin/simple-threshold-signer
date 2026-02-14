@@ -33,8 +33,8 @@ export interface EthSignerWorkerOperationMap {
     payload: { tx: unknown };
     result: ArrayBuffer;
   };
-  encodeEip1559SignedTx: {
-    payload: { tx: unknown; yParity: number; r: ArrayBuffer; s: ArrayBuffer };
+  encodeEip1559SignedTxFromSignature65: {
+    payload: { tx: unknown; signature65: ArrayBuffer };
     result: ArrayBuffer;
   };
   signSecp256k1Recoverable: {

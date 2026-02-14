@@ -240,6 +240,7 @@ Use this checklist to track execution status across teams.
 ### Phase 4 Checklist
 
 - [x] Move chain-signature-critical digest/finalization into Rust (`signer-core` + `signer-platform-web` now back EIP-1559/Tempo tx hashing/encoding)
+- [x] Remove split-signature EIP-1559 finalize API (`encodeEip1559SignedTx`) and standardize on signature65-only worker path
 - [ ] Reduce chain adapters to shaping/mapping only
 - [ ] Confirm byte-level output parity for signed payloads
 - [ ] Remove host-side fallback branches for chain finalization
