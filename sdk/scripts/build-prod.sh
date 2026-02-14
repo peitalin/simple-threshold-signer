@@ -30,6 +30,9 @@ if command -v bun >/dev/null 2>&1; then BUN_BIN="$(command -v bun)"; elif [ -x "
 print_step "Checking WASM toolchain (C compiler for wasm32)..."
 ensure_wasm32_cc
 print_success "WASM toolchain ready"
+print_step "Preparing wasm-pack cache..."
+ensure_wasm_pack_cache
+print_success "wasm-pack cache ready: $WASM_PACK_CACHE"
 
 print_step "Cleaning previous build artifacts..."
 rm -rf "$BUILD_ROOT/"
@@ -40,17 +43,32 @@ if ./scripts/generate-types.sh; then print_success "TypeScript types generated s
 
 print_step "Building WASM signer worker (release)..."
 pushd "$SDK_ROOT/$SOURCE_WASM_SIGNER" >/dev/null
-if wasm-pack build --target web --out-dir pkg --release; then print_success "WASM signer worker built"; else print_error "WASM signer build failed"; exit 1; fi
+if with_wasm_bindgen_cli_for_lockfile "$SDK_ROOT/$SOURCE_WASM_SIGNER/Cargo.lock" wasm-pack build --target web --out-dir pkg --release; then
+  print_success "WASM signer worker built (wasm-bindgen ${WASM_BINDGEN_CLI_VERSION_RESOLVED})"
+else
+  print_error "WASM signer build failed"
+  exit 1
+fi
 popd >/dev/null
 
 print_step "Building WASM eth signer (release)..."
 pushd "$SDK_ROOT/$SOURCE_WASM_ETH_SIGNER" >/dev/null
-if wasm-pack build --target web --out-dir pkg --release; then print_success "WASM eth signer built"; else print_error "WASM eth signer build failed"; exit 1; fi
+if with_wasm_bindgen_cli_for_lockfile "$SDK_ROOT/$SOURCE_WASM_ETH_SIGNER/Cargo.lock" wasm-pack build --target web --out-dir pkg --release; then
+  print_success "WASM eth signer built (wasm-bindgen ${WASM_BINDGEN_CLI_VERSION_RESOLVED})"
+else
+  print_error "WASM eth signer build failed"
+  exit 1
+fi
 popd >/dev/null
 
 print_step "Building WASM tempo signer (release)..."
 pushd "$SDK_ROOT/$SOURCE_WASM_TEMPO_SIGNER" >/dev/null
-if wasm-pack build --target web --out-dir pkg --release; then print_success "WASM tempo signer built"; else print_error "WASM tempo signer build failed"; exit 1; fi
+if with_wasm_bindgen_cli_for_lockfile "$SDK_ROOT/$SOURCE_WASM_TEMPO_SIGNER/Cargo.lock" wasm-pack build --target web --out-dir pkg --release; then
+  print_success "WASM tempo signer built (wasm-bindgen ${WASM_BINDGEN_CLI_VERSION_RESOLVED})"
+else
+  print_error "WASM tempo signer build failed"
+  exit 1
+fi
 popd >/dev/null
 
 print_step "Building TypeScript..."
@@ -72,7 +90,7 @@ mkdir -p "$BUILD_ESM/sdk"
 
 # These bundles are loaded directly by browsers from /sdk/* (no bundler/import maps),
 # so they must not contain bare module specifiers like `import "idb"`.
-if "$BUN_BIN" build "$SDK_ROOT/../client/src/core/signing/secureConfirm/ui/lit-components/confirm-ui.ts" --outfile "$BUILD_ESM/sdk/tx-confirm-ui.js" --format esm --target browser --minify --root "$REPO_ROOT" \
+if "$BUN_BIN" build "$SDK_ROOT/../client/src/core/signing/secureConfirm/ui/confirm-ui.ts" --outfile "$BUILD_ESM/sdk/tx-confirm-ui.js" --format esm --target browser --minify --root "$REPO_ROOT" \
   && "$BUN_BIN" build "$SDK_ROOT/../client/src/core/WalletIframe/host/index.ts" --outfile "$BUILD_ESM/sdk/wallet-iframe-host-runtime.js" --format esm --target browser --minify --root "$REPO_ROOT" \
   && "$BUN_BIN" build "$SDK_ROOT/../client/src/core/signing/secureConfirm/ui/lit-components/IframeTxConfirmer/tx-confirmer-wrapper.ts" --outfile "$BUILD_ESM/sdk/w3a-tx-confirmer.js" --format esm --target browser --minify --root "$REPO_ROOT" \
   && "$BUN_BIN" build "$SDK_ROOT/../client/src/core/signing/secureConfirm/ui/lit-components/ExportPrivateKey/iframe-export-bootstrap-script.ts" --outfile "$BUILD_ESM/sdk/iframe-export-bootstrap.js" --format esm --target browser --minify --root "$REPO_ROOT" \
