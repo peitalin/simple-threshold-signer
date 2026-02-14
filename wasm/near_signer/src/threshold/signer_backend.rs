@@ -212,7 +212,7 @@ async fn resolve_mpc_session_id(
     signing_payload_json: Option<&str>,
     credential_json_opt: Option<&str>,
 ) -> Result<String, String> {
-  if let Some(id) = trim_nonempty(cfg.mpc_session_id.as_deref()) {
+    if let Some(id) = trim_nonempty(cfg.mpc_session_id.as_deref()) {
         return Ok(id.to_string());
     }
 
@@ -255,39 +255,39 @@ async fn resolve_mpc_session_id(
         "threshold-signer: missing credential and no cached threshold session token".to_string()
     })?;
 
-        let kind = normalize_threshold_session_kind(cfg.threshold_session_kind.as_deref());
-        let kind_str = match kind {
-            ThresholdAuthSessionKind::Cookie => "cookie",
-            ThresholdAuthSessionKind::Jwt => "jwt",
-        };
+    let kind = normalize_threshold_session_kind(cfg.threshold_session_kind.as_deref());
+    let kind_str = match kind {
+        ThresholdAuthSessionKind::Cookie => "cookie",
+        ThresholdAuthSessionKind::Jwt => "jwt",
+    };
 
-        if let Ok(sess) = transport
-            .mint_threshold_session(
-                cfg,
-                client_verifying_share_b64u,
-                near_account_id,
-                credential_json,
-                policy_json,
-                kind_str,
-            )
-            .await
-        {
-            let expires_at_ms = sess
-                .expires_at
-                .as_deref()
-                .map(Date::parse)
-                .filter(|ms| !ms.is_nan());
-            let cached = CachedThresholdAuthSession {
-                kind,
-                jwt: sess
-                    .jwt
-                    .as_ref()
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty()),
-                expires_at_ms,
-            };
-            put_cached_threshold_auth_session(cfg, near_account_id, cached);
-        }
+    if let Ok(sess) = transport
+        .mint_threshold_session(
+            cfg,
+            client_verifying_share_b64u,
+            near_account_id,
+            credential_json,
+            policy_json,
+            kind_str,
+        )
+        .await
+    {
+        let expires_at_ms = sess
+            .expires_at
+            .as_deref()
+            .map(Date::parse)
+            .filter(|ms| !ms.is_nan());
+        let cached = CachedThresholdAuthSession {
+            kind,
+            jwt: sess
+                .jwt
+                .as_ref()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty()),
+            expires_at_ms,
+        };
+        put_cached_threshold_auth_session(cfg, near_account_id, cached);
+    }
 
     // After session-mint attempt, prefer session authorization if token/cookie is present.
     if let Some(id) = try_authorize_mpc_session_id_with_cached_threshold_auth_session(
@@ -474,7 +474,11 @@ impl ThresholdEd25519RelayerSigner {
             );
         }
 
-        let near_public_key_bytes = parse_near_public_key_to_bytes(near_public_key_str)?;
+        let near_public_key_bytes =
+            signer_platform_web::near_threshold_ed25519::parse_near_public_key_to_bytes(
+                near_public_key_str,
+            )
+            .map_err(|e| e.to_string())?;
 
         let client_id_opt = cfg.client_participant_id.filter(|n| *n > 0);
         let relayer_id_opt = cfg.relayer_participant_id.filter(|n| *n > 0);
@@ -491,12 +495,13 @@ impl ThresholdEd25519RelayerSigner {
             .try_into()
             .map_err(|_| "threshold-signer: invalid relayer identifier".to_string())?;
 
-        let key_package = derive_client_key_package_from_wrap_key_seed(
-            wrap_key,
+        let key_package = signer_platform_web::near_threshold_ed25519::derive_client_key_package_from_wrap_key_seed_b64u(
+            &wrap_key.wrap_key_seed,
             near_account_id,
             &near_public_key_bytes,
             client_identifier,
-        )?;
+        )
+        .map_err(|e| e.to_string())?;
         let client_verifying_share_b64u = crate::threshold::threshold_client_share::derive_threshold_client_verifying_share_b64u_v1(
             wrap_key,
             near_account_id,
@@ -609,51 +614,4 @@ fn parse_near_private_key_to_signing_key(
         .map_err(|_| "Invalid secret key length".to_string())?;
 
     Ok(ed25519_dalek::SigningKey::from_bytes(&secret_bytes))
-}
-
-fn parse_near_public_key_to_bytes(public_key: &str) -> Result<[u8; 32], String> {
-    let decoded = bs58::decode(public_key.strip_prefix("ed25519:").unwrap_or(public_key))
-        .into_vec()
-        .map_err(|e| format!("Invalid public key base58: {}", e))?;
-    if decoded.len() != 32 {
-        return Err(format!(
-            "Invalid public key length: expected 32 bytes, got {}",
-            decoded.len()
-        ));
-    }
-    Ok(decoded.as_slice().try_into().expect("checked length above"))
-}
-
-fn derive_client_key_package_from_wrap_key_seed(
-    wrap_key: &WrapKey,
-    near_account_id: &str,
-    near_public_key_bytes: &[u8; 32],
-    client_identifier: frost_ed25519::Identifier,
-) -> Result<frost_ed25519::keys::KeyPackage, String> {
-    let signing_share_bytes =
-        crate::threshold::threshold_client_share::derive_threshold_client_signing_share_bytes_v1(
-            wrap_key,
-            near_account_id,
-        )?;
-    let signing_share = frost_ed25519::keys::SigningShare::deserialize(&signing_share_bytes)
-        .map_err(|e| format!("threshold-signer: invalid derived signing share: {e}"))?;
-
-    let verifying_share_bytes =
-        crate::threshold::threshold_client_share::derive_threshold_client_verifying_share_bytes_v1(
-            wrap_key,
-            near_account_id,
-        )?;
-    let verifying_share = frost_ed25519::keys::VerifyingShare::deserialize(&verifying_share_bytes)
-        .map_err(|e| format!("threshold-signer: invalid verifying share: {e}"))?;
-
-    let verifying_key = frost_ed25519::VerifyingKey::deserialize(near_public_key_bytes)
-        .map_err(|e| format!("threshold-signer: invalid group public key: {e}"))?;
-
-    Ok(frost_ed25519::keys::KeyPackage::new(
-        client_identifier,
-        signing_share,
-        verifying_share,
-        verifying_key,
-        2, // min_signers (2-of-2)
-    ))
 }

@@ -1,21 +1,13 @@
 use crate::actions::ActionParams;
-use crate::encoders::{base64_standard_decode, hash_delegate_action};
+use crate::encoders::hash_delegate_action;
 use crate::transaction::{build_actions_from_params, build_transaction_with_actions};
 use crate::types::{AccountId, DelegateAction, PublicKey};
 use serde::Deserialize;
 use wasm_bindgen::prelude::*;
 
 fn parse_near_public_key_to_bytes(public_key: &str) -> Result<[u8; 32], JsValue> {
-    let decoded = bs58::decode(public_key.strip_prefix("ed25519:").unwrap_or(public_key))
-        .into_vec()
-        .map_err(|e| JsValue::from_str(&format!("Invalid public key base58: {e}")))?;
-    if decoded.len() != 32 {
-        return Err(JsValue::from_str(&format!(
-            "Invalid public key length: expected 32 bytes, got {}",
-            decoded.len()
-        )));
-    }
-    Ok(decoded.as_slice().try_into().expect("checked length above"))
+    signer_platform_web::near_threshold_ed25519::parse_near_public_key_to_bytes(public_key)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 fn parse_near_block_hash_to_bytes(block_hash_b58: &str) -> Result<[u8; 32], JsValue> {
@@ -210,43 +202,13 @@ pub fn threshold_ed25519_compute_nep413_signing_digest(
     let payload: Nep413SigningPayload = serde_wasm_bindgen::from_value(payload)
         .map_err(|e| JsValue::from_str(&format!("Invalid nep413 signingPayload: {e}")))?;
 
-    let nonce_bytes = base64_standard_decode(payload.nonce.trim())
-        .map_err(|e| JsValue::from_str(&format!("Invalid nonce (base64): {e}")))?;
-    if nonce_bytes.len() != 32 {
-        return Err(JsValue::from_str(&format!(
-            "Invalid nonce length: expected 32 bytes, got {}",
-            nonce_bytes.len()
-        )));
-    }
-    let nonce_array: [u8; 32] = nonce_bytes
-        .as_slice()
-        .try_into()
-        .expect("checked length above");
-
-    #[derive(borsh::BorshSerialize)]
-    struct Nep413PayloadBorsh {
-        message: String,
-        recipient: String,
-        nonce: [u8; 32],
-        state: Option<String>,
-    }
-
-    let payload_borsh = Nep413PayloadBorsh {
-        message: payload.message,
-        recipient: payload.recipient,
-        nonce: nonce_array,
-        state: payload.state,
-    };
-
-    let serialized = borsh::to_vec(&payload_borsh)
-        .map_err(|e| JsValue::from_str(&format!("Borsh serialization failed: {e}")))?;
-    let prefix: u32 = 2147484061;
-    let mut prefixed = prefix.to_le_bytes().to_vec();
-    prefixed.extend_from_slice(&serialized);
-
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    hasher.update(&prefixed);
-    let digest = hasher.finalize();
+    let digest =
+        signer_platform_web::near_threshold_ed25519::compute_nep413_signing_digest_from_nonce_base64(
+            &payload.message,
+            &payload.recipient,
+            payload.nonce.trim(),
+            payload.state.as_deref(),
+        )
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
     Ok(digest.to_vec())
 }

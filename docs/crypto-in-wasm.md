@@ -1,7 +1,7 @@
 # Crypto-in-WASM Refactor Plan
 
-Status: In Progress  
-Last updated: 2026-02-13
+Status: Completed  
+Last updated: 2026-02-14
 
 ## Architecture Direction Update (Locked)
 
@@ -39,7 +39,7 @@ Out of scope:
 ## Current TS Crypto Hotspots
 
 - None under `client/src/core/signing` runtime paths.
-- Inventory and classifications: `docs/signing-crypto-inventory.md`.
+- Inventory/classification is complete and reflected in this plan + architecture checks.
 
 ## Phased Todo Plan
 
@@ -155,6 +155,7 @@ Deliverable:
 - [x] Ensure `wasm/{eth_signer,tempo_signer}` consume the shared Rust platform layer for shared codec, secp256k1 derivation/public-key operations, and chain-finalization helpers (EIP-1559/Tempo tx hashing+encoding).
 - [x] Migrate initial shared primitive from `wasm/near_signer` into `signer-core` and repoint near signer bindings (Ed25519 PRF.second key derivation).
 - [x] Migrate remaining near shared primitives (KEK derivation + ChaCha20 helpers) into `signer-core` and repoint near signer bindings.
+- [x] Migrate additional NEAR threshold helpers into `signer-core` and repoint near signer wrappers (`threshold/protocol`, `threshold/participant_ids`, `threshold/signer_backend` key parsing + client key package derivation, and NEP-413 digest hashing in `threshold/threshold_digests`).
 - [x] Add explicit workspace boundaries so new signer logic cannot land outside `signer-core` (architecture check enforces `signer-platform-web` delegation in wasm signer wrappers).
 - [x] Introduce `crates/signer-platform-web` as the canonical long-term web binding surface and repoint wasm wrappers through it.
 
@@ -165,10 +166,12 @@ Deliverable:
 ### Phase 9: iOS Binding Parity Path
 
 - [x] Scaffold `crates/signer-platform-ios` bindings over `signer-core` with a versioned `v1` API surface and parity tests against web bindings.
-- [ ] Add UniFFI (or equivalent Swift ABI) on top of `signer-platform-ios`.
+- [x] Add equivalent Swift ABI on top of `signer-platform-ios` (C-ABI export surface + Swift harness linkage).
 - [x] Lock canonical vector corpus under `crates/signer-core/fixtures/signing-vectors/v1.json` and replay it through `signer-platform-web` + `signer-platform-ios` Rust tests.
-- [ ] Replay canonical signing vectors across Rust native + Web WASM + iOS Swift harnesses.
-- [x] Lock Rust binding CI parity checks to prevent cross-platform signer drift (`pnpm check` now runs `check:signer-parity`).
+- [x] Split platform binding parity tests out of `src/lib.rs` into dedicated `src/tests.rs` files and deduplicate shared vector helpers in `crates/signer-core/fixtures/signing-vectors/v1_test_vectors.rs`.
+- [x] Add initial Web WASM replay test consuming canonical vectors through worker-facing bindings (`tests/unit/signingVectors.webWasmReplay.unit.test.ts`).
+- [ ] Replay canonical signing vectors across Rust native + Web WASM + iOS Swift harnesses end-to-end (deferred for now; keep Swift harness scaffolded and re-enable via `RUN_IOS_SWIFT_REPLAY=1`).
+- [x] Lock Rust binding CI parity checks to prevent cross-platform signer drift (`pnpm check` runs `check:signer-parity`, with Swift replay currently scaffolded/opt-in).
 
 Deliverable:
 
@@ -250,8 +253,8 @@ Per phase, run:
 
 ## Exit Criteria
 
-- [ ] No low-level crypto operations in runtime TypeScript signing paths.
-- [ ] All runtime crypto is executed via wasm worker RPC.
-- [ ] CI checks block reintroduction of TS crypto primitives in signing runtime.
-- [ ] Canonical signer logic is centralized in `crates/signer-core`.
-- [ ] Web wasm wrappers are binding-only and free of duplicated signer implementations.
+- [x] No low-level crypto operations in runtime TypeScript signing paths.
+- [x] All runtime crypto is executed via wasm worker RPC.
+- [x] CI checks block reintroduction of TS crypto primitives in signing runtime.
+- [x] Canonical signer logic is centralized in `crates/signer-core`.
+- [x] Web wasm wrappers are binding-only and free of duplicated signer implementations.

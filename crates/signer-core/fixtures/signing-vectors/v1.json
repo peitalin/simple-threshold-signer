@@ -1,0 +1,169 @@
+{
+  "version": "v1",
+  "codec": {
+    "hex_case": {
+      "input": "0x00abcd",
+      "expected_hex": "00abcd"
+    },
+    "u256_case": {
+      "input": "12345678901234567890",
+      "expected_hex": "ab54a98ceb1f0ad2"
+    },
+    "strip_leading_zeros_case": {
+      "input_hex": "0000010203",
+      "expected_hex": "010203"
+    },
+    "rlp_bytes_case": {
+      "input_hex": "010203",
+      "expected_hex": "83010203"
+    },
+    "rlp_list_case": {
+      "items_hex": ["01", "0203"],
+      "expected_hex": "c3010203"
+    }
+  },
+  "secp256k1": {
+    "derive_threshold_client_share": {
+      "prf_first32_hex": "0707070707070707070707070707070707070707070707070707070707070707",
+      "user_id": "user-123",
+      "derivation_path": 42,
+      "expected_hex": "341731e0dfa798502e11429106bb3b07258ba6a5c8e54d98224955fbd0e7b35503b43b58b02652e112872421a5742c2f9e0af10a823280eee8d1a3cdac4ef0066e"
+    },
+    "derive_keypair_from_prf_second": {
+      "prf_second_hex": "746573742d7072662d7365636f6e642d6f7574707574",
+      "near_account_id": "alice.near",
+      "expected_hex": "7526346f837a5509c0f0ca16c7ce1fb7ccf58929fc0bc60553ac53322f9fa9cf02b020f05e664960bc0380289497f2b4c41a974f426da4b0b88a91b3f26a99c0b9545f4b8cdf09262c5489be7ef413431bcef6e082"
+    },
+    "map_additive_share_2p": {
+      "additive_share32_hex": "000000000000000000000000000000000000000000000000000000000000002a",
+      "participant_id": 1,
+      "expected_hex": "000000000000000000000000000000000000000000000000000000000000000e"
+    },
+    "validate_public_key_33": {
+      "public_key33_hex": "02b020f05e664960bc0380289497f2b4c41a974f426da4b0b88a91b3f26a99c0b9",
+      "expected_hex": "02b020f05e664960bc0380289497f2b4c41a974f426da4b0b88a91b3f26a99c0b9"
+    },
+    "add_public_keys_33": {
+      "left33_hex": "02b020f05e664960bc0380289497f2b4c41a974f426da4b0b88a91b3f26a99c0b9",
+      "right33_hex": "032a709888f7c7e1087d472005b99064112c1df5442f53ef9af4beae67f913eaca",
+      "expected_hex": "032516721a026f7e3eddc4cb67c9b24ee897ebc2d94ee78760736beb91b7d2f732"
+    }
+  },
+  "near_ed25519": {
+    "derive_keypair": {
+      "prf_output_b64u": "ZGV0ZXJtaW5pc3RpYy1wcmYtb3V0cHV0",
+      "account_id": "alice.near",
+      "expected_private_key": "ed25519:2QQCTV5bC1HXBD274gbs2tULUj5Tb8HYihsrn8nxWr6H9TfevhWwwKe8Ekbg2nZCSqPEyDuqXtRn5P2359iGTwCJ",
+      "expected_public_key": "ed25519:8Y3sr3jSPa7vNj5LkW49LfTZF3ACnjiR9vKv6AYfSmAe"
+    }
+  },
+  "near_crypto": {
+    "derive_kek": {
+      "wrap_key_seed_b64u": "d3JhcC1zZWVk",
+      "wrap_key_salt_b64u": "c2FsdA",
+      "expected_hex": "0ab776316f79db94c8125814b46c57e444f668f81ec2324ceae9f91299dfee48"
+    },
+    "encrypt_fixed_nonce": {
+      "plain_text": "near-private-key",
+      "key_hex": "0303030303030303030303030303030303030303030303030303030303030303",
+      "nonce_hex": "090909090909090909090909",
+      "expected_ciphertext_hex": "8748d64cedbeb53ec3ccccc105ca1e3f539654c9436a18b6c1e378baa2726beb",
+      "expected_plain_text": "near-private-key"
+    }
+  },
+  "tx_finalization": {
+    "eip1559": {
+      "tx": {
+        "chain_id": "11155111",
+        "nonce": "7",
+        "max_priority_fee_per_gas": "1500000000",
+        "max_fee_per_gas": "3000000000",
+        "gas_limit": "21000",
+        "to": "0x2222222222222222222222222222222222222222",
+        "value": "12345",
+        "data": "0x",
+        "access_list": []
+      },
+      "signature": {
+        "y_parity": 1,
+        "r_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+        "s_hex": "2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "expected_hash_hex": "ec562eae017388b8e451182e6919ee681b63a9d8f9fe1d34009e8e58ab4f9366",
+      "expected_raw_hex": "02f86f83aa36a7078459682f0084b2d05e0082520894222222222222222222222222222222222222222282303980c001a01111111111111111111111111111111111111111111111111111111111111111a02222222222222222222222222222222222222222222222222222222222222222"
+    },
+    "tempo": {
+      "placeholder": {
+        "tx": {
+          "chain_id": "42431",
+          "max_priority_fee_per_gas": "1",
+          "max_fee_per_gas": "2",
+          "gas_limit": "21000",
+          "calls": [
+            {
+              "to": "0x1111111111111111111111111111111111111111",
+              "value": "0",
+              "input": "0x"
+            }
+          ],
+          "access_list": [],
+          "nonce_key": "0",
+          "nonce": "1",
+          "valid_before": null,
+          "valid_after": null,
+          "fee_token": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "fee_payer_signature": { "kind": "placeholder" }
+        },
+        "alt_fee_token": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "sender_signature_hex": "9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999",
+        "expected_sender_hash_hex": "53c88d360d006f5acef7c3f7a1cbd4052f4fa6fe1b9182aa1ba2a6ac2d6d573c",
+        "expected_sender_hash_alt_hex": "53c88d360d006f5acef7c3f7a1cbd4052f4fa6fe1b9182aa1ba2a6ac2d6d573c",
+        "expected_raw_hex": "76f88082a5bf0102825208d8d79411111111111111111111111111111111111111118080c08001808094aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00c0b8419999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"
+      },
+      "none": {
+        "tx_a": {
+          "chain_id": "42431",
+          "max_priority_fee_per_gas": "1",
+          "max_fee_per_gas": "2",
+          "gas_limit": "21000",
+          "calls": [
+            {
+              "to": "0x1111111111111111111111111111111111111111",
+              "value": "0",
+              "input": "0x"
+            }
+          ],
+          "access_list": [],
+          "nonce_key": "0",
+          "nonce": "1",
+          "valid_before": null,
+          "valid_after": null,
+          "fee_token": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "fee_payer_signature": { "kind": "none" }
+        },
+        "tx_b": {
+          "chain_id": "42431",
+          "max_priority_fee_per_gas": "1",
+          "max_fee_per_gas": "2",
+          "gas_limit": "21000",
+          "calls": [
+            {
+              "to": "0x1111111111111111111111111111111111111111",
+              "value": "0",
+              "input": "0x"
+            }
+          ],
+          "access_list": [],
+          "nonce_key": "0",
+          "nonce": "1",
+          "valid_before": null,
+          "valid_after": null,
+          "fee_token": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "fee_payer_signature": { "kind": "none" }
+        },
+        "expected_sender_hash_a_hex": "6a1c26faec9d34e62a1e4bbc107dfbe09a58627c78566eb0feef3f846a034072",
+        "expected_sender_hash_b_hex": "1485446f06a9ef17e8da3282ef81eedd4d20a0cbd53fcfbf2ea707594793ba8a"
+      }
+    }
+  }
+}
