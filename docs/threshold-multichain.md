@@ -136,8 +136,8 @@ Last updated: 2026-02-14
 
 ### Immediate next steps
 
-- [ ] Add UI-level unit coverage for register/login hooks in `PasskeyLoginMenu` to verify auto-provision invocation conditions (missing cache vs cached keyRefs).
-- [ ] Add one docs/e2e smoke path that validates all three actions are visible and callable after login (NEAR, Tempo, EVM signing buttons).
+- [x] Add UI-level unit coverage for register/login hooks in `PasskeyLoginMenu` to verify auto-provision invocation conditions (missing cache vs cached keyRefs) (`tests/unit/passkeyLoginMenu.thresholdProvision.unit.test.ts`).
+- [x] Add one docs/e2e smoke path that validates all three actions are visible and callable after login (NEAR, Tempo, EVM signing buttons) (`tests/e2e/docs.thresholdSigningActions.smoke.test.ts`).
 
 ## Distributed Presign Sessions + Atomic Transitions (Implementation Status)
 

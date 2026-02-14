@@ -22,23 +22,47 @@ import {
   readCachedThresholdKeyRef,
 } from '../utils/thresholdSigners';
 
-export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) => void }) {
+type PasskeyLoginMenuTestOverrides = {
+  useTatchiHook?: typeof useTatchi;
+  useAuthMenuControlHook?: typeof useAuthMenuControl;
+  PasskeyAuthMenuComponent?: typeof PasskeyAuthMenu;
+  provisionTempoAndEvmThresholdSigners?: typeof provisionTempoAndEvmThresholdSigners;
+  readCachedThresholdKeyRef?: typeof readCachedThresholdKeyRef;
+};
+
+type PasskeyLoginMenuProps = {
+  onLoggedIn?: (nearAccountId?: string) => void;
+  __testOverrides?: PasskeyLoginMenuTestOverrides;
+};
+
+export function PasskeyLoginMenu(props: PasskeyLoginMenuProps) {
+  const useTatchiHook = props.__testOverrides?.useTatchiHook || useTatchi;
+  const useAuthMenuControlHook =
+    props.__testOverrides?.useAuthMenuControlHook || useAuthMenuControl;
+  const PasskeyAuthMenuComponent =
+    props.__testOverrides?.PasskeyAuthMenuComponent || PasskeyAuthMenu;
+  const provisionThresholdSigners =
+    props.__testOverrides?.provisionTempoAndEvmThresholdSigners ||
+    provisionTempoAndEvmThresholdSigners;
+  const readCachedKeyRef =
+    props.__testOverrides?.readCachedThresholdKeyRef || readCachedThresholdKeyRef;
+
   const {
     accountInputState: { targetAccountId, accountExists },
     loginAndCreateSession,
     registerPasskey,
     tatchi,
-  } = useTatchi();
+  } = useTatchiHook();
 
   // let tutorial control the menu (programmatically open/close menus)
-  const authMenuControl = useAuthMenuControl();
+  const authMenuControl = useAuthMenuControlHook();
 
   const provisionThresholdSignersForAccount = React.useCallback(
     async (nearAccountId: string) => {
       const toastId = 'registration-threshold-provision';
       toast.loading('Provisioning Tempo + EVM threshold signers…', { id: toastId });
       try {
-        await provisionTempoAndEvmThresholdSigners({
+        await provisionThresholdSigners({
           tatchi,
           nearAccountId,
           ttlMs: 30 * 60 * 1000,
@@ -57,8 +81,8 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
 
   const ensureThresholdSignersForAccount = React.useCallback(
     async (nearAccountId: string) => {
-      const evmKeyRef = readCachedThresholdKeyRef(nearAccountId, 'evm');
-      const tempoKeyRef = readCachedThresholdKeyRef(nearAccountId, 'tempo');
+      const evmKeyRef = readCachedKeyRef(nearAccountId, 'evm');
+      const tempoKeyRef = readCachedKeyRef(nearAccountId, 'tempo');
       if (evmKeyRef && tempoKeyRef) return;
       await provisionThresholdSignersForAccount(nearAccountId);
     },
@@ -316,7 +340,7 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
 
   return (
     <div className="passkey-login-container-root">
-      <PasskeyAuthMenu
+      <PasskeyAuthMenuComponent
         // Keep the key stable across accountExists changes to avoid
         // remounting the menu (which causes input focus + content flashes).
         key={`pam2-${authMenuControl.defaultModeOverride ?? 'auto'}-${authMenuControl.remountKey}`}

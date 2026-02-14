@@ -94,7 +94,29 @@ type LastNearThresholdSigned = {
   signedTxBytes: number;
 };
 
-export const DemoPage: React.FC = () => {
+type DemoPageTestOverrides = {
+  useTatchiHook?: typeof useTatchi;
+  useSetGreetingHook?: typeof useSetGreeting;
+  provisionTempoAndEvmThresholdSigners?: typeof provisionTempoAndEvmThresholdSigners;
+  readCachedThresholdKeyRef?: typeof readCachedThresholdKeyRef;
+  resolveThresholdKeyRef?: typeof resolveThresholdKeyRef;
+};
+
+type DemoPageProps = {
+  __testOverrides?: DemoPageTestOverrides;
+};
+
+export const DemoPage: React.FC<DemoPageProps> = (props) => {
+  const useTatchiHook = props.__testOverrides?.useTatchiHook || useTatchi;
+  const useSetGreetingHook = props.__testOverrides?.useSetGreetingHook || useSetGreeting;
+  const provisionThresholdSigners =
+    props.__testOverrides?.provisionTempoAndEvmThresholdSigners ||
+    provisionTempoAndEvmThresholdSigners;
+  const readCachedKeyRef =
+    props.__testOverrides?.readCachedThresholdKeyRef || readCachedThresholdKeyRef;
+  const resolveThresholdKeyRefForChain =
+    props.__testOverrides?.resolveThresholdKeyRef || resolveThresholdKeyRef;
+
   const [clockMs, setClockMs] = useState(() => Date.now());
 
   // Lightweight clock for TTL countdown display
@@ -106,9 +128,9 @@ export const DemoPage: React.FC = () => {
   const {
     loginState: { isLoggedIn, nearAccountId },
     tatchi,
-  } = useTatchi();
+  } = useTatchiHook();
 
-  const { onchainGreeting, isLoading, fetchGreeting, error } = useSetGreeting();
+  const { onchainGreeting, isLoading, fetchGreeting, error } = useSetGreetingHook();
 
   const [greetingInput, setGreetingInput] = useState('Hello from Tatchi!');
   const [txLoading, setTxLoading] = useState(false);
@@ -151,13 +173,13 @@ export const DemoPage: React.FC = () => {
     }
 
     setThresholdKeyRefs({
-      evm: readCachedThresholdKeyRef(nearAccountId, 'evm'),
-      tempo: readCachedThresholdKeyRef(nearAccountId, 'tempo'),
+      evm: readCachedKeyRef(nearAccountId, 'evm'),
+      tempo: readCachedKeyRef(nearAccountId, 'tempo'),
     });
     setLastNearThresholdSigned(null);
     setLastTempoSigned(null);
     setLastEvmSigned(null);
-  }, [nearAccountId]);
+  }, [nearAccountId, readCachedKeyRef]);
 
   const setThresholdKeyRefForChain = useCallback(
     (chain: ThresholdEcdsaChain, keyRef: ThresholdEcdsaKeyRef) => {
@@ -484,7 +506,7 @@ export const DemoPage: React.FC = () => {
     setThresholdProvisionLoading(true);
     toast.loading('Provisioning Tempo + EVM threshold signers…', { id: toastId });
     try {
-      const provisioned = await provisionTempoAndEvmThresholdSigners({
+      const provisioned = await provisionThresholdSigners({
         tatchi,
         nearAccountId,
         ttlMs: THRESHOLD_SIGNER_TTL_MS,
@@ -501,7 +523,7 @@ export const DemoPage: React.FC = () => {
     } finally {
       setThresholdProvisionLoading(false);
     }
-  }, [nearAccountId, tatchi]);
+  }, [nearAccountId, provisionThresholdSigners, tatchi]);
 
   const getKeyRefForChain = useCallback(
     async (chain: ThresholdEcdsaChain, forceReprovision = false): Promise<ThresholdEcdsaKeyRef> => {
@@ -510,7 +532,7 @@ export const DemoPage: React.FC = () => {
         const inMemory = thresholdKeyRefs[chain];
         if (inMemory) return inMemory;
       }
-      const keyRef = await resolveThresholdKeyRef({
+      const keyRef = await resolveThresholdKeyRefForChain({
         tatchi,
         nearAccountId,
         chain,
@@ -521,7 +543,13 @@ export const DemoPage: React.FC = () => {
       setThresholdKeyRefForChain(chain, keyRef);
       return keyRef;
     },
-    [nearAccountId, setThresholdKeyRefForChain, tatchi, thresholdKeyRefs],
+    [
+      nearAccountId,
+      resolveThresholdKeyRefForChain,
+      setThresholdKeyRefForChain,
+      tatchi,
+      thresholdKeyRefs,
+    ],
   );
 
   const handleSignTempoThresholdTx = useCallback(async () => {
