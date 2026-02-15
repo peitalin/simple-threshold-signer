@@ -25,6 +25,10 @@ fn encode_base64_url(input: &[u8]) -> String {
     Base64UrlUnpadded::encode_string(input)
 }
 
+pub fn base64_url_encode(input: &[u8]) -> String {
+    encode_base64_url(input)
+}
+
 pub fn parse_near_public_key_to_bytes(public_key: &str) -> CoreResult<[u8; 32]> {
     let decoded = bs58::decode(public_key.strip_prefix("ed25519:").unwrap_or(public_key))
         .into_vec()
@@ -133,8 +137,8 @@ pub fn derive_client_key_package_from_wrap_key_seed_b64u(
             wrap_key_seed_b64u,
             near_account_id,
         )?;
-    let signing_share =
-        frost_ed25519::keys::SigningShare::deserialize(&signing_share_bytes).map_err(|e| {
+    let signing_share = frost_ed25519::keys::SigningShare::deserialize(&signing_share_bytes)
+        .map_err(|e| {
             SignerCoreError::decode_error(format!(
                 "threshold-signer: invalid derived signing share: {e}"
             ))
@@ -145,13 +149,17 @@ pub fn derive_client_key_package_from_wrap_key_seed_b64u(
             wrap_key_seed_b64u,
             near_account_id,
         )?;
-    let verifying_share =
-        frost_ed25519::keys::VerifyingShare::deserialize(&verifying_share_bytes).map_err(|e| {
+    let verifying_share = frost_ed25519::keys::VerifyingShare::deserialize(&verifying_share_bytes)
+        .map_err(|e| {
             SignerCoreError::decode_error(format!("threshold-signer: invalid verifying share: {e}"))
         })?;
 
-    let verifying_key = frost_ed25519::VerifyingKey::deserialize(near_public_key_bytes)
-        .map_err(|e| SignerCoreError::decode_error(format!("threshold-signer: invalid group public key: {e}")))?;
+    let verifying_key =
+        frost_ed25519::VerifyingKey::deserialize(near_public_key_bytes).map_err(|e| {
+            SignerCoreError::decode_error(format!(
+                "threshold-signer: invalid group public key: {e}"
+            ))
+        })?;
 
     Ok(frost_ed25519::keys::KeyPackage::new(
         client_identifier,
@@ -534,9 +542,13 @@ mod tests {
     #[test]
     fn compute_nep413_digest_rejects_short_nonce() {
         let nonce_b64 = Base64::encode_string(&[7u8; 16]);
-        let err =
-            compute_nep413_signing_digest_from_nonce_base64("hello", "example.near", &nonce_b64, None)
-                .expect_err("short nonce should fail");
+        let err = compute_nep413_signing_digest_from_nonce_base64(
+            "hello",
+            "example.near",
+            &nonce_b64,
+            None,
+        )
+        .expect_err("short nonce should fail");
         assert!(err.message.contains("expected 32 bytes"));
     }
 }

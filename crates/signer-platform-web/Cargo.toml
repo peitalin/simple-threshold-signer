@@ -1,0 +1,22 @@
+[package]
+name = "signer-platform-web"
+version = "0.1.0"
+edition = "2021"
+description = "Web binding surface over signer-core primitives"
+license = "Apache-2.0"
+
+[lib]
+name = "signer_platform_web"
+path = "src/lib.rs"
+
+[dependencies]
+signer-core = { path = "../signer-core", default-features = false }
+
+[features]
+default = []
+secp256k1 = ["signer-core/secp256k1"]
+near-ed25519 = ["signer-core/near-ed25519"]
+near-threshold-ed25519 = ["signer-core/near-threshold-ed25519"]
+near-crypto = ["signer-core/near-crypto"]
+tx-finalization = ["signer-core/tx-finalization"]
+threshold-ecdsa = ["signer-core/threshold-ecdsa"]

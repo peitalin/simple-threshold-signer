@@ -42,6 +42,70 @@ pub const CHACHA_KEY_HEX: &str = "0303030303030303030303030303030303030303030303
 pub const CHACHA_NONCE_HEX: &str = "090909090909090909090909";
 pub const CHACHA_CIPHERTEXT_EXPECTED: &str =
     "8748d64cedbeb53ec3ccccc105ca1e3f539654c9436a18b6c1e378baa2726beb";
+#[cfg(feature = "tx-finalization")]
+#[allow(dead_code)]
+pub const TEMPO_INVALID_SENDER_SIGNATURE_HEX: &str =
+    "9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999";
+#[cfg(feature = "tx-finalization")]
+#[allow(dead_code)]
+pub const TEMPO_INVALID_AA_AUTHORIZATION_LIST_ENTRY: u8 = 1;
+#[cfg(feature = "tx-finalization")]
+#[allow(dead_code)]
+pub const TEMPO_INVALID_AA_AUTHORIZATION_LIST_ERROR: &str =
+    "aaAuthorizationList not supported in MVP (must be empty)";
+#[cfg(feature = "tx-finalization")]
+#[allow(dead_code)]
+pub const TEMPO_INVALID_KEY_AUTHORIZATION_ERROR: &str = "keyAuthorization not supported in MVP";
+#[cfg(feature = "tx-finalization")]
+#[allow(dead_code)]
+pub const TEMPO_VECTOR_CHAIN_ID: &str = "42431";
+#[cfg(feature = "tx-finalization")]
+#[allow(dead_code)]
+pub const TEMPO_VECTOR_MAX_PRIORITY_FEE_PER_GAS: &str = "1";
+#[cfg(feature = "tx-finalization")]
+#[allow(dead_code)]
+pub const TEMPO_VECTOR_MAX_FEE_PER_GAS: &str = "2";
+#[cfg(feature = "tx-finalization")]
+#[allow(dead_code)]
+pub const TEMPO_VECTOR_GAS_LIMIT: &str = "21000";
+#[cfg(feature = "tx-finalization")]
+#[allow(dead_code)]
+pub const TEMPO_VECTOR_CALL_TO: &str = "0x1111111111111111111111111111111111111111";
+#[cfg(feature = "tx-finalization")]
+#[allow(dead_code)]
+pub const TEMPO_VECTOR_CALL_VALUE: &str = "0";
+#[cfg(feature = "tx-finalization")]
+#[allow(dead_code)]
+pub const TEMPO_VECTOR_CALL_INPUT: &str = "0x";
+#[cfg(feature = "tx-finalization")]
+#[allow(dead_code)]
+pub const TEMPO_VECTOR_NONCE_KEY: &str = "0";
+#[cfg(feature = "tx-finalization")]
+#[allow(dead_code)]
+pub const TEMPO_VECTOR_NONCE: &str = "1";
+#[cfg(feature = "tx-finalization")]
+#[allow(dead_code)]
+pub const TEMPO_VECTOR_FEE_TOKEN: &str = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+#[cfg(feature = "tx-finalization")]
+#[allow(dead_code)]
+pub const EIP1559_INVALID_SIGNATURE65_TOO_SHORT_HEX: &str =
+    "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111";
+#[cfg(feature = "tx-finalization")]
+#[allow(dead_code)]
+pub const EIP1559_INVALID_SIGNATURE65_TOO_SHORT_ERROR: &str = "signature65 must be 65 bytes";
+#[cfg(feature = "near-threshold-ed25519")]
+#[allow(dead_code)]
+pub const NEAR_INVALID_NEP413_MESSAGE: &str = "hello";
+#[cfg(feature = "near-threshold-ed25519")]
+#[allow(dead_code)]
+pub const NEAR_INVALID_NEP413_RECIPIENT: &str = "example.near";
+#[cfg(feature = "near-threshold-ed25519")]
+#[allow(dead_code)]
+pub const NEAR_INVALID_NEP413_NONCE_BASE64_TOO_SHORT: &str = "BwcHBwcHBwcHBwcHBwcHBw==";
+#[cfg(feature = "near-threshold-ed25519")]
+#[allow(dead_code)]
+pub const NEAR_INVALID_NEP413_NONCE_LENGTH_ERROR: &str =
+    "Invalid nonce length: expected 32 bytes, got 16";
 
 pub fn from_hex(hex: &str) -> Vec<u8> {
     let trimmed = hex.trim();

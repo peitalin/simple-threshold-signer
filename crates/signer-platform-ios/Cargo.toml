@@ -1,0 +1,25 @@
+[package]
+name = "signer-platform-ios"
+version = "0.1.0"
+edition = "2021"
+description = "iOS binding surface over signer-core primitives"
+license = "Apache-2.0"
+
+[lib]
+name = "signer_platform_ios"
+path = "src/lib.rs"
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+signer-core = { path = "../signer-core", default-features = false }
+
+[dev-dependencies]
+signer-platform-web = { path = "../signer-platform-web", default-features = false, features = ["secp256k1", "near-ed25519", "near-crypto", "near-threshold-ed25519", "tx-finalization"] }
+
+[features]
+default = []
+secp256k1 = ["signer-core/secp256k1"]
+near-ed25519 = ["signer-core/near-ed25519"]
+near-crypto = ["signer-core/near-crypto"]
+near-threshold-ed25519 = ["signer-core/near-threshold-ed25519"]
+tx-finalization = ["signer-core/tx-finalization"]

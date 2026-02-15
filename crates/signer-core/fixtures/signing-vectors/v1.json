@@ -90,7 +90,22 @@
         "s_hex": "2222222222222222222222222222222222222222222222222222222222222222"
       },
       "expected_hash_hex": "ec562eae017388b8e451182e6919ee681b63a9d8f9fe1d34009e8e58ab4f9366",
-      "expected_raw_hex": "02f86f83aa36a7078459682f0084b2d05e0082520894222222222222222222222222222222222222222282303980c001a01111111111111111111111111111111111111111111111111111111111111111a02222222222222222222222222222222222222222222222222222222222222222"
+      "expected_raw_hex": "02f86f83aa36a7078459682f0084b2d05e0082520894222222222222222222222222222222222222222282303980c001a01111111111111111111111111111111111111111111111111111111111111111a02222222222222222222222222222222222222222222222222222222222222222",
+      "invalid": {
+        "signature65_too_short_hex": "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+        "expected_error": "signature65 must be 65 bytes"
+      }
+    },
+    "near": {
+      "invalid": {
+        "nep413_nonce_base64_too_short": {
+          "message": "hello",
+          "recipient": "example.near",
+          "nonce_base64": "BwcHBwcHBwcHBwcHBwcHBw==",
+          "state": null,
+          "expected_error": "Invalid nonce length: expected 32 bytes, got 16"
+        }
+      }
     },
     "tempo": {
       "placeholder": {
@@ -163,6 +178,57 @@
         },
         "expected_sender_hash_a_hex": "6a1c26faec9d34e62a1e4bbc107dfbe09a58627c78566eb0feef3f846a034072",
         "expected_sender_hash_b_hex": "1485446f06a9ef17e8da3282ef81eedd4d20a0cbd53fcfbf2ea707594793ba8a"
+      },
+      "invalid": {
+        "sender_signature_hex": "9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999",
+        "aa_authorization_list_non_empty": {
+          "tx": {
+            "chain_id": "42431",
+            "max_priority_fee_per_gas": "1",
+            "max_fee_per_gas": "2",
+            "gas_limit": "21000",
+            "calls": [
+              {
+                "to": "0x1111111111111111111111111111111111111111",
+                "value": "0",
+                "input": "0x"
+              }
+            ],
+            "access_list": [],
+            "nonce_key": "0",
+            "nonce": "1",
+            "valid_before": null,
+            "valid_after": null,
+            "fee_token": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "fee_payer_signature": { "kind": "none" },
+            "aa_authorization_list": [1]
+          },
+          "expected_error": "aaAuthorizationList not supported in MVP (must be empty)"
+        },
+        "key_authorization_present": {
+          "tx": {
+            "chain_id": "42431",
+            "max_priority_fee_per_gas": "1",
+            "max_fee_per_gas": "2",
+            "gas_limit": "21000",
+            "calls": [
+              {
+                "to": "0x1111111111111111111111111111111111111111",
+                "value": "0",
+                "input": "0x"
+              }
+            ],
+            "access_list": [],
+            "nonce_key": "0",
+            "nonce": "1",
+            "valid_before": null,
+            "valid_after": null,
+            "fee_token": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "fee_payer_signature": { "kind": "none" },
+            "key_authorization": []
+          },
+          "expected_error": "keyAuthorization not supported in MVP"
+        }
       }
     }
   }

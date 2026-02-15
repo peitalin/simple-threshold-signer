@@ -51,3 +51,47 @@ pub fn derive_ed25519_key_from_prf_output(
         format!("ed25519:{}", public_key_b58),
     ))
 }
+
+pub fn parse_near_private_key_secret_key_bytes(private_key: &str) -> CoreResult<[u8; 32]> {
+    let decoded = bs58::decode(private_key.strip_prefix("ed25519:").unwrap_or(private_key))
+        .into_vec()
+        .map_err(|e| SignerCoreError::decode_error(format!("Invalid private key base58: {}", e)))?;
+
+    if decoded.len() < ED25519_PRIVATE_KEY_SIZE {
+        return Err(SignerCoreError::invalid_length(
+            "Decoded private key too short",
+        ));
+    }
+
+    decoded[0..ED25519_PRIVATE_KEY_SIZE]
+        .try_into()
+        .map_err(|_| SignerCoreError::invalid_length("Invalid secret key length"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_near_private_key_secret_key_bytes_accepts_ed25519_prefix() {
+        let seed = [9u8; 32];
+        let signing_key = ed25519_dalek::SigningKey::from_bytes(&seed);
+        let public_key = signing_key.verifying_key().to_bytes();
+        let mut keypair = Vec::with_capacity(64);
+        keypair.extend_from_slice(&seed);
+        keypair.extend_from_slice(&public_key);
+        let private_key = format!("ed25519:{}", bs58::encode(keypair).into_string());
+
+        let parsed =
+            parse_near_private_key_secret_key_bytes(private_key.as_str()).expect("private key");
+        assert_eq!(parsed, seed);
+    }
+
+    #[test]
+    fn parse_near_private_key_secret_key_bytes_rejects_short_key() {
+        let short_private_key = format!("ed25519:{}", bs58::encode([1u8; 31]).into_string());
+        let err = parse_near_private_key_secret_key_bytes(short_private_key.as_str())
+            .expect_err("short key should fail");
+        assert!(err.message.contains("Decoded private key too short"));
+    }
+}

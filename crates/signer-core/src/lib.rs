@@ -10,6 +10,8 @@ pub mod near_crypto;
 pub mod near_ed25519;
 #[cfg(feature = "near-threshold-ed25519")]
 pub mod near_threshold_ed25519;
+#[cfg(feature = "near-threshold-ed25519")]
+pub mod near_threshold_frost;
 #[cfg(feature = "secp256k1")]
 pub mod secp256k1;
 #[cfg(feature = "tx-finalization")]
