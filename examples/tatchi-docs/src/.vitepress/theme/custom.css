@@ -1,4 +1,6 @@
 
+@import './pricing-dashboard.css';
+
 /* Parent-side guard: ensure wallet overlay iframe does not inherit UA dark canvas */
 iframe[data-w3a-router-id] {
   background: transparent !important;
