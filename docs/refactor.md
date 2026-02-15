@@ -1,6 +1,6 @@
 # Signing Structure Refactor Plan
 
-Last updated: 2026-02-11
+Last updated: 2026-02-15
 
 ## Goal
 
@@ -77,6 +77,67 @@ Completed so far:
 - `signing/threshold/**` is now canonical implementation for threshold crypto/ports/session/workflows/validation.
 - Core/runtime/test callsites were repointed from `signing/schemes/threshold/*` to `signing/threshold/*`.
 - `signing/api/WebAuthnManager.ts` now hosts the `WebAuthnManager` implementation.
+- Extracted smart-account deployment + threshold-ECDSA bootstrap persistence helpers from `WebAuthnManager` into:
+  - `signing/api/smartAccountDeployment.ts`
+  - `signing/api/thresholdEcdsaBootstrapPersistence.ts`
+- Extracted threshold-ed25519 lifecycle helpers from `WebAuthnManager` into:
+  - `signing/api/thresholdEd25519Lifecycle.ts`
+  - moved derive/enroll/rotate orchestration into the helper and kept `WebAuthnManager` methods as delegators.
+- Extracted NEAR signing API helpers from `WebAuthnManager` into:
+  - `signing/api/nearSigning.ts`
+  - moved `signTransactionsWithActions`, `signDelegateAction`, and `signNEP413Message` orchestration into the helper and kept facade methods as delegators.
+- Extracted Tempo signing API helper from `WebAuthnManager` into:
+  - `signing/api/tempoSigning.ts`
+  - moved `signTempo` orchestration into the helper and kept facade methods as delegators.
+- Extracted private-key export/recovery API helpers from `WebAuthnManager` into:
+  - `signing/api/privateKeyExportRecovery.ts`
+  - moved export/recovery orchestration (`exportNearKeypairWithUI*`, `exportPrivateKeysWithUI*`, `recoverKeypairFromPasskey`) into the helper and kept facade methods as delegators.
+- Extracted NEAR key-derivation workflow helpers from `WebAuthnManager` into:
+  - `signing/api/nearKeyDerivation.ts`
+  - moved `deriveNearKeypairAndEncryptFromSerialized` and `deriveNearKeypairFromCredentialViaWorker` orchestration into the helper and kept facade methods as delegators.
+- Extracted registration/account-lifecycle helpers from `WebAuthnManager` into:
+  - `signing/api/registrationAccountLifecycle.ts`
+  - moved registration persistence and current-user initialization orchestration into the helper and kept facade methods as delegators.
+- Extracted registration-confirmation/session helpers from `WebAuthnManager` into:
+  - `signing/api/registrationSession.ts`
+  - moved registration confirmation and WebAuthn authentication-credential collection helpers into the module and kept facade methods as delegators.
+- Extracted worker/resource warmup helpers from `WebAuthnManager` into:
+  - `signing/api/workerResourceWarmup.ts`
+  - moved worker prewarm + critical-resource warmup orchestration into the module and kept facade methods as delegators.
+- Extracted signing-session policy/state helpers from `WebAuthnManager` into:
+  - `signing/api/signingSessionState.ts`
+  - moved session id generation, policy resolution, active-session management, and warm-session status lookup into the module and kept facade methods as delegators.
+- Extracted threshold-session/activation orchestration helpers from `WebAuthnManager` into:
+  - `signing/api/thresholdSessionActivation.ts`
+  - moved threshold-ed25519 session-connect and threshold-ecdsa bootstrap orchestration into the module and kept facade methods as delegators.
+- Extracted IndexedDB profile/account/signer-outbox facade helpers from `WebAuthnManager` into:
+  - `signing/api/indexedDbFacade.ts`
+  - moved profile/account/signer-outbox and core user/authenticator read/write wrapper methods into the module and kept facade methods as delegators.
+- Extracted signer-worker bridge helpers from `WebAuthnManager` into:
+  - `signing/api/signerWorkerBridge.ts`
+  - moved `signNearWithIntent`, `extractCosePublicKey`, and `signTransactionWithKeyPair` bridge logic into the module and kept facade methods as delegators.
+- Extracted user-preferences/theme/rpId facade helpers from `WebAuthnManager` into:
+  - `signing/api/facadeSettings.ts`
+  - moved facade surface helpers for rpId/theme/user-preferences lifecycle (`getRpId`, `setTheme`, `getTheme`, `getUserPreferences`, `destroy`) into the module and kept class methods as delegators.
+- Extracted facade-only convenience wrapper helpers from `WebAuthnManager` into:
+  - `signing/api/facadeConvenience.ts`
+  - moved facade convenience wrappers (`signTempoWithThresholdEcdsa`, warmup/session-introspection surface delegation) into the module and kept class methods as delegators.
+- Extracted constructor/runtime bootstrap helpers from `WebAuthnManager` into:
+  - `signing/api/runtimeBootstrap.ts`
+  - moved worker base-origin initialization/watchers and app-origin preference-init gating into the module.
+- Consolidated facade dependency wiring through shared factory helpers:
+  - `signing/api/facadeDependencyFactory.ts`
+  - centralized creation of facade settings/convenience dependency objects to reduce inline dependency wiring in the API class.
+- Consolidated orchestration dependency wiring through a dedicated bundle factory:
+  - `signing/api/orchestrationDependencyFactory.ts`
+  - moved non-facade dependency composition out of `WebAuthnManager`, removed low-value `get*Deps` methods, and rewired API delegators to use the shared bundle.
+- Pruned compatibility aliases from `signing/webauthn/prompt/touchIdPrompt.ts` and moved callsites to canonical credential helpers/types:
+  - `TatchiPasskey/login.ts` now imports `authenticatorsToAllowCredentials` from `signing/webauthn/credentials`.
+  - `signing/api/{WebAuthnManager,registrationSession}.ts` now use `WebAuthnAllowCredential` from `signing/webauthn/credentials`.
+  - removed prompt-surface export for `TouchIdPrompt.attachPageAbortHandlers` and kept it as an internal helper.
+- Pruned redundant threshold compatibility typing surface:
+  - removed unused `ThresholdAllowCredential` alias from `signing/threshold/webauthn.ts`.
+  - retained threshold WebAuthn port aliases still used by threshold/orchestration workflows.
 - Root SDK export now points to the facade path.
 - `signing/secureConfirm/*` namespace now hosts the active SecureConfirm implementation:
   - moved code under `signing/secureConfirm/{confirmTxFlow,handlers,index.ts,secureConfirmBridge.ts}`
@@ -98,8 +159,12 @@ Completed so far:
 Validation run:
 
 - `pnpm -C sdk build` passes.
+- `pnpm -s check:signing-architecture` passes.
 - `pnpm exec tsc --noEmit -p sdk/tsconfig.build.json` passes.
-- `pnpm exec tsc -p client/tsconfig.json --noEmit` still fails due pre-existing workspace TS/JSX/type dependency issues unrelated to this refactor slice.
+- `pnpm exec tsc --noEmit -p client/tsconfig.json` passes.
+- `pnpm -C tests exec playwright test ./unit --reporter=line` passes (`160 passed`, `5 skipped`).
+- `pnpm -C tests exec playwright test tests/e2e/executeAction.twice.walletIframe.test.ts tests/e2e/thresholdEd25519.delegateSigning.test.ts tests/e2e/thresholdEd25519.nep413Signing.test.ts tests/e2e/thresholdEcdsa.tempoSigning.test.ts --reporter=line` passes.
+- `pnpm -C tests exec playwright test lit-components/confirm-ui.handle.test.ts lit-components/confirm-ui.host-and-inline.test.ts` passes.
 
 ## Dependency Rules (Target State)
 
@@ -148,8 +213,10 @@ Hard rules:
 - [x] Capture baseline commands and results:
   - `pnpm -C sdk build`
   - repo typecheck/test commands currently used in CI
-- [ ] Record current import-cycle baseline for `signing/*` and `WebAuthnManager/*`.
-- [ ] Add a temporary refactor tracking checklist in PR descriptions.
+- [x] Record current import-cycle baseline for `signing/*` and `WebAuthnManager/*`.
+  - `pnpm -s check:signing-architecture` now runs `sdk/scripts/check-signing-api-cycles.mjs` (current result: no api/lower-layer cycles).
+- [x] Add a temporary refactor tracking checklist in PR descriptions.
+  - Added at `.github/pull_request_template.md`.
 
 Deliverable:
 
@@ -214,9 +281,28 @@ Deliverable:
 ### Phase 6: Introduce Thin API Facade
 
 - [x] Create `client/src/core/signing/api/WebAuthnManager.ts` as the API entrypoint (implementation currently moved here).
-- [ ] Move orchestration internals out of old monolith into domain modules.
+- [x] Move orchestration internals out of old monolith into domain modules.
+  - Completed extractions include smart-account deployment, threshold-ECDSA bootstrap persistence, threshold-ed25519 lifecycle, NEAR signing API, Tempo signing API, private-key export/recovery, NEAR key-derivation, registration/account-lifecycle, registration-confirmation/session, worker/resource warmup, signing-session policy/state, threshold-session/activation, IndexedDB facade, signer-worker bridge, user-preferences/theme/rpId facade, facade-only convenience wrappers, constructor/runtime bootstrap, facade dependency-factory helpers, and orchestration dependency-bundle helpers.
+- [x] Extract smart-account deployment and threshold-ECDSA bootstrap persistence helpers into dedicated `signing/api/*` modules.
+- [x] Extract threshold-ed25519 lifecycle helpers into dedicated `signing/api/*` module.
+- [x] Extract NEAR signing API helpers into dedicated `signing/api/*` module.
+- [x] Extract Tempo signing API helper into dedicated `signing/api/*` module.
+- [x] Extract private-key export/recovery helpers into dedicated `signing/api/*` module.
+- [x] Extract NEAR key-derivation workflow helpers into dedicated `signing/api/*` module.
+- [x] Extract registration/account-lifecycle helpers into dedicated `signing/api/*` module.
+- [x] Extract registration-confirmation/session helpers into dedicated `signing/api/*` module.
+- [x] Extract worker/resource warmup helpers into dedicated `signing/api/*` module.
+- [x] Extract signing-session policy/state helpers into dedicated `signing/api/*` module.
+- [x] Extract threshold-session/activation orchestration helpers into dedicated `signing/api/*` module.
+- [x] Extract IndexedDB profile/account/signer-outbox facade helpers into dedicated `signing/api/*` module.
+- [x] Extract signer-worker bridge helpers into dedicated `signing/api/*` module.
+- [x] Extract user-preferences/theme/rpId facade helpers into dedicated `signing/api/*` module.
+- [x] Extract facade-only convenience wrappers into dedicated `signing/api/*` module.
+- [x] Extract constructor/runtime bootstrap helpers into dedicated `signing/api/*` module.
+- [x] Consolidate facade dependency wiring through dedicated `signing/api/*` factory helpers.
+- [x] Collapse low-value in-class `get*Deps` methods via a dedicated orchestration dependency-bundle factory (`signing/api/orchestrationDependencyFactory.ts`).
 - [x] Remove compatibility facade `client/src/core/WebAuthnManager/index.ts` after internal/test migration.
-- [ ] Keep class and method signatures stable for consumers.
+- [x] Keep class and method signatures stable for consumers.
 
 Deliverable:
 
@@ -229,10 +315,11 @@ Deliverable:
   - `client/src/core/signing/multichain`
   - `client/src/core/signing/schemes/threshold`
   - `client/src/core/WebAuthnManager/{SignerWorkerManager,SecureConfirmWorkerManager,WebAuthnFallbacks}`
-- [ ] Finish `signing/secureConfirm/ui/lit-components -> signing/secureConfirm/ui` migration and remove remaining wrappers.
-- [ ] Add lint/check rules to prevent forbidden imports:
+- [x] Finish `signing/secureConfirm/ui/lit-components -> signing/secureConfirm/ui` migration and remove remaining wrappers.
+- [x] Add lint/check rules to prevent forbidden imports:
   - no `signing/**` -> `WebAuthnManager/**`
   - no cyclic imports between `api` and lower layers
+  - `pnpm -s check:signing-architecture` now enforces forbidden import boundaries, wrapper removal checks, and explicit `signing/api` cycle detection.
 
 Deliverable:
 
@@ -251,14 +338,35 @@ Deliverable:
 ## Verification Checklist Per PR
 
 - [x] `pnpm -C sdk build` passes.
-- [ ] Typecheck passes for client and sdk workspaces.
-- [ ] Existing signing flows smoke-tested:
-  - transaction signing
-  - delegate signing
-  - NEP-413 signing
-  - Tempo signing
-- [ ] No new imports from `client/src/core/WebAuthnManager/**` inside `client/src/core/signing/**`.
-- [ ] No duplicated utility implementations remain for moved primitives.
+- [x] Typecheck passes for client and sdk workspaces.
+  - `pnpm exec tsc --noEmit -p sdk/tsconfig.build.json` passes.
+  - `pnpm exec tsc --noEmit -p client/tsconfig.json` passes.
+- [x] Existing signing flows smoke-tested:
+  - transaction signing (`tests/e2e/executeAction.twice.walletIframe.test.ts`)
+  - delegate signing (`tests/e2e/thresholdEd25519.delegateSigning.test.ts`)
+  - NEP-413 signing (`tests/e2e/thresholdEd25519.nep413Signing.test.ts`)
+  - Tempo signing (`tests/e2e/thresholdEcdsa.tempoSigning.test.ts`)
+  - Targeted SecureConfirm UI smoke tests pass (`lit-components/confirm-ui.handle.test.ts`, `lit-components/confirm-ui.host-and-inline.test.ts`).
+- [x] Unit suite passes for refactor-aware wiring and contracts.
+  - `pnpm -C tests exec playwright test ./unit --reporter=line` passes (`160 passed`, `5 skipped`).
+- [x] No new imports from `client/src/core/WebAuthnManager/**` inside `client/src/core/signing/**`.
+- [x] No duplicated utility implementations remain for moved primitives.
+
+## API Compatibility Evidence (2026-02-15)
+
+- Generated declaration surface exists at:
+  - `sdk/dist/types/client/src/core/signing/api/WebAuthnManager.d.ts`
+- Post-refactor signature parity check (`WebAuthnManager.ts` vs generated `.d.ts`) reports:
+  - `src_count=55`
+  - `dts_count=55`
+  - `missing_in_dts`: none
+  - `missing_in_src`: none
+
+## Remaining Steps (2026-02-15 Review)
+
+1. No blocking refactor steps remain for the current scope.
+   - `WebAuthnManager` is now a public facade with delegators and no private orchestration helper methods.
+   - Current size is ~0.97k lines after extracting orchestration dependency composition into `signing/api/orchestrationDependencyFactory.ts`.
 
 ## Acceptance Criteria
 
@@ -279,9 +387,9 @@ Sweep method:
 
 ### Findings Summary
 
-- `WebAuthnManager` subtree has 89 files total (72 TypeScript source files).
-- 6 TypeScript files have zero inbound imports in the TS graph.
-- Several utility functions are duplicated across `WebAuthnManager` and `signing/schemes/threshold`.
+- `client/src/core/WebAuthnManager` subtree has been removed.
+- `client/src/core/signing/secureConfirm/ui/*` wrappers were migrated; top-level `ui` modules are now canonical.
+- PRF extraction helper callsites now route through canonical WebAuthn credential extension helpers.
 - Some files are intentionally zero-import (build entrypoints/type-level guards) and must not be auto-deleted.
 
 ### Prune Matrix
@@ -301,18 +409,17 @@ Do not delete (intentional zero-import files):
 
 - `client/src/core/signing/secureConfirm/ui/lit-components/ExportPrivateKey/iframe-export-bootstrap-script.ts`
   - Built directly by SDK build pipeline (`sdk/scripts/build-dev.sh`, `sdk/scripts/build-prod.sh`, `sdk/rolldown.config.ts`).
-- `client/src/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/forbiddenMainThreadSecrets.typecheck.ts`
+- `client/src/core/signing/secureConfirm/confirmTxFlow/forbiddenMainThreadSecrets.typecheck.ts`
   - Type-level regression guard compiled by TS; keep (or move to dedicated typecheck test folder, but preserve coverage).
 
-Reduce public surface (remove redundant exports, keep internals private):
+Reduce public surface (remaining):
 
-- `client/src/core/WebAuthnManager/credentialsHelpers.ts`
-  - `normalizeAuthenticationCredential` is currently unused; delete or make internal if no external contract requires it.
-- `client/src/core/WebAuthnManager/touchIdPrompt.ts`
-  - `generateDeviceSpecificUserId` is only used internally in the same file; remove `export`.
-  - `RegisterCredentialsArgs` and `AuthenticateCredentialsForChallengeB64uArgs` are not imported externally; keep internal unless part of documented API.
+- `client/src/core/signing/api/WebAuthnManager.ts`
+  - Orchestration dependency composition has been extracted to `signing/api/orchestrationDependencyFactory.ts`; remaining methods are primarily public facade delegators and can be pruned only where wrappers are non-public.
+- `client/src/core/signing/webauthn/prompt/touchIdPrompt.ts`
+  - Keep exports minimal and remove compatibility-only wrappers once callsites are migrated.
 
-### Duplicate Functions to Consolidate
+### Duplicate Functions to Consolidate (Current State)
 
 Canonical module target for all WebAuthn primitives:
 
@@ -320,38 +427,19 @@ Canonical module target for all WebAuthn primitives:
 - `client/src/core/signing/webauthn/device/*`
 - `client/src/core/signing/webauthn/cose/*`
 
-Consolidate these duplicates:
+Resolved duplicates:
 
 1. Credential collection helper
-- Duplicate implementations:
-  - `client/src/core/WebAuthnManager/collectAuthenticationCredentialForChallengeB64u.ts`
-  - `client/src/core/signing/schemes/threshold/ports/webauthn.ts` (`collectAuthenticationCredentialForChallengeB64u`)
-- Action:
-  - Keep one canonical implementation in `signing/webauthn/credentials`.
-  - Remove the duplicate implementation file and replace with import/re-export during migration.
+- Canonical implementation: `client/src/core/signing/webauthn/credentials/collectAuthenticationCredentialForChallengeB64u.ts`.
 
 2. Allow-credentials mapping
-- Duplicate implementations:
-  - `client/src/core/WebAuthnManager/touchIdPrompt.ts` (`authenticatorsToAllowCredentials`)
-  - `client/src/core/signing/schemes/threshold/ports/webauthn.ts` (local `authenticatorsToAllowCredentials`)
-- Action:
-  - Create one shared mapper util (e.g. `signing/webauthn/credentials/allowCredentials.ts`).
+- Canonical implementation: `client/src/core/signing/webauthn/credentials/collectAuthenticationCredentialForChallengeB64u.ts` (`authenticatorsToAllowCredentials`).
 
-3. PRF extraction helpers
-- Duplicate logic appears in:
-  - `client/src/core/WebAuthnManager/index.ts` (`extractPrfFirstB64u`, `extractPrfSecondB64u`)
-  - `client/src/core/signing/schemes/threshold/ports/webauthn.ts` (`getPrfFirstB64uFromCredential`)
-  - NEAR handler-local helpers in `client/src/core/signing/multichain/near/handlers/*` (`getPrfResultsFromCredential`)
-  - worker keyOps parsing PRF fields directly (`recoverKeypairFromPasskey.ts`, `deriveNearKeypairAndEncryptFromSerialized.ts`)
-- Action:
-  - Centralize PRF extraction in one utility module and replace all inline parsers.
+3. Credential extension redaction
+- Canonical implementation: `client/src/core/signing/webauthn/credentials/credentialExtensions.ts` (`redactCredentialExtensionOutputs`).
 
-4. Credential extension redaction
-- Duplicate implementations:
-  - `client/src/core/WebAuthnManager/credentialsHelpers.ts` (`removePrfOutputGuard`)
-  - `client/src/core/signing/schemes/threshold/ports/webauthn.ts` (`redactCredentialExtensionOutputs`)
-- Action:
-  - Keep one canonical redaction function; keep old name only as temporary alias with deprecation comment.
+4. PRF extraction helpers
+- Canonical extraction now routes through `client/src/core/signing/webauthn/credentials/credentialExtensions.ts` from API callsites.
 
 ### Transitional Files to Remove After Migration
 
@@ -364,16 +452,15 @@ Consolidate these duplicates:
 - `client/src/core/WebAuthnManager/SecureConfirmWorkerManager/confirmTxFlow/flows/index.ts`
   - removed with the SecureConfirmWorkerManager shim tree.
 - Backward-compatibility re-export comments/files:
-  - `client/src/core/signing/secureConfirm/ui/confirm-ui.ts` (currently forwards to `signing/secureConfirm/ui/lit-components/confirm-ui.ts`)
-  - `client/src/core/signing/secureConfirm/ui/export-private-key/iframe-host.ts` (currently forwards to legacy LitComponents module)
-  - remove these after LitComponents migration is complete.
+  - removed (`confirm-ui.ts` and `export-private-key/iframe-host.ts` are now canonical implementations).
+  - `client/src/core/signing/secureConfirm/ui/iframe-host.ts` removed.
 
 ### Cleanup Phases (No Skeleton Left Behind)
 
 Phase A (immediate pruning):
 
 - [x] Delete empty/dead files listed in "Delete (safe now)".
-- [ ] Convert intentional zero-import files to explicit allowlist in cleanup checklist.
+- [x] Convert intentional zero-import files to explicit allowlist in cleanup checklist.
 
 Phase B (dedupe):
 
@@ -382,14 +469,14 @@ Phase B (dedupe):
 
 Phase C (deprecations + barrel cleanup):
 
-- [ ] Remove redundant exports/functions after one release cycle (or immediately if not public).
-- [ ] Delete transitional barrel files after direct-import migration.
+- [x] Remove redundant exports/functions after one release cycle (or immediately if not public).
+- [x] Delete transitional barrel files after direct-import migration.
 
 Phase D (guardrails in CI):
 
-- [ ] Add lint/import rule: forbid `client/src/core/signing/**` importing `client/src/core/WebAuthnManager/**`.
-- [ ] Add a dead-file check (no zero-byte `.ts` files).
-- [ ] Add an allowlist-based check for intentional entrypoint files that may have zero inbound imports.
+- [x] Add lint/import rule: forbid `client/src/core/signing/**` importing `client/src/core/WebAuthnManager/**`.
+- [x] Add a dead-file check (no zero-byte `.ts` files).
+- [x] Add an allowlist-based check for intentional entrypoint files that may have zero inbound imports.
 
 Definition of done for prune:
 

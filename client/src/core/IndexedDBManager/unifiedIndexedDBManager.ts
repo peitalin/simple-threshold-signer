@@ -3,7 +3,22 @@ import {
   buildThresholdEd25519Participants2pV1,
   parseThresholdEd25519ParticipantsV1,
 } from '../../../../shared/src/threshold/participants';
-import type { PasskeyClientDBManager } from './passkeyClientDB';
+import { toTrimmedString } from '../../../../shared/src/utils/validation';
+import type {
+  AccountSignerRecord,
+  AccountSignerStatus,
+  ChainAccountRecord,
+  EnqueueSignerOperationInput,
+  LastProfileState,
+  PasskeyClientDBManager,
+  ProfileRecord,
+  SignerMutationOptions,
+  SignerOperationStatus,
+  SignerOpOutboxRecord,
+  UpsertAccountSignerInput,
+  UpsertChainAccountInput,
+  UpsertProfileInput,
+} from './passkeyClientDB';
 import {
   type ClientShareDerivation,
   type LocalNearSkV3Material,
@@ -16,7 +31,7 @@ import {
 import { passkeyClientDB, passkeyNearKeysDB } from './singletons';
 
 function inferNearChainCandidates(nearAccountId: string): string[] {
-  const normalized = String(nearAccountId || '').trim().toLowerCase();
+  const normalized = toTrimmedString(nearAccountId || '').toLowerCase();
   return normalized.endsWith('.testnet')
     ? ['near:testnet', 'near:mainnet']
     : ['near:mainnet', 'near:testnet'];
@@ -93,9 +108,10 @@ export class UnifiedIndexedDBManager {
     rec: PasskeyChainKeyMaterialV2 | null,
   ): LocalNearSkV3Material | null {
     if (!rec) return null;
-    const wrapKeySalt = String(rec.wrapKeySalt || '').trim();
-    const encryptedSk = String((rec.payload as any)?.encryptedSk || '').trim();
-    const chacha20NonceB64u = String((rec.payload as any)?.chacha20NonceB64u || '').trim();
+    const wrapKeySalt = toTrimmedString(rec.wrapKeySalt || '');
+    const encryptedSk = toTrimmedString((rec.payload as any)?.encryptedSk || '');
+    const chacha20NonceB64u = toTrimmedString((rec.payload as any)?.chacha20NonceB64u || '');
+    const usage = toTrimmedString((rec.payload as any)?.usage || '');
     if (!wrapKeySalt || !encryptedSk || !chacha20NonceB64u) return null;
     return {
       nearAccountId,
@@ -104,6 +120,7 @@ export class UnifiedIndexedDBManager {
       publicKey: rec.publicKey,
       wrapKeySalt,
       encryptedSk,
+      ...((usage === 'runtime-signing' || usage === 'export-only') ? { usage } : {}),
       chacha20NonceB64u,
       timestamp: rec.timestamp,
     };
@@ -116,8 +133,8 @@ export class UnifiedIndexedDBManager {
   ): ThresholdEd25519_2p_V1Material | null {
     if (!rec) return null;
     const payload = (rec.payload || {}) as Record<string, unknown>;
-    const relayerKeyId = String(payload.relayerKeyId || '').trim();
-    const clientShareDerivation = String(payload.clientShareDerivation || '').trim() as
+    const relayerKeyId = toTrimmedString(payload.relayerKeyId || '');
+    const clientShareDerivation = toTrimmedString(payload.clientShareDerivation || '') as
       | ClientShareDerivation
       | '';
     if (!relayerKeyId || !clientShareDerivation) return null;
@@ -143,7 +160,7 @@ export class UnifiedIndexedDBManager {
   private async resolveNearProfileByAccount(
     nearAccountId: AccountId,
   ): Promise<{ profileId: string; chainId: string } | null> {
-    const accountAddress = String(nearAccountId || '').trim().toLowerCase();
+    const accountAddress = toTrimmedString(nearAccountId || '').toLowerCase();
     if (!accountAddress) return null;
 
     for (const chainId of inferNearChainCandidates(accountAddress)) {
@@ -204,14 +221,14 @@ export class UnifiedIndexedDBManager {
     profileId?: string;
     chainId?: string;
   }): Promise<void> {
-    const accountAddress = String(input.nearAccountId || '').trim().toLowerCase();
+    const accountAddress = toTrimmedString(input.nearAccountId || '').toLowerCase();
     if (!accountAddress) {
       throw new Error('IndexedDBManager: Missing nearAccountId for V2 key write');
     }
     if (!Number.isSafeInteger(input.deviceNumber) || input.deviceNumber < 1) {
       throw new Error('IndexedDBManager: Invalid deviceNumber for V2 key write');
     }
-    const keyKind = String(input.keyKind || '').trim();
+    const keyKind = toTrimmedString(input.keyKind || '');
     if (!keyKind) {
       throw new Error('IndexedDBManager: Missing keyKind for V2 key write');
     }
@@ -222,13 +239,13 @@ export class UnifiedIndexedDBManager {
     if (algorithm !== 'ed25519') {
       throw new Error(`IndexedDBManager: Unsupported NEAR key algorithm for V2 key write: ${algorithm}`);
     }
-    const publicKey = String(input.publicKey || '').trim();
+    const publicKey = toTrimmedString(input.publicKey || '');
     if (!publicKey) {
       throw new Error('IndexedDBManager: Missing publicKey for V2 key write');
     }
 
-    const explicitProfileId = String(input.profileId || '').trim();
-    const explicitChainId = String(input.chainId || '').trim().toLowerCase();
+    const explicitProfileId = toTrimmedString(input.profileId || '');
+    const explicitChainId = toTrimmedString(input.chainId || '').toLowerCase();
     const hasExplicitProfileId = explicitProfileId.length > 0;
     const hasExplicitChainId = explicitChainId.length > 0;
     if (hasExplicitProfileId !== hasExplicitChainId) {
@@ -240,10 +257,10 @@ export class UnifiedIndexedDBManager {
       : await this.resolveNearProfileByAccount(accountAddress as AccountId);
     const profileId = hasExplicitProfileId
       ? explicitProfileId
-      : String(resolved?.profileId || '').trim();
+      : toTrimmedString(resolved?.profileId || '');
     const chainId = hasExplicitChainId
       ? explicitChainId
-      : String(resolved?.chainId || '').trim().toLowerCase();
+      : toTrimmedString(resolved?.chainId || '').toLowerCase();
     if (!profileId || !chainId) {
       throw new Error(
         `IndexedDBManager: Missing V2 profile/account mapping for NEAR account "${accountAddress}". `
@@ -287,17 +304,22 @@ export class UnifiedIndexedDBManager {
     encryptedSk: string;
     chacha20NonceB64u: string;
     wrapKeySalt: string;
+    usage?: LocalNearSkV3Material['usage'];
     signerId?: string;
     timestamp?: number;
     schemaVersion?: number;
     profileId?: string;
     chainId?: string;
   }): Promise<void> {
-    const wrapKeySalt = String(input.wrapKeySalt || '').trim();
-    const encryptedSk = String(input.encryptedSk || '').trim();
-    const chacha20NonceB64u = String(input.chacha20NonceB64u || '').trim();
+    const wrapKeySalt = toTrimmedString(input.wrapKeySalt || '');
+    const encryptedSk = toTrimmedString(input.encryptedSk || '');
+    const chacha20NonceB64u = toTrimmedString(input.chacha20NonceB64u || '');
+    const usage = toTrimmedString(input.usage || '');
     if (!wrapKeySalt || !encryptedSk || !chacha20NonceB64u) {
       throw new Error('IndexedDBManager: Missing encrypted local NEAR key fields for V2 key write');
+    }
+    if (usage && usage !== 'runtime-signing' && usage !== 'export-only') {
+      throw new Error(`IndexedDBManager: Invalid local NEAR key usage value: ${usage}`);
     }
 
     await this.storeNearKeyMaterialV2({
@@ -310,6 +332,7 @@ export class UnifiedIndexedDBManager {
       payload: {
         encryptedSk,
         chacha20NonceB64u,
+        ...(usage ? { usage } : {}),
       },
       timestamp: input.timestamp,
       schemaVersion: input.schemaVersion,
@@ -332,8 +355,8 @@ export class UnifiedIndexedDBManager {
     profileId?: string;
     chainId?: string;
   }): Promise<void> {
-    const relayerKeyId = String(input.relayerKeyId || '').trim();
-    const clientShareDerivation = String(input.clientShareDerivation || '').trim() as ClientShareDerivation;
+    const relayerKeyId = toTrimmedString(input.relayerKeyId || '');
+    const clientShareDerivation = toTrimmedString(input.clientShareDerivation || '') as ClientShareDerivation;
     if (!relayerKeyId || !clientShareDerivation) {
       throw new Error('IndexedDBManager: Missing threshold NEAR key fields for V2 key write');
     }
@@ -363,40 +386,43 @@ export class UnifiedIndexedDBManager {
     });
   }
 
-  async getLastProfileState(): Promise<import('./passkeyClientDB').LastProfileState | null> {
+  async getLastProfileState(): Promise<LastProfileState | null> {
     return this.clientDB.getLastProfileState();
   }
 
   async setLastProfileState(
-    state: import('./passkeyClientDB').LastProfileState | null
+    state: LastProfileState | null,
   ): Promise<void> {
     return this.clientDB.setLastProfileState(state);
   }
 
   // === V2 profile/account/signer convenience ===
-  async getProfile(profileId: string): Promise<import('./passkeyClientDB').ProfileRecord | null> {
+  async getProfile(profileId: string): Promise<ProfileRecord | null> {
     return this.clientDB.getProfile(profileId);
   }
 
-  async upsertProfile(input: import('./passkeyClientDB').UpsertProfileInput): Promise<import('./passkeyClientDB').ProfileRecord> {
+  async upsertProfile(input: UpsertProfileInput): Promise<ProfileRecord> {
     return this.clientDB.upsertProfile(input);
   }
 
-  async upsertChainAccount(input: import('./passkeyClientDB').UpsertChainAccountInput): Promise<import('./passkeyClientDB').ChainAccountRecord> {
+  async upsertChainAccount(input: UpsertChainAccountInput): Promise<ChainAccountRecord> {
     return this.clientDB.upsertChainAccount(input);
   }
 
-  async getProfileByAccount(chainId: string, accountAddress: string): Promise<import('./passkeyClientDB').ProfileRecord | null> {
+  async getProfileByAccount(
+    chainId: string,
+    accountAddress: string,
+  ): Promise<ProfileRecord | null> {
     return this.clientDB.getProfileByAccount(chainId, accountAddress);
   }
 
-  async upsertAccountSigner(input: import('./passkeyClientDB').UpsertAccountSignerInput): Promise<import('./passkeyClientDB').AccountSignerRecord> {
+  async upsertAccountSigner(input: UpsertAccountSignerInput): Promise<AccountSignerRecord> {
     return this.clientDB.upsertAccountSigner(input);
   }
 
   async listAccountSigners(
-    args: { chainId: string; accountAddress: string; status?: import('./passkeyClientDB').AccountSignerStatus }
-  ): Promise<import('./passkeyClientDB').AccountSignerRecord[]> {
+    args: { chainId: string; accountAddress: string; status?: AccountSignerStatus },
+  ): Promise<AccountSignerRecord[]> {
     return this.clientDB.listAccountSigners(args);
   }
 
@@ -404,7 +430,7 @@ export class UnifiedIndexedDBManager {
     chainId: string;
     accountAddress: string;
     signerId: string;
-  }): Promise<import('./passkeyClientDB').AccountSignerRecord | null> {
+  }): Promise<AccountSignerRecord | null> {
     return this.clientDB.getAccountSigner(args);
   }
 
@@ -412,40 +438,40 @@ export class UnifiedIndexedDBManager {
     chainId: string;
     accountAddress: string;
     signerId: string;
-    status: import('./passkeyClientDB').AccountSignerStatus;
+    status: AccountSignerStatus;
     removedAt?: number;
-    mutation?: import('./passkeyClientDB').SignerMutationOptions;
-  }): Promise<import('./passkeyClientDB').AccountSignerRecord | null> {
+    mutation?: SignerMutationOptions;
+  }): Promise<AccountSignerRecord | null> {
     return this.clientDB.setAccountSignerStatus(args);
   }
 
   async enqueueSignerOperation(
-    input: import('./passkeyClientDB').EnqueueSignerOperationInput
-  ): Promise<import('./passkeyClientDB').SignerOpOutboxRecord> {
+    input: EnqueueSignerOperationInput,
+  ): Promise<SignerOpOutboxRecord> {
     return this.clientDB.enqueueSignerOperation(input);
   }
 
   async listSignerOperations(args?: {
-    statuses?: import('./passkeyClientDB').SignerOperationStatus[];
+    statuses?: SignerOperationStatus[];
     dueBefore?: number;
     limit?: number;
-  }): Promise<import('./passkeyClientDB').SignerOpOutboxRecord[]> {
+  }): Promise<SignerOpOutboxRecord[]> {
     return this.clientDB.listSignerOperations(args);
   }
 
   async setSignerOperationStatus(args: {
     opId: string;
-    status: import('./passkeyClientDB').SignerOperationStatus;
+    status: SignerOperationStatus;
     attemptDelta?: number;
     nextAttemptAt?: number;
     lastError?: string | null;
     txHash?: string | null;
-  }): Promise<import('./passkeyClientDB').SignerOpOutboxRecord | null> {
+  }): Promise<SignerOpOutboxRecord | null> {
     return this.clientDB.setSignerOperationStatus(args);
   }
 
   // === V2 key material convenience ===
-  async storeKeyMaterialV2(input: import('./passkeyNearKeysDB').PasskeyChainKeyMaterialV2): Promise<void> {
+  async storeKeyMaterialV2(input: PasskeyChainKeyMaterialV2): Promise<void> {
     return this.nearKeysDB.storeKeyMaterialV2(input);
   }
 
@@ -453,8 +479,8 @@ export class UnifiedIndexedDBManager {
     profileId: string,
     deviceNumber: number,
     chainId: string,
-    keyKind: import('./passkeyNearKeysDB').PasskeyChainKeyKind
-  ): Promise<import('./passkeyNearKeysDB').PasskeyChainKeyMaterialV2 | null> {
+    keyKind: PasskeyChainKeyKind,
+  ): Promise<PasskeyChainKeyMaterialV2 | null> {
     return this.nearKeysDB.getKeyMaterialV2(profileId, deviceNumber, chainId, keyKind);
   }
 
@@ -497,7 +523,7 @@ export class UnifiedIndexedDBManager {
         accountAddress: op.accountAddress,
         signerId: op.signerId,
       });
-      const profileIdRaw = String(signer?.profileId || payload.profileId || '').trim();
+      const profileIdRaw = toTrimmedString(signer?.profileId || payload.profileId || '');
       const signerSlotRaw = Number(payload.signerSlot ?? payload.deviceNumber ?? signer?.signerSlot);
       const signerSlot = Number.isSafeInteger(signerSlotRaw) && signerSlotRaw >= 1
         ? signerSlotRaw

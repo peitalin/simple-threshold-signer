@@ -3,7 +3,6 @@ import type { ProfileAuthenticatorRecord } from '../../IndexedDBManager';
 import type { WebAuthnAuthenticationCredential } from '../../types/webauthn';
 import {
   collectAuthenticationCredentialForChallengeB64u as collectAuthenticationCredentialForChallengeB64uShared,
-  type WebAuthnAllowCredential,
   type WebAuthnAuthenticatorRecord,
   type WebAuthnIndexedDbClientPort,
   type WebAuthnIndexedDbPort,
@@ -16,7 +15,6 @@ import {
 
 export { getPrfFirstB64uFromCredential, redactCredentialExtensionOutputs };
 
-export type ThresholdAllowCredential = WebAuthnAllowCredential;
 export type ThresholdAuthenticatorRecord = ProfileAuthenticatorRecord & WebAuthnAuthenticatorRecord;
 export type ThresholdIndexedDbClientPort = WebAuthnIndexedDbClientPort<ThresholdAuthenticatorRecord>;
 export type ThresholdIndexedDbPort = WebAuthnIndexedDbPort<ThresholdAuthenticatorRecord>;
