@@ -2,17 +2,17 @@ import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest } from '../setup';
 
 const IMPORT_PATHS = {
-  helpers: '/sdk/esm/core/signing/webauthn/credentials/helpers.js',
+  credentialExtensions: '/sdk/esm/core/signing/webauthn/credentials/credentialExtensions.js',
 } as const;
 
-test.describe('credentialsHelpers – redaction', () => {
+test.describe('credentialExtensions – redaction', () => {
   test.beforeEach(async ({ page }) => {
     await setupBasicPasskeyTest(page);
   });
 
-  test('removePrfOutputGuard redacts entire clientExtensionResults', async ({ page }) => {
+  test('redactCredentialExtensionOutputs redacts entire clientExtensionResults', async ({ page }) => {
     const result = await page.evaluate(async ({ paths }) => {
-      const { removePrfOutputGuard } = await import(paths.helpers);
+      const { redactCredentialExtensionOutputs } = await import(paths.credentialExtensions);
 
       const credential: any = {
         id: 'cred-id',
@@ -36,7 +36,7 @@ test.describe('credentialsHelpers – redaction', () => {
         },
       };
 
-      const stripped = removePrfOutputGuard(credential);
+      const stripped = redactCredentialExtensionOutputs(credential);
       const json = JSON.stringify(stripped);
 
       const hasClientExtensionResults = !!stripped && Object.prototype.hasOwnProperty.call(stripped, 'clientExtensionResults');

@@ -980,4 +980,70 @@ test.describe('DB multichain migration + saga', () => {
     expect(result.selectedDerivedTargetChainId).toBe('eip155:8453');
     expect(result.missingDerived).toBeNull();
   });
+
+  test('phase8 migration backfills smart-account defaults for legacy rows', async ({ page }) => {
+    const result = await page.evaluate(async ({ paths }) => {
+      const { PasskeyClientDBManager } = await import(paths.clientDB);
+      const dbm = new PasskeyClientDBManager();
+      const now = Date.now();
+      dbm.setDbName(`PasskeyClientDB-phase8-smart-account-${now}-${Math.random().toString(16).slice(2)}`);
+
+      await dbm.upsertProfile({
+        profileId: 'profile-phase8',
+        defaultDeviceNumber: 1,
+        passkeyCredential: { id: 'cred-phase8', rawId: 'raw-phase8' },
+      });
+
+      const raw = await (dbm as any).getDB();
+      await raw.put('chainAccounts', {
+        profileId: 'profile-phase8',
+        chainId: 'eip155:1',
+        accountAddress: '0xabc123',
+        accountModel: 'erc4337',
+        isPrimary: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const completedV4Checkpoints = {
+        legacyUsersToCoreV2: { status: 'completed', completedAt: now - 700 },
+        legacyAuthenticatorsToProfileAuthenticators: { status: 'completed', completedAt: now - 690 },
+        legacyDerivedAddressesToV2: { status: 'completed', completedAt: now - 680 },
+        legacyRecoveryEmailsToV2: { status: 'completed', completedAt: now - 670 },
+        lastProfileStateSync: { status: 'completed', completedAt: now - 660 },
+        parityChecksLogged: { status: 'completed', completedAt: now - 650 },
+        invariantsValidatedAndQuarantined: { status: 'completed', completedAt: now - 640 },
+      };
+      await dbm.setAppState('migration.dbMultichainSchema.v1', {
+        status: 'completed',
+        schemaVersion: 4,
+        startedAt: now - 1_000,
+        finishedAt: now - 600,
+        counts: {},
+        checkpoints: completedV4Checkpoints,
+      });
+      await dbm.setAppState('migration.dbMultichainSchema.v1.checkpoints', completedV4Checkpoints);
+
+      await (dbm as any).runMigrationsIfNeeded(raw);
+
+      const chainAccount = await raw.get('chainAccounts', ['profile-phase8', 'eip155:1', '0xabc123']);
+      const migrationState = await dbm.getAppState('migration.dbMultichainSchema.v1');
+
+      return {
+        counterfactualAddress: chainAccount?.counterfactualAddress || null,
+        deployed: typeof chainAccount?.deployed === 'boolean' ? chainAccount.deployed : null,
+        schemaVersion: migrationState?.schemaVersion || null,
+        checkpointDone: !!migrationState?.checkpoints?.smartAccountChainDefaultsBackfilled,
+        smartAccountRowsScanned: Number(migrationState?.counts?.smartAccountRowsScanned || 0),
+        smartAccountRowsBackfilled: Number(migrationState?.counts?.smartAccountRowsBackfilled || 0),
+      };
+    }, { paths: IMPORT_PATHS });
+
+    expect(result.counterfactualAddress).toBe('0xabc123');
+    expect(result.deployed).toBe(false);
+    expect(result.schemaVersion).toBe(5);
+    expect(result.checkpointDone).toBe(true);
+    expect(result.smartAccountRowsScanned).toBeGreaterThanOrEqual(1);
+    expect(result.smartAccountRowsBackfilled).toBeGreaterThanOrEqual(1);
+  });
 });

@@ -238,4 +238,123 @@ test.describe('canonical vector replay via worker-facing wasm bindings', () => {
       CANONICAL_VECTORS.tx_finalization.tempo.none.expected_sender_hash_b_hex,
     );
   });
+
+  test('tempo wasm finalization rejects unsupported MVP authorization fields', async ({ page }) => {
+    const result = await page.evaluate(async ({ paths }) => {
+      const { encodeTempoSignedTxWasm } = await import(paths.tempoSignerWasm);
+      const { requestMultichainWorkerOperation } = await import(paths.signerGateway);
+
+      const workerCtx = {
+        requestWorkerOperation: async ({ kind, request }: { kind: string; request: unknown }) =>
+          await requestMultichainWorkerOperation({
+            kind: kind as any,
+            request: request as any,
+          }),
+      };
+
+      const baseTx = {
+        chainId: 42431n,
+        maxPriorityFeePerGas: 1n,
+        maxFeePerGas: 2n,
+        gasLimit: 21_000n,
+        calls: [{ to: '0x' + '11'.repeat(20), value: 0n, input: '0x' }],
+        accessList: [],
+        nonceKey: 0n,
+        nonce: 1n,
+        validBefore: null,
+        validAfter: null,
+        feeToken: '0x' + 'aa'.repeat(20),
+        feePayerSignature: { kind: 'none' as const },
+      };
+
+      const senderSignature = new Uint8Array(65);
+      senderSignature.fill(0x99);
+
+      const captureError = async (tx: any) => {
+        try {
+          await encodeTempoSignedTxWasm({
+            tx,
+            senderSignature,
+            workerCtx: workerCtx as any,
+          });
+          return null;
+        } catch (error: any) {
+          return String(error?.message || error);
+        }
+      };
+
+      const aaAuthorizationListError = await captureError({
+        ...baseTx,
+        aaAuthorizationList: new Uint8Array([0x01]),
+      });
+      const keyAuthorizationError = await captureError({
+        ...baseTx,
+        keyAuthorization: [],
+      });
+
+      return { aaAuthorizationListError, keyAuthorizationError };
+    }, { paths: IMPORT_PATHS });
+
+    expect(String(result.aaAuthorizationListError || '')).toContain(
+      'aaAuthorizationList not supported in MVP (must be empty)',
+    );
+    expect(String(result.keyAuthorizationError || '')).toContain(
+      'keyAuthorization not supported in MVP',
+    );
+  });
+
+  test('eip1559 wasm finalization rejects invalid signature65 length', async ({ page }) => {
+    const result = await page.evaluate(async ({ paths, vectors }) => {
+      const { encodeEip1559SignedTxFromSignature65Wasm } = await import(paths.ethSignerWasm);
+      const { requestMultichainWorkerOperation } = await import(paths.signerGateway);
+
+      const workerCtx = {
+        requestWorkerOperation: async ({ kind, request }: { kind: string; request: unknown }) =>
+          await requestMultichainWorkerOperation({
+            kind: kind as any,
+            request: request as any,
+          }),
+      };
+
+      const fromHex = (hex: string): Uint8Array => {
+        const clean = String(hex).trim().replace(/^0x/i, '');
+        if (clean.length % 2 !== 0) throw new Error(`invalid hex length: ${clean.length}`);
+        const out = new Uint8Array(clean.length / 2);
+        for (let i = 0; i < clean.length; i += 2) out[i / 2] = Number.parseInt(clean.slice(i, i + 2), 16);
+        return out;
+      };
+
+      const tx = vectors.tx_finalization.eip1559.tx;
+      const invalid = vectors.tx_finalization.eip1559.invalid;
+      const eipTx = {
+        chainId: BigInt(tx.chain_id),
+        nonce: BigInt(tx.nonce),
+        maxPriorityFeePerGas: BigInt(tx.max_priority_fee_per_gas),
+        maxFeePerGas: BigInt(tx.max_fee_per_gas),
+        gasLimit: BigInt(tx.gas_limit),
+        to: tx.to ?? null,
+        value: BigInt(tx.value),
+        data: tx.data ?? '0x',
+        accessList: (tx.access_list || []).map((item: any) => ({
+          address: item.address,
+          storageKeys: item.storage_keys ?? item.storageKeys ?? [],
+        })),
+      };
+
+      try {
+        await encodeEip1559SignedTxFromSignature65Wasm({
+          tx: eipTx,
+          signature65: fromHex(invalid.signature65_too_short_hex),
+          workerCtx: workerCtx as any,
+        });
+        return null;
+      } catch (error: any) {
+        return String(error?.message || error);
+      }
+    }, { paths: IMPORT_PATHS, vectors: CANONICAL_VECTORS });
+
+    expect(String(result || '')).toContain(
+      CANONICAL_VECTORS.tx_finalization.eip1559.invalid.expected_error,
+    );
+  });
 });

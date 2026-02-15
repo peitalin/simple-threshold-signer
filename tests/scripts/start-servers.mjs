@@ -53,7 +53,7 @@ async function readCache(file) {
 
 async function waitForRelayHealth(port, timeoutMs = 120_000) {
   const started = Date.now();
-  const url = `http://localhost:${port}/healthz`;
+  const url = `http://127.0.0.1:${port}/healthz`;
   let attempt = 0;
   while (Date.now() - started < timeoutMs) {
     attempt++;
@@ -90,7 +90,7 @@ async function main() {
         return frontendOverride;
       }
     }
-    return NO_CADDY ? 'http://localhost:5174' : 'https://example.localhost';
+    return NO_CADDY ? 'http://127.0.0.1:5174' : 'https://example.localhost';
   })();
   const relayEnv = {
     ...process.env,
@@ -128,12 +128,12 @@ async function main() {
         const port = Number(rawPort);
         if (Number.isFinite(port) && port > 0) {
           console.log(`[start-servers] Starting Vite on port ${port} (W3A_TEST_FRONTEND_URL=${frontendOverride})`);
-          return spawn('pnpm', ['-C', frontendDir, 'exec', 'vite', '--host', 'localhost', '--port', String(port), '--strictPort'], { stdio: 'inherit', cwd: ROOT });
+          return spawn('pnpm', ['-C', frontendDir, 'exec', 'vite', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], { stdio: 'inherit', cwd: ROOT });
         }
       } catch { }
     }
     if (NO_CADDY) {
-      return spawn('pnpm', ['-C', frontendDir, 'exec', 'vite', '--host', 'localhost', '--port', '5174', '--strictPort'], {
+      return spawn('pnpm', ['-C', frontendDir, 'exec', 'vite', '--host', '127.0.0.1', '--port', '5174', '--strictPort'], {
         stdio: 'inherit',
         cwd: ROOT,
       });

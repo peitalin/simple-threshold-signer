@@ -135,7 +135,10 @@ export async function runThresholdEcdsaTempoFlow(
       nearRpcUrl: 'https://test.rpc.fastnear.com',
       contractId: 'web3-authn-v4.testnet',
       relayerAccount: 'web3-authn-v4.testnet',
-      relayer: { url: input.relayerUrl },
+      relayer: {
+        url: input.relayerUrl,
+        smartAccountDeploymentMode: 'observe',
+      },
       iframeWallet: {
         walletOrigin: '',
         walletServicePath: '/wallet-service',

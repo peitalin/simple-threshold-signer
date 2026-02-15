@@ -37,4 +37,34 @@ test.describe('signer worker contract version guards', () => {
     expect(result.ok).toBe(false);
     expect((result as any).message).toContain('unsupported contract version');
   });
+
+  test('propagates typed signer error codes from multichain wasm worker failures', async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const { getMultichainSignerWorkerTransport } = await import(
+        '/sdk/esm/core/signing/workers/signerWorkerManager/backends/multichainWorkerBackend.js'
+      );
+
+      try {
+        const transport = getMultichainSignerWorkerTransport('tempoSigner');
+        await transport.requestOperation({
+          type: 'computeTempoSenderHash',
+          payload: { tx: {} },
+        } as any);
+        return { ok: true as const };
+      } catch (error: any) {
+        return {
+          ok: false as const,
+          name: error?.name || '',
+          code: error?.code || '',
+          coreCode: error?.coreCode || '',
+          message: error?.message || String(error),
+        };
+      }
+    });
+
+    expect(result.ok).toBe(false);
+    expect((result as any).name).toBe('SignerWorkerOperationError');
+    expect((result as any).code).toBe('SIGNER_INVALID_INPUT');
+    expect((result as any).coreCode).toBe('InvalidInput');
+  });
 });

@@ -13,7 +13,7 @@ test.describe('confirm-ui mountConfirmUI handle', () => {
   test('host modal: handle.update and handle.close work', async ({ page }) => {
     const result = await page.evaluate(async ({ paths }) => {
       const mod = await import(paths.confirmUi);
-      const { mountConfirmUI } = mod as typeof import('@/core/signing/secureConfirm/ui/lit-components/confirm-ui');
+      const { mountConfirmUI } = mod as typeof import('@/core/signing/secureConfirm/ui/confirm-ui');
 
       const ctx: any = {
         userPreferencesManager: {
@@ -73,7 +73,7 @@ test.describe('confirm-ui mountConfirmUI handle', () => {
   test('host drawer: mount + update theme and loading', async ({ page }) => {
     const result = await page.evaluate(async ({ paths }) => {
       const mod = await import(paths.confirmUi);
-      const { mountConfirmUI } = mod as typeof import('@/core/signing/secureConfirm/ui/lit-components/confirm-ui');
+      const { mountConfirmUI } = mod as typeof import('@/core/signing/secureConfirm/ui/confirm-ui');
 
       const ctx: any = {
         userPreferencesManager: {
@@ -120,7 +120,7 @@ test.describe('confirm-ui mountConfirmUI handle', () => {
   test('inline drawer: handle.update reflects loading, theme, error message', async ({ page }) => {
     const result = await page.evaluate(async ({ paths }) => {
       const mod = await import(paths.confirmUi);
-      const { mountConfirmUI } = mod as typeof import('@/core/signing/secureConfirm/ui/lit-components/confirm-ui');
+      const { mountConfirmUI } = mod as typeof import('@/core/signing/secureConfirm/ui/confirm-ui');
 
       const ctx: any = {
         userPreferencesManager: {

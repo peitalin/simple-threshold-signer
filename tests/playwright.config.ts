@@ -36,7 +36,7 @@ function resolveDefaultFrontendUrlNoCaddy(): string {
       const timeoutMs = 250;
 
       async function classify(port) {
-        const url = \`http://localhost:\${port}/__sdk-root\`;
+        const url = \`http://127.0.0.1:\${port}/__sdk-root\`;
         const controller = new AbortController();
         const t = setTimeout(() => controller.abort(), timeoutMs);
         try {
@@ -80,13 +80,13 @@ function resolveDefaultFrontendUrlNoCaddy(): string {
       .trim();
     const chosenPort = Number(chosenPortRaw);
     if (Number.isFinite(chosenPort) && chosenPort > 0) {
-      const chosen = `http://localhost:${chosenPort}`;
+      const chosen = `http://127.0.0.1:${chosenPort}`;
       process.env.W3A_TEST_FRONTEND_URL = chosen;
       return chosen;
     }
   } catch {}
 
-  const fallback = 'http://localhost:5174';
+  const fallback = 'http://127.0.0.1:5174';
   process.env.W3A_TEST_FRONTEND_URL = fallback;
   return fallback;
 }
@@ -110,7 +110,7 @@ if (process.env.VITE_COEP_MODE == null) {
 const USE_RELAY_SERVER = process.env.USE_RELAY_SERVER === '1' || process.env.USE_RELAY_SERVER === 'true';
 const NO_CADDY = process.env.NO_CADDY === '1' || process.env.VITE_NO_CADDY === '1' || process.env.CI === '1';
 const OVERRIDE_FRONTEND_URL = NO_CADDY ? resolveDefaultFrontendUrlNoCaddy() : String(process.env.W3A_TEST_FRONTEND_URL || '').trim();
-const BASE_URL = OVERRIDE_FRONTEND_URL || (NO_CADDY ? 'http://localhost:5174' : 'https://example.localhost');
+const BASE_URL = OVERRIDE_FRONTEND_URL || (NO_CADDY ? 'http://127.0.0.1:5174' : 'https://example.localhost');
 const DEV_SERVER_URL = (() => {
   if (OVERRIDE_FRONTEND_URL) {
     try {
@@ -123,7 +123,7 @@ const DEV_SERVER_URL = (() => {
       return OVERRIDE_FRONTEND_URL;
     }
   }
-  return 'http://localhost:5174';
+  return 'http://127.0.0.1:5174';
 })();
 const DEV_SERVER_PORT = (() => {
   try {
@@ -205,7 +205,7 @@ export default defineConfig({
     command: USE_RELAY_SERVER
       ? 'node ./scripts/start-servers.mjs'
       : (NO_CADDY
-        ? `pnpm -C "${EXAMPLES_FRONTEND_DIR}" exec vite --host localhost --port ${DEV_SERVER_PORT} --strictPort`
+        ? `pnpm -C "${EXAMPLES_FRONTEND_DIR}" exec vite --host 127.0.0.1 --port ${DEV_SERVER_PORT} --strictPort`
         : `pnpm -C "${EXAMPLES_FRONTEND_DIR}" dev`),
     url: DEV_SERVER_URL,
     reuseExistingServer: true,

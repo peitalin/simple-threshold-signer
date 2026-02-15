@@ -118,8 +118,16 @@ export async function installCreateAccountAndRegisterUserMock(page: Page, input:
     const corsHeaders = corsHeadersForRoute(route);
     const payload = JSON.parse(req.postData() || '{}');
     const localNearPublicKey = String(payload?.new_public_key || '');
+    const thresholdClientVerifyingShareB64u = String(
+      payload?.threshold_ed25519?.client_verifying_share_b64u || '',
+    ).trim();
+    const thresholdMode = !!thresholdClientVerifyingShareB64u;
+    const thresholdPublicKey = `ed25519:${bs58.encode(Buffer.alloc(32, 17))}`;
+    const relayerKeyId = 'ed25519:mock-relayer-key-id';
+    const relayerVerifyingShareB64u = base64UrlEncode(new Uint8Array(32).fill(23));
+    const registeredPublicKey = localNearPublicKey || (thresholdMode ? thresholdPublicKey : '');
     const accountId = String(payload?.new_account_id || '');
-    if (localNearPublicKey) input.onNewPublicKey(localNearPublicKey);
+    if (registeredPublicKey) input.onNewPublicKey(registeredPublicKey);
     if (accountId) {
       input.onNewAccountId?.(accountId);
       const accountsOnChain = input.accountsOnChain ?? DEFAULT_ACCOUNTS_ON_CHAIN;
@@ -129,7 +137,22 @@ export async function installCreateAccountAndRegisterUserMock(page: Page, input:
     await route.fulfill({
       status: 200,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      body: JSON.stringify({ success: true, transactionHash: `mock_atomic_tx_${Date.now()}` }),
+      body: JSON.stringify({
+        success: true,
+        transactionHash: `mock_atomic_tx_${Date.now()}`,
+        ...(thresholdMode
+          ? {
+            thresholdEd25519: {
+              publicKey: thresholdPublicKey,
+              relayerKeyId,
+              relayerVerifyingShareB64u,
+              clientParticipantId: 1,
+              relayerParticipantId: 2,
+              participantIds: [1, 2],
+            },
+          }
+          : {}),
+      }),
     });
   });
 }

@@ -17,27 +17,31 @@ test.describe('modularity lazy signer loading', () => {
     await page.goto('/');
   });
 
-  test('WebAuthnManager signing wiring stays dynamic-import based', async () => {
-    const sourcePath = path.resolve(
-      process.cwd(),
-      '../client/src/core/signing/api/WebAuthnManager.ts',
+  test('signing wiring stays dynamic-import based', async () => {
+    const signerWorkerBridgeSource = fs.readFileSync(
+      path.resolve(process.cwd(), '../client/src/core/signing/api/signerWorkerBridge.ts'),
+      'utf8',
     );
-    const source = fs.readFileSync(sourcePath, 'utf8');
+    const tempoSigningSource = fs.readFileSync(
+      path.resolve(process.cwd(), '../client/src/core/signing/api/tempoSigning.ts'),
+      'utf8',
+    );
 
-    expect(source).toContain("import('../engines/ed25519')");
-    expect(source).toContain(
+    expect(signerWorkerBridgeSource).toContain("import('../orchestration/signWithIntent')");
+    expect(signerWorkerBridgeSource).toContain("import('../engines/ed25519')");
+    expect(tempoSigningSource).toContain(
       "import('../chainAdaptors/tempo/handlers/signTempoWithSecureConfirm')",
     );
-    expect(source).toContain("import('../engines/secp256k1')");
-    expect(source).toContain("import('../engines/webauthnP256')");
+    expect(tempoSigningSource).toContain("import('../engines/secp256k1')");
+    expect(tempoSigningSource).toContain("import('../engines/webauthnP256')");
 
-    expect(source).not.toContain(
+    expect(signerWorkerBridgeSource).not.toContain(
       "await import('../chainAdaptors/near/walletOrigin')",
     );
-    expect(source).not.toContain("from '../chainAdaptors/tempo/handlers/signTempoWithSecureConfirm'");
-    expect(source).not.toContain("from '../engines/ed25519'");
-    expect(source).not.toContain("from '../engines/secp256k1'");
-    expect(source).not.toContain("from '../engines/webauthnP256'");
+    expect(tempoSigningSource).not.toContain("from '../chainAdaptors/tempo/handlers/signTempoWithSecureConfirm'");
+    expect(signerWorkerBridgeSource).not.toContain("from '../engines/ed25519'");
+    expect(tempoSigningSource).not.toContain("from '../engines/secp256k1'");
+    expect(tempoSigningSource).not.toContain("from '../engines/webauthnP256'");
   });
 
   test('near adapter path does not instantiate multichain wasm workers', async ({

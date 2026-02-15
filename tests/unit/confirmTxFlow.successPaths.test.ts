@@ -6,7 +6,7 @@ const IMPORT_PATHS = {
   handle: '/sdk/esm/core/signing/secureConfirm/confirmTxFlow/handleSecureConfirmRequest.js',
   types: '/sdk/esm/core/signing/secureConfirm/confirmTxFlow/types.js',
   localOnly: '/sdk/esm/core/signing/secureConfirm/confirmTxFlow/flows/localOnly.js',
-  litTags: '/sdk/esm/core/signing/secureConfirm/ui/lit-components/tags.js',
+  litTags: '/sdk/esm/core/signing/secureConfirm/ui/tags.js',
 } as const;
 
 test.describe('confirmTxFlow – success paths', () => {

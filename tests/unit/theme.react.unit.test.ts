@@ -80,63 +80,78 @@ test.describe('React Theme integration', () => {
     const mountId = 'w3a-theme-harness-provider';
     const scopeSelector = `#${mountId} .w3a-theme-provider`;
 
-    await page.evaluate(async ({ paths, mountId }) => {
-      const mount = document.createElement('div');
-      mount.id = mountId;
-      document.body.appendChild(mount);
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        await page.waitForLoadState('domcontentloaded');
+        await page.evaluate(async ({ paths, mountId }) => {
+          const existingMount = document.getElementById(mountId);
+          if (existingMount) {
+            existingMount.remove();
+          }
+          const mount = document.createElement('div');
+          mount.id = mountId;
+          document.body.appendChild(mount);
 
-      const React = await import('react');
-      const ReactDOMClient = await import('react-dom/client');
-      const ReactDOM = await import('react-dom');
+          const React = await import('react');
+          const ReactDOMClient = await import('react-dom/client');
+          const ReactDOM = await import('react-dom');
 
-      const providerMod: any = await import(paths.provider);
-      const themeMod: any = await import(paths.theme);
-      const ctxMod: any = await import(paths.context);
+          const providerMod: any = await import(paths.provider);
+          const themeMod: any = await import(paths.theme);
+          const ctxMod: any = await import(paths.context);
 
-      const Provider = providerMod.TatchiPasskeyProvider || providerMod.default;
-      const useTheme = themeMod.useTheme;
-      const useTatchi = ctxMod.useTatchi;
+          const Provider = providerMod.TatchiPasskeyProvider || providerMod.default;
+          const useTheme = themeMod.useTheme;
+          const useTatchi = ctxMod.useTatchi;
 
-      const Harness: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
-        const { theme: reactTheme } = useTheme();
-        const { tatchi } = useTatchi();
-        return React.createElement(
-          'div',
-          null,
-          React.createElement('button', { id: `${mountId}-set-dark`, onClick: () => tatchi.setTheme('dark') }, 'set-dark'),
-          React.createElement('div', { id: `${mountId}-react-theme` }, reactTheme),
-          React.createElement('div', { id: `${mountId}-host-theme` }, theme),
-          React.createElement('div', { id: `${mountId}-sdk-theme` }, tatchi.theme),
-        );
-      };
+          const Harness: React.FC<{ theme: 'light' | 'dark' }> = ({ theme }) => {
+            const { theme: reactTheme } = useTheme();
+            const { tatchi } = useTatchi();
+            return React.createElement(
+              'div',
+              null,
+              React.createElement('button', { id: `${mountId}-set-dark`, onClick: () => tatchi.setTheme('dark') }, 'set-dark'),
+              React.createElement('div', { id: `${mountId}-react-theme` }, reactTheme),
+              React.createElement('div', { id: `${mountId}-host-theme` }, theme),
+              React.createElement('div', { id: `${mountId}-sdk-theme` }, tatchi.theme),
+            );
+          };
 
-      const config = {
-        nearNetwork: 'testnet',
-        nearRpcUrl: 'https://test.rpc.fastnear.com',
-        contractId: 'w3a-v1.testnet',
-        relayer: { url: 'https://relay-server.localhost' },
-        iframeWallet: { walletOrigin: '' },
-      };
+          const config = {
+            nearNetwork: 'testnet',
+            nearRpcUrl: 'https://test.rpc.fastnear.com',
+            contractId: 'w3a-v1.testnet',
+            relayer: { url: 'https://relay-server.localhost' },
+            iframeWallet: { walletOrigin: '' },
+          };
 
-      const ControlledApp: React.FC = () => {
-        const [theme, setTheme] = React.useState<'light' | 'dark'>('light');
-        return React.createElement(
-          Provider,
-          { config, theme: { theme, setTheme } },
-          React.createElement(Harness, { theme }),
-        );
-      };
+          const ControlledApp: React.FC = () => {
+            const [theme, setTheme] = React.useState<'light' | 'dark'>('light');
+            return React.createElement(
+              Provider,
+              { config, theme: { theme, setTheme } },
+              React.createElement(Harness, { theme }),
+            );
+          };
 
-      const root = ReactDOMClient.createRoot(mount);
-      ReactDOM.flushSync(() => {
-        root.render(React.createElement(ControlledApp, null));
-      });
-    }, { paths: IMPORT_PATHS, mountId });
+          const root = ReactDOMClient.createRoot(mount);
+          ReactDOM.flushSync(() => {
+            root.render(React.createElement(ControlledApp, null));
+          });
+        }, { paths: IMPORT_PATHS, mountId });
+        break;
+      } catch (error: unknown) {
+        const message = String((error as { message?: unknown })?.message || error || '');
+        if (!message.includes('Execution context was destroyed') || attempt === 2) {
+          throw error;
+        }
+      }
+    }
 
-    const scope = page.locator(scopeSelector);
-    const reactTheme = page.locator(`#${mountId}-react-theme`);
-    const hostTheme = page.locator(`#${mountId}-host-theme`);
-    const sdkTheme = page.locator(`#${mountId}-sdk-theme`);
+    const scope = page.locator(scopeSelector).first();
+    const reactTheme = page.locator(`#${mountId}-react-theme`).first();
+    const hostTheme = page.locator(`#${mountId}-host-theme`).first();
+    const sdkTheme = page.locator(`#${mountId}-sdk-theme`).first();
 
     await expect(scope).toHaveAttribute('data-w3a-theme', 'light');
     await expect(reactTheme).toHaveText('light');

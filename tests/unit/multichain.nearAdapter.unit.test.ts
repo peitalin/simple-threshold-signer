@@ -21,13 +21,20 @@ test.describe('NearAdapter', () => {
         const intent = await adapter.buildIntent({
           chain: 'near',
           kind: 'transactionsWithActions',
-          nearAccountId: 'alice.near',
-          transactions: [
-            {
-              receiverId: '  bob.near  ',
-              actions: [{ action_type: ActionType.Transfer, deposit: '1' }],
+          payload: {
+            rpcCall: {
+              nearAccountId: 'alice.near',
+              nearRpcUrl: 'https://rpc.testnet.near.org',
+              contractId: 'web3authn.testnet',
             },
-          ],
+            transactions: [
+              {
+                receiverId: '  bob.near  ',
+                actions: [{ action_type: ActionType.Transfer, deposit: '1' }],
+              },
+            ],
+            signerMode: 'threshold-signer',
+          },
         });
 
         return {
@@ -40,7 +47,7 @@ test.describe('NearAdapter', () => {
     );
 
     expect(result.chain).toBe('near');
-    expect(result.signRequests).toBe(0);
+    expect(result.signRequests).toBe(1);
     expect(result.uiModel.kind).toBe('transactionsWithActions');
     expect(result.uiModel.nearAccountId).toBe('alice.near');
     expect(result.uiModel.transactionCount).toBe(1);
@@ -63,8 +70,15 @@ test.describe('NearAdapter', () => {
           await adapter.buildIntent({
             chain: 'near',
             kind: 'transactionsWithActions',
-            nearAccountId: 'alice.near',
-            transactions: [{ receiverId: 'bob.near', actions: [] }],
+            payload: {
+              rpcCall: {
+                nearAccountId: 'alice.near',
+                nearRpcUrl: 'https://rpc.testnet.near.org',
+                contractId: 'web3authn.testnet',
+              },
+              transactions: [{ receiverId: 'bob.near', actions: [] }],
+              signerMode: 'threshold-signer',
+            },
           });
           return { ok: true };
         } catch (error: any) {

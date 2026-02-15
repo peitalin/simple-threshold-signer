@@ -51,10 +51,10 @@ test.describe('Threshold Ed25519 rotation helper', () => {
   test('rotateThresholdEd25519Key performs keygen and updates local threshold metadata', async ({ page }) => {
     // What this test validates (end-to-end in browser, with mocked network):
     //
-    // 1) Registration (signerMode=threshold-signer) is Option B:
-    //    - the client provides `new_public_key` (local/backup key)
+    // 1) Registration (signerMode=threshold-signer) is threshold-only:
+    //    - the client does not provide `new_public_key`
     //    - `/create_account_and_register_user` returns `{ relayerKeyId, publicKey, relayerVerifyingShareB64u }`
-    //    - the client adds the threshold key on-chain (signed with the local/backup key)
+    //    - the relay-created account already has the threshold key on-chain
     //    - the SDK stores `threshold_ed25519_2p_v1` key material locally
     //
     // 2) Rotation (`pm.rotateThresholdEd25519Key`) performs:
@@ -241,7 +241,7 @@ test.describe('Threshold Ed25519 rotation helper', () => {
       }
 
       if (rpcMethod === 'send_tx') {
-        // Option B registration adds the threshold key on-chain (signed with the local/backup key).
+        // send_tx is only expected if a real on-chain mutation is needed in rotation.
         sendTxCount += 1;
         if (thresholdPublicKeyOld) thresholdKeysOnChain.add(thresholdPublicKeyOld);
         await route.fulfill({
@@ -296,6 +296,7 @@ test.describe('Threshold Ed25519 rotation helper', () => {
         clientVerifyingShareB64u,
         relayerVerifyingShareB64u: relayerVerifyingShareB64uOld,
       });
+      thresholdKeysOnChain.add(thresholdPublicKeyOld);
 
       await route.fulfill({
         status: 200,
@@ -356,7 +357,7 @@ test.describe('Threshold Ed25519 rotation helper', () => {
 
     const result = await page.evaluate(async ({ paths }) => {
       // Run the SDK flow inside the browser context:
-      // - register a passkey-backed account with signerMode=threshold-signer (Option B)
+      // - register a passkey-backed account with signerMode=threshold-signer (threshold-only)
       // - rotate the threshold key and return the helper output for assertions
       try {
         const { TatchiPasskey } = await import(paths.tatchi);
@@ -440,12 +441,12 @@ test.describe('Threshold Ed25519 rotation helper', () => {
     }
 
     // Assertions:
-    // - registration adds the threshold key on-chain, rotation does not (public key unchanged)
+    // - registration is threshold-only (no local bootstrap key), rotation does not mutate chain when key unchanged
     // - on-chain "key list" reflects the threshold key created at registration
     // - local DB reflects the new threshold material
-    expect(sendTxCount).toBe(1);
-    expect(newPublicKeyFieldPresent).toBe(true);
-    expect(localNearPublicKey).toMatch(/^ed25519:/);
+    expect(sendTxCount).toBe(0);
+    expect(newPublicKeyFieldPresent).toBe(false);
+    expect(localNearPublicKey).toBe('');
     expect(thresholdPublicKeyOld).toMatch(/^ed25519:/);
     expect(thresholdPublicKeyNew).toMatch(/^ed25519:/);
     expect(thresholdPublicKeyNew).toBe(thresholdPublicKeyOld);

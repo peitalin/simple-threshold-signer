@@ -26,7 +26,7 @@ function compute2of2GroupPk(input: {
   return `ed25519:${bs58.encode(groupPoint.toBytes())}`;
 }
 
-test.describe('Threshold Ed25519 (registration) — relay-created threshold key', () => {
+test.describe('Threshold Ed25519 (registration) — threshold-first account creation', () => {
   test.setTimeout(90_000);
 
   test.beforeEach(async ({ page }) => {
@@ -47,7 +47,7 @@ test.describe('Threshold Ed25519 (registration) — relay-created threshold key'
     }, SDK_ESM_PATHS.base64);
   });
 
-  test('registration with signerMode=threshold-signer stores threshold material (no client-side send_tx)', async ({ page }) => {
+  test('registration defaults to threshold-signer and stores threshold material without local on-chain bootstrap', async ({ page }) => {
     let sendTxCount = 0;
     let localNearPublicKey = '';
     let thresholdPublicKey = '';
@@ -301,8 +301,8 @@ test.describe('Threshold Ed25519 (registration) — relay-created threshold key'
         clientVerifyingShareB64u,
         relayerVerifyingShareB64u,
       });
-      // Option B: relay creates the account with a client-provided key; the client adds the threshold key on-chain.
-      thresholdActivatedOnChain = false;
+      // Threshold-only: relay creates the account directly with the threshold key.
+      thresholdActivatedOnChain = true;
 
       await route.fulfill({
         status: 200,
@@ -347,7 +347,6 @@ test.describe('Threshold Ed25519 (registration) — relay-created threshold key'
         const res = await pm.registerPasskeyInternal(
           accountId,
           {
-            signerMode: { mode: 'threshold-signer' },
             onEvent: (event: any) => {
               try {
                 (window as any).__registrationEvents.push(event);
@@ -367,9 +366,9 @@ test.describe('Threshold Ed25519 (registration) — relay-created threshold key'
       throw new Error(`registration failed: ${registration.error || 'unknown'}`);
     }
 
-    expect(sendTxCount).toBe(1);
-    expect(newPublicKeyProvided).toBe(true);
-    expect(localNearPublicKey).toMatch(/^ed25519:/);
+    expect(sendTxCount).toBe(0);
+    expect(newPublicKeyProvided).toBe(false);
+    expect(localNearPublicKey).toBe('');
     expect(thresholdActivatedOnChain).toBe(true);
     expect(thresholdPublicKey).toMatch(/^ed25519:/);
     expect(relayIntentDigest32).toBeTruthy();
@@ -429,13 +428,19 @@ test.describe('Threshold Ed25519 (registration) — relay-created threshold key'
       const chainId = String(accountId || '').trim().toLowerCase().endsWith('.testnet')
         ? 'near:testnet'
         : 'near:mainnet';
-      const rec = await db.getKeyMaterialV2(profileId, 1, chainId, 'threshold_share_v1');
-      return rec ? { ...rec } : null;
+      const thresholdRec = await db.getKeyMaterialV2(profileId, 1, chainId, 'threshold_share_v1');
+      const localRec = await db.getKeyMaterialV2(profileId, 1, chainId, 'local_sk_encrypted_v1');
+      return {
+        threshold: thresholdRec ? { ...thresholdRec } : null,
+        local: localRec ? { ...localRec } : null,
+      };
     }, { paths: IMPORT_PATHS, accountId: registration.accountId });
 
-    expect(stored?.keyKind).toBe('threshold_share_v1');
-    expect(stored?.publicKey).toBe(thresholdPublicKey);
-    expect(String(stored?.payload?.relayerKeyId || '')).toBe(relayerKeyId);
+    expect(stored?.threshold?.keyKind).toBe('threshold_share_v1');
+    expect(stored?.threshold?.publicKey).toBe(thresholdPublicKey);
+    expect(String(stored?.threshold?.payload?.relayerKeyId || '')).toBe(relayerKeyId);
+    expect(stored?.local?.keyKind).toBe('local_sk_encrypted_v1');
+    expect(String(stored?.local?.payload?.usage || '')).toBe('export-only');
   });
 
   test('registration fails if relay omits threshold key material (no stored threshold material)', async ({ page }) => {
@@ -676,7 +681,6 @@ test.describe('Threshold Ed25519 (registration) — relay-created threshold key'
         const res = await pm.registerPasskeyInternal(
           accountId,
           {
-            signerMode: { mode: 'threshold-signer' },
             onEvent: (event: any) => {
               try {
                 (window as any).__registrationEvents.push(event);
@@ -694,8 +698,8 @@ test.describe('Threshold Ed25519 (registration) — relay-created threshold key'
     expect(registration.success).toBe(false);
     expect(Boolean(registration.error)).toBe(true);
     expect(sendTxCount).toBe(0);
-    expect(newPublicKeyProvided).toBe(true);
-    expect(localNearPublicKey).toMatch(/^ed25519:/);
+    expect(newPublicKeyProvided).toBe(false);
+    expect(localNearPublicKey).toBe('');
 
     const stored = await page.evaluate(async ({ paths, accountId }) => {
       const { PasskeyNearKeysDBManager } = await import(paths.nearKeysDb);
