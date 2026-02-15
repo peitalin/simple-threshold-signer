@@ -33,8 +33,12 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 async function main() {
   const env = process.env;
+  const host = typeof env.HOST === 'string' && env.HOST.trim().length > 0
+    ? env.HOST.trim()
+    : undefined;
   const config = {
     port: Number(env.PORT || 3000),
+    host,
     expectedOrigin: env.EXPECTED_ORIGIN || 'https://example.localhost', // Frontend origin
     expectedWalletOrigin: env.EXPECTED_WALLET_ORIGIN || 'https://wallet.example.localhost', // Wallet origin (optional)
   };
@@ -110,13 +114,18 @@ async function main() {
     logger: console,
   }));
 
-  server = app.listen(config.port, () => {
-    console.log(`Server listening on http://localhost:${config.port}`);
+  const onListening = () => {
+    const listenHost = config.host || 'localhost';
+    console.log(`Server listening on http://${listenHost}:${config.port}`);
     console.log(`Expected Frontend Origin: ${config.expectedOrigin}`);
     authService.getRelayerAccount()
       .then(relayer => console.log(`AuthService started with relayer account: ${relayer.accountId}`))
       .catch((err: Error) => console.error('AuthService initial check failed:', err));
-  });
+  };
+
+  server = config.host
+    ? app.listen(config.port, config.host, onListening)
+    : app.listen(config.port, onListening);
 }
 
 main().catch((err) => {

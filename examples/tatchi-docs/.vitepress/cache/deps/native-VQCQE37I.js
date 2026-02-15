@@ -1,0 +1,44 @@
+import __buffer_polyfill from 'vite-plugin-node-polyfills/shims/buffer'
+globalThis.Buffer = globalThis.Buffer || __buffer_polyfill
+import __global_polyfill from 'vite-plugin-node-polyfills/shims/global'
+globalThis.global = globalThis.global || __global_polyfill
+import __process_polyfill from 'vite-plugin-node-polyfills/shims/process'
+globalThis.process = globalThis.process || __process_polyfill
+
+import {
+  __toESM,
+  init_define_process_env,
+  require_dist,
+  require_dist2,
+  require_dist3
+} from "./chunk-P56LWUW6.js";
+
+// ../../node_modules/isows/_esm/native.js
+init_define_process_env();
+var import_dist4 = __toESM(require_dist());
+var import_dist5 = __toESM(require_dist2());
+var import_dist6 = __toESM(require_dist3());
+
+// ../../node_modules/isows/_esm/utils.js
+init_define_process_env();
+var import_dist = __toESM(require_dist(), 1);
+var import_dist2 = __toESM(require_dist2(), 1);
+var import_dist3 = __toESM(require_dist3(), 1);
+function getNativeWebSocket() {
+  if (typeof WebSocket !== "undefined")
+    return WebSocket;
+  if (typeof global.WebSocket !== "undefined")
+    return global.WebSocket;
+  if (typeof window.WebSocket !== "undefined")
+    return window.WebSocket;
+  if (typeof self.WebSocket !== "undefined")
+    return self.WebSocket;
+  throw new Error("`WebSocket` is not supported in this environment");
+}
+
+// ../../node_modules/isows/_esm/native.js
+var WebSocket2 = getNativeWebSocket();
+export {
+  WebSocket2 as WebSocket
+};
+//# sourceMappingURL=native-VQCQE37I.js.map

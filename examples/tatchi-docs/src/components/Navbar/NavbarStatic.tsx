@@ -1,6 +1,6 @@
 import React from 'react'
 import { ChevronDown, Menu, X } from 'lucide-react'
-import { MoonIcon, SunIcon, useTatchi, useTheme } from '@tatchi-xyz/sdk/react'
+import { MoonIcon, SunIcon, useTheme } from '@tatchi-xyz/sdk/react'
 import TatchiLogo from '../icons/TatchiLogo'
 import { useVitepressRouter } from '../../hooks/useVitepressRouter'
 import './Navbar.css'
@@ -140,14 +140,30 @@ function getMenuItems(panel: HTMLDivElement | null, id: DropdownId | null): HTML
   return Array.from(panel.querySelectorAll<HTMLElement>(`[data-dropdown-view="${id}"] a[role="menuitem"]`))
 }
 
+function readDocumentTheme(): 'light' | 'dark' {
+  if (typeof document === 'undefined') return 'dark'
+  const attr = document.documentElement.getAttribute('data-w3a-theme')
+  if (attr === 'light' || attr === 'dark') return attr
+  return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+}
+
+function applyDocumentTheme(next: 'light' | 'dark'): void {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return
+  document.documentElement.classList.toggle('dark', next === 'dark')
+  document.documentElement.setAttribute('data-w3a-theme', next)
+  try {
+    window.localStorage?.setItem?.('vitepress-theme-appearance', next)
+  } catch {}
+  window.dispatchEvent(new CustomEvent<'light' | 'dark'>('w3a:appearance', { detail: next }))
+}
+
 export function NavbarStatic(): React.JSX.Element {
-  const OPEN_DELAY_MS = 50
-  const CLOSE_DELAY_MS = 230
-  const CONTENT_SWITCH_MS = 320
+  const OPEN_DELAY_MS = 0
+  const CLOSE_DELAY_MS = 280
+  const CONTENT_SWITCH_MS = 660
   const SCROLL_THRESHOLD_PX = 8
 
-  const { tatchi } = useTatchi()
-  const { theme } = useTheme()
+  const { theme, setTheme } = useTheme()
   const { linkProps } = useVitepressRouter()
   const rootRef = React.useRef<HTMLElement | null>(null)
   const shellRef = React.useRef<HTMLDivElement | null>(null)
@@ -164,14 +180,22 @@ export function NavbarStatic(): React.JSX.Element {
   const [leavingDropdown, setLeavingDropdown] = React.useState<DropdownId | null>(null)
   const [dropdownNotchLeft, setDropdownNotchLeft] = React.useState<number>(120)
   const [hasScrolled, setHasScrolled] = React.useState<boolean>(false)
+  const [localTheme, setLocalTheme] = React.useState<'light' | 'dark'>(() => readDocumentTheme())
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState<boolean>(false)
   const [isMobileProductsOpen, setIsMobileProductsOpen] = React.useState<boolean>(false)
   const [isMobileSolutionsOpen, setIsMobileSolutionsOpen] = React.useState<boolean>(false)
 
+  const resolvedTheme: 'light' | 'dark' = (typeof setTheme === 'function' ? theme : localTheme) === 'dark' ? 'dark' : 'light'
+
   const onToggleTheme = React.useCallback(() => {
-    const next = theme === 'dark' ? 'light' : 'dark'
-    tatchi.setTheme(next)
-  }, [tatchi, theme])
+    const next: 'light' | 'dark' = resolvedTheme === 'dark' ? 'light' : 'dark'
+    if (typeof setTheme === 'function') {
+      setTheme(next)
+      return
+    }
+    applyDocumentTheme(next)
+    setLocalTheme(next)
+  }, [resolvedTheme, setTheme])
 
   const clearDropdownTimers = React.useCallback(() => {
     if (openTimerRef.current !== null) {
@@ -269,6 +293,34 @@ export function NavbarStatic(): React.JSX.Element {
       window.removeEventListener('scroll', onScroll)
     }
   }, [SCROLL_THRESHOLD_PX])
+
+  React.useEffect(() => {
+    if (typeof setTheme === 'function') return
+    if (typeof document === 'undefined' || typeof window === 'undefined') return
+
+    const read = () => setLocalTheme(readDocumentTheme())
+    read()
+
+    const mo = new MutationObserver(read)
+    mo.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'data-w3a-theme'],
+    })
+
+    const onAppearance = (e: Event) => {
+      const next = (e as CustomEvent<'light' | 'dark'>)?.detail
+      if (next === 'light' || next === 'dark') setLocalTheme(next)
+      else read()
+    }
+
+    window.addEventListener('w3a:appearance', onAppearance as EventListener)
+    window.addEventListener('w3a:set-theme', onAppearance as EventListener)
+    return () => {
+      mo.disconnect()
+      window.removeEventListener('w3a:appearance', onAppearance as EventListener)
+      window.removeEventListener('w3a:set-theme', onAppearance as EventListener)
+    }
+  }, [setTheme])
 
   React.useEffect(() => {
     clearContentSwitchTimer()
@@ -425,6 +477,7 @@ export function NavbarStatic(): React.JSX.Element {
   const solutionsRootProps = getNavLinkProps('/solutions/')
   const pricingProps = getNavLinkProps('/pricing/')
   const companyProps = getNavLinkProps('/company/')
+  const contactSalesProps = getNavLinkProps('/contact/')
   const getStartedProps = getNavLinkProps('/docs/getting-started/installation')
 
   const dropdownAriaConfig = dropdownConfigs.find((config) => config.id === (visibleDropdown ?? openDropdown)) ?? null
@@ -477,25 +530,36 @@ export function NavbarStatic(): React.JSX.Element {
   return (
     <nav ref={rootRef} className="navbar-static" aria-label="Primary">
       <div ref={shellRef} className={`navbar-static__shell${hasScrolled ? ' is-scrolled' : ''}`}>
-        <a className="navbar-static__brand" href={homeProps.href} onClick={homeProps.onClick} aria-label="Tatchi home">
-          <TatchiLogo size={26} strokeWidth={1.2} />
-          <span>Tatchi</span>
-        </a>
+        <div className="navbar-static__left">
+          <a className="navbar-static__brand" href={homeProps.href} onClick={homeProps.onClick} aria-label="Tatchi home">
+            <TatchiLogo size={26} strokeWidth={1.2} />
+            <span>Tatchi</span>
+          </a>
+        </div>
 
-        <div className="navbar-static__content">
+        <div className="navbar-static__center">
           <div className="navbar-static__links">
             {dropdownConfigs.map(renderDropdownTrigger)}
             <a className="navbar-static__link" href={docsProps.href} onClick={docsProps.onClick}>Documentation</a>
             <a className="navbar-static__link" href={pricingProps.href} onClick={pricingProps.onClick}>Pricing</a>
             <a className="navbar-static__link" href={companyProps.href} onClick={companyProps.onClick}>Company</a>
           </div>
+        </div>
 
+        <div className="navbar-static__right">
           <div className="navbar-static__actions">
             <a
               className="navbar-static__pill navbar-static__pill--ghost"
-              href="https://x.com/lowerarchy"
+              href="https://github.com/web3-authn/tatchi"
               target="_blank"
               rel="noopener noreferrer"
+            >
+              GitHub
+            </a>
+            <a
+              className="navbar-static__pill navbar-static__pill--ghost"
+              href={contactSalesProps.href}
+              onClick={contactSalesProps.onClick}
             >
               Contact Sales
             </a>
@@ -513,7 +577,7 @@ export function NavbarStatic(): React.JSX.Element {
               aria-label="Toggle dark mode"
               title="Toggle dark mode"
             >
-              {theme === 'dark' ? <SunIcon size={18} strokeWidth={2} aria-hidden /> : <MoonIcon size={18} strokeWidth={2} aria-hidden />}
+              {resolvedTheme === 'dark' ? <SunIcon size={18} strokeWidth={2} aria-hidden /> : <MoonIcon size={18} strokeWidth={2} aria-hidden />}
             </button>
             <button
               type="button"
@@ -686,10 +750,17 @@ export function NavbarStatic(): React.JSX.Element {
         <div className="navbar-static__mobile-cta-row">
           <a
             className="navbar-static__pill navbar-static__pill--ghost"
-            href="https://x.com/lowerarchy"
+            href="https://github.com/web3-authn/tatchi"
             target="_blank"
             rel="noopener noreferrer"
             onClick={closeMenus}
+          >
+            GitHub
+          </a>
+          <a
+            className="navbar-static__pill navbar-static__pill--ghost"
+            href={contactSalesProps.href}
+            onClick={contactSalesProps.onClick}
           >
             Contact Sales
           </a>

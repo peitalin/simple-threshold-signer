@@ -1,6 +1,6 @@
 import DefaultTheme from 'vitepress/theme'
 import type { Theme } from 'vitepress'
-import { h, defineComponent, onMounted, onUnmounted } from 'vue'
+import { h, defineComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useData } from 'vitepress'
 import './custom.css'
 
@@ -20,6 +20,69 @@ const W3aAppearanceBridge = defineComponent({
     onUnmounted(() => { window.removeEventListener('w3a:appearance', handler) })
     return () => null
   }
+})
+
+function usesHomepageNavbar(relativePath: string | undefined): boolean {
+  return relativePath === 'pricing/index.md' || relativePath === 'company/index.md'
+}
+
+const MarketingRouteNavbar = defineComponent({
+  name: 'MarketingRouteNavbar',
+  setup() {
+    const { page } = useData()
+    const mountRef = ref<HTMLElement | null>(null)
+    let reactRoot: { unmount: () => void } | null = null
+
+    const unmountReactNavbar = () => {
+      if (!reactRoot) return
+      reactRoot.unmount()
+      reactRoot = null
+    }
+
+    const renderReactNavbar = async () => {
+      const relativePath = page.value.relativePath
+      if (!usesHomepageNavbar(relativePath)) {
+        unmountReactNavbar()
+        return
+      }
+
+      if (!mountRef.value) {
+        await nextTick()
+      }
+      const mountEl = mountRef.value
+      if (!mountEl) return
+
+      const [{ createElement }, reactDomClient, navbarModule] = await Promise.all([
+        import('react'),
+        import('react-dom/client'),
+        import('@app/components/Navbar/NavbarStatic'),
+      ])
+
+      if (!mountRef.value || !usesHomepageNavbar(page.value.relativePath)) return
+      unmountReactNavbar()
+      const createRoot = (reactDomClient as any).createRoot as (el: Element) => { render: (node: unknown) => void; unmount: () => void }
+      const Navbar = (navbarModule as any).default ?? (navbarModule as any).NavbarStatic
+      reactRoot = createRoot(mountRef.value)
+      reactRoot.render(createElement(Navbar))
+    }
+
+    onMounted(() => {
+      void renderReactNavbar()
+    })
+
+    watch(() => page.value.relativePath, () => {
+      void renderReactNavbar()
+    })
+
+    onUnmounted(() => {
+      unmountReactNavbar()
+    })
+
+    return () => {
+      if (!usesHomepageNavbar(page.value.relativePath)) return null
+      return h('div', { ref: mountRef, class: 'vp-marketing-navbar-host' })
+    }
+  },
 })
 
 function isServerRender(): boolean {
@@ -173,6 +236,7 @@ function setupThemeToggleBridge(): () => void {
 const theme: Theme = {
   ...DefaultTheme,
   Layout: () => h(DefaultTheme.Layout, null, {
+    'layout-top': () => h(MarketingRouteNavbar),
     'layout-bottom': () => h(W3aAppearanceBridge),
   }),
   enhanceApp: async (ctx) => {
@@ -344,25 +408,33 @@ const theme: Theme = {
 
     const detachSdkThemeObserver = setupSdkThemeObserver()
 
-    // Hide VitePress navbar controls on the homepage only
-    function isHomePath(): boolean {
+    // Hide VitePress navbar controls on routes that use the custom homepage navbar.
+    function isHomepageNavbarPath(): boolean {
       try {
         const base: string = ((import.meta as any)?.env?.BASE_URL || '/') as string
         const path = window.location.pathname
         const norm = (s: string) => (s.endsWith('/') ? s : s + '/')
         const baseNorm = norm(base)
         const pathNorm = norm(path.replace(/\/index\.html$/, '/'))
-        return pathNorm === baseNorm
+        return pathNorm === baseNorm || pathNorm === `${baseNorm}pricing/` || pathNorm === `${baseNorm}company/`
       } catch {
-        return window.location.pathname === '/'
+        return (
+          window.location.pathname === '/'
+          || window.location.pathname === '/pricing'
+          || window.location.pathname === '/pricing/'
+          || window.location.pathname === '/company'
+          || window.location.pathname === '/company/'
+        )
       }
     }
 
     function findNavEls(): HTMLElement[] {
       const sels = [
+        '.VPNav',
         '.VPNavBar .content .nav',
         '.VPNavBar .content .menu',
         '.VPNavBarExtra',
+        '.VPNavBarSearch',
       ]
       const set = new Set<HTMLElement>()
       for (const sel of sels) {
@@ -374,7 +446,7 @@ const theme: Theme = {
     }
 
     function applyHomepageNavbarVisibility(): void {
-      const hide = isHomePath()
+      const hide = isHomepageNavbarPath()
       findNavEls().forEach((el) => {
         el.style.setProperty('display', hide ? 'none' : '')
       })
@@ -403,8 +475,8 @@ const theme: Theme = {
 
     function applyAppearanceToggleVisibility(): void {
       try {
-        // Only hide Appearance toggle on the homepage; always show on other pages
-        const shouldHide = isHomePath()
+        // Hide the default VitePress appearance toggle when custom navbar is in use.
+        const shouldHide = isHomepageNavbarPath()
         findAppearanceEls().forEach((el) => {
           el.style.setProperty('display', shouldHide ? 'none' : '')
         })

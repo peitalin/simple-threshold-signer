@@ -1,5 +1,4 @@
 import React from 'react'
-import NavbarStatic from './Navbar/NavbarStatic'
 import NavbarProfileOverlay from './Navbar/NavbarProfileOverlay'
 import { preloadPasskeyAuthMenu, useTatchi } from '@tatchi-xyz/sdk/react'
 
@@ -139,7 +138,6 @@ export function DemoPasskeyColumn() {
 
   return (
     <ProfileMenuControlProvider>
-      <NavbarStatic />
       <NavbarProfileOverlay />
       <div className="passkey-demo">
         <AuthMenuControlProvider>

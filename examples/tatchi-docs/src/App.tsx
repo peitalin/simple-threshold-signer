@@ -27,10 +27,10 @@ export const App: React.FC = () => {
           rpIdOverride: env.VITE_RP_ID_BASE,
           sdkBasePath: env.VITE_SDK_BASE_PATH,
         },
-        // Demo default: use threshold signing, but fallback to local signer if unavailable
+        // Demo default: require threshold signing for NEAR actions in docs flows
         signerMode: {
           mode: 'threshold-signer',
-          behavior: 'fallback'
+          behavior: 'strict',
         },
         nearRpcUrl: env.VITE_NEAR_RPC_URL || 'https://test.rpc.fastnear.com',
         relayer: {

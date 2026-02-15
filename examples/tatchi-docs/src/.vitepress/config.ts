@@ -139,6 +139,10 @@ export default defineConfig({
     // Keep default navbar links for non-home pages
     nav: [
       { text: 'Home', link: '/' },
+      { text: 'Products', link: '/products/' },
+      { text: 'Solutions', link: '/solutions/' },
+      { text: 'Pricing', link: '/pricing/' },
+      { text: 'Company', link: '/company/' },
       { text: 'Docs', link: '/docs/getting-started/overview' },
     ],
 

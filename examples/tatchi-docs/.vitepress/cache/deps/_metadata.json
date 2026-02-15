@@ -1,0 +1,259 @@
+{
+  "hash": "7345c9fa",
+  "configHash": "74f3f62c",
+  "lockfileHash": "1f67b409",
+  "browserHash": "f25c587d",
+  "optimized": {
+    "buffer": {
+      "src": "../../../../../node_modules/vite-plugin-node-polyfills/shims/buffer/dist/index.js",
+      "file": "buffer.js",
+      "fileHash": "a3fc24d2",
+      "needsInterop": false
+    },
+    "events": {
+      "src": "../../../../../node_modules/events/events.js",
+      "file": "events.js",
+      "fileHash": "05dbd1bd",
+      "needsInterop": true
+    },
+    "util": {
+      "src": "../../../../../node_modules/util/util.js",
+      "file": "util.js",
+      "fileHash": "1c9a39a1",
+      "needsInterop": true
+    },
+    "stream-browserify": {
+      "src": "../../../../../node_modules/stream-browserify/index.js",
+      "file": "stream-browserify.js",
+      "fileHash": "892834ea",
+      "needsInterop": true
+    },
+    "crypto-browserify": {
+      "src": "../../../../../node_modules/crypto-browserify/index.js",
+      "file": "crypto-browserify.js",
+      "fileHash": "73b040e0",
+      "needsInterop": true
+    },
+    "react": {
+      "src": "../../../../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "479787a6",
+      "needsInterop": true
+    },
+    "react-dom": {
+      "src": "../../../../../node_modules/react-dom/index.js",
+      "file": "react-dom.js",
+      "fileHash": "38cd84b1",
+      "needsInterop": true
+    },
+    "react/jsx-dev-runtime": {
+      "src": "../../../../../node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "4f67b6c4",
+      "needsInterop": true
+    },
+    "react/jsx-runtime": {
+      "src": "../../../../../node_modules/react/jsx-runtime.js",
+      "file": "react_jsx-runtime.js",
+      "fileHash": "1d793e99",
+      "needsInterop": true
+    },
+    "vue": {
+      "src": "../../../../../node_modules/vue/dist/vue.runtime.esm-bundler.js",
+      "file": "vue.js",
+      "fileHash": "929185db",
+      "needsInterop": false
+    },
+    "vitepress > @vue/devtools-api": {
+      "src": "../../../../../node_modules/@vue/devtools-api/dist/index.js",
+      "file": "vitepress___@vue_devtools-api.js",
+      "fileHash": "8b4643b1",
+      "needsInterop": false
+    },
+    "vitepress > @vueuse/core": {
+      "src": "../../../../../node_modules/@vueuse/core/index.mjs",
+      "file": "vitepress___@vueuse_core.js",
+      "fileHash": "b34a8017",
+      "needsInterop": false
+    },
+    "@noble/ed25519": {
+      "src": "../../../../../node_modules/@noble/ed25519/index.js",
+      "file": "@noble_ed25519.js",
+      "fileHash": "ac8c34fd",
+      "needsInterop": false
+    },
+    "@radix-ui/react-select": {
+      "src": "../../../../../node_modules/@radix-ui/react-select/dist/index.mjs",
+      "file": "@radix-ui_react-select.js",
+      "fileHash": "8a15dbe5",
+      "needsInterop": false
+    },
+    "bs58": {
+      "src": "../../../../../node_modules/bs58/src/esm/index.js",
+      "file": "bs58.js",
+      "fileHash": "ec7fd215",
+      "needsInterop": false
+    },
+    "chainsig.js": {
+      "src": "../../../../../node_modules/chainsig.js/browser/index.browser.js",
+      "file": "chainsig__js.js",
+      "fileHash": "23b67e34",
+      "needsInterop": false
+    },
+    "clsx": {
+      "src": "../../../../../node_modules/clsx/dist/clsx.mjs",
+      "file": "clsx.js",
+      "fileHash": "97da8a98",
+      "needsInterop": false
+    },
+    "idb": {
+      "src": "../../../../../node_modules/idb/build/index.js",
+      "file": "idb.js",
+      "fileHash": "9d5d5a4e",
+      "needsInterop": false
+    },
+    "jsqr": {
+      "src": "../../../../../node_modules/jsqr/dist/jsQR.js",
+      "file": "jsqr.js",
+      "fileHash": "b82bfab5",
+      "needsInterop": true
+    },
+    "lit": {
+      "src": "../../../../../node_modules/lit/index.js",
+      "file": "lit.js",
+      "fileHash": "575a715e",
+      "needsInterop": false
+    },
+    "lit/directives/ref.js": {
+      "src": "../../../../../node_modules/lit/directives/ref.js",
+      "file": "lit_directives_ref__js.js",
+      "fileHash": "daa4bb72",
+      "needsInterop": false
+    },
+    "lit/directives/repeat.js": {
+      "src": "../../../../../node_modules/lit/directives/repeat.js",
+      "file": "lit_directives_repeat__js.js",
+      "fileHash": "bec23c53",
+      "needsInterop": false
+    },
+    "lucide-react": {
+      "src": "../../../../../node_modules/lucide-react/dist/esm/lucide-react.js",
+      "file": "lucide-react.js",
+      "fileHash": "09d5d89d",
+      "needsInterop": false
+    },
+    "qrcode": {
+      "src": "../../../../../node_modules/qrcode/lib/browser.js",
+      "file": "qrcode.js",
+      "fileHash": "f5e72e12",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../../../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "fbe6f2d1",
+      "needsInterop": true
+    },
+    "sonner": {
+      "src": "../../../../../node_modules/sonner/dist/index.mjs",
+      "file": "sonner.js",
+      "fileHash": "7e2c28d6",
+      "needsInterop": false
+    },
+    "viem": {
+      "src": "../../../../../node_modules/viem/_esm/index.js",
+      "file": "viem.js",
+      "fileHash": "c62892ea",
+      "needsInterop": false
+    },
+    "@theme/index": {
+      "src": "../../../../../node_modules/vitepress/dist/client/theme-default/index.js",
+      "file": "@theme_index.js",
+      "fileHash": "d9de4c3f",
+      "needsInterop": false
+    },
+    "vite-plugin-node-polyfills/shims/buffer": {
+      "src": "../../../../../node_modules/vite-plugin-node-polyfills/shims/buffer/dist/index.js",
+      "file": "vite-plugin-node-polyfills_shims_buffer.js",
+      "fileHash": "1c8b8b0e",
+      "needsInterop": false
+    },
+    "vite-plugin-node-polyfills/shims/global": {
+      "src": "../../../../../node_modules/vite-plugin-node-polyfills/shims/global/dist/index.js",
+      "file": "vite-plugin-node-polyfills_shims_global.js",
+      "fileHash": "365dfa39",
+      "needsInterop": false
+    },
+    "vite-plugin-node-polyfills/shims/process": {
+      "src": "../../../../../node_modules/vite-plugin-node-polyfills/shims/process/dist/index.js",
+      "file": "vite-plugin-node-polyfills_shims_process.js",
+      "fileHash": "18e5586b",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "ccip-AO2H6HNH": {
+      "file": "ccip-AO2H6HNH.js"
+    },
+    "native-VQCQE37I": {
+      "file": "native-VQCQE37I.js"
+    },
+    "secp256k1-BP63LPDC": {
+      "file": "secp256k1-BP63LPDC.js"
+    },
+    "chunk-NYGT6BDE": {
+      "file": "chunk-NYGT6BDE.js"
+    },
+    "chunk-ZM3QRILJ": {
+      "file": "chunk-ZM3QRILJ.js"
+    },
+    "chunk-IGDTNDNM": {
+      "file": "chunk-IGDTNDNM.js"
+    },
+    "chunk-ANUX2B4O": {
+      "file": "chunk-ANUX2B4O.js"
+    },
+    "chunk-LSHGBVW6": {
+      "file": "chunk-LSHGBVW6.js"
+    },
+    "chunk-THIL6POA": {
+      "file": "chunk-THIL6POA.js"
+    },
+    "chunk-BIWRFNGK": {
+      "file": "chunk-BIWRFNGK.js"
+    },
+    "chunk-M7WNMHCC": {
+      "file": "chunk-M7WNMHCC.js"
+    },
+    "chunk-C6NNSHSX": {
+      "file": "chunk-C6NNSHSX.js"
+    },
+    "chunk-6F36HJN3": {
+      "file": "chunk-6F36HJN3.js"
+    },
+    "chunk-B7NEW2LT": {
+      "file": "chunk-B7NEW2LT.js"
+    },
+    "chunk-62YMZ2P2": {
+      "file": "chunk-62YMZ2P2.js"
+    },
+    "chunk-4WHPUJTV": {
+      "file": "chunk-4WHPUJTV.js"
+    },
+    "chunk-3G433QNW": {
+      "file": "chunk-3G433QNW.js"
+    },
+    "chunk-YKRHS4FH": {
+      "file": "chunk-YKRHS4FH.js"
+    },
+    "chunk-LMHGXO7T": {
+      "file": "chunk-LMHGXO7T.js"
+    },
+    "chunk-XX4U47XP": {
+      "file": "chunk-XX4U47XP.js"
+    },
+    "chunk-P56LWUW6": {
+      "file": "chunk-P56LWUW6.js"
+    }
+  }
+}
