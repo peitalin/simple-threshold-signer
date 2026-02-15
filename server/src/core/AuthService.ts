@@ -133,13 +133,16 @@ function parseCacheControlMaxAgeSec(cacheControl: string | null): number | null 
 // WASM URL CONSTANTS + HELPERS
 // =============================
 
-// Primary location (preserveModules output)
-const SIGNER_WASM_MAIN_PATH = '../../../wasm/near_signer/pkg/wasm_signer_worker_bg.wasm';
-// Fallback location (dist/workers copy step)
-const SIGNER_WASM_FALLBACK_PATH = '../../../workers/wasm_signer_worker_bg.wasm';
+// Primary location (preserveModules output) when this file is emitted to
+// `dist/esm/server/core/AuthService.js`.
+const SIGNER_WASM_MAIN_PATH = '../../wasm/near_signer/pkg/wasm_signer_worker_bg.wasm';
+// Fallback location (dist/workers copy step) from `dist/esm/server/core`.
+const SIGNER_WASM_FALLBACK_PATH = '../../workers/wasm_signer_worker_bg.wasm';
+// Source-tree location when AuthService is executed directly from `server/src/core`.
+const SIGNER_WASM_SOURCE_PATH = '../../../wasm/near_signer/pkg/wasm_signer_worker_bg.wasm';
 
 function getSignerWasmUrls(logger: NormalizedLogger): URL[] {
-  const paths = [SIGNER_WASM_MAIN_PATH, SIGNER_WASM_FALLBACK_PATH];
+  const paths = [SIGNER_WASM_MAIN_PATH, SIGNER_WASM_FALLBACK_PATH, SIGNER_WASM_SOURCE_PATH];
   const resolved: URL[] = [];
   const baseUrl = import.meta.url;
 
