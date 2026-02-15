@@ -18,6 +18,9 @@ export async function decryptPrivateKeyWithPrf({
   sessionId,
   prfFirstB64u,
   wrapKeySalt,
+  encryptedPrivateKeyData,
+  encryptedPrivateKeyChacha20NonceB64u,
+  deviceNumber,
 }: {
   ctx: SignerWorkerManagerContext,
   nearAccountId: AccountId,
@@ -25,20 +28,50 @@ export async function decryptPrivateKeyWithPrf({
   sessionId: string,
   prfFirstB64u?: string;
   wrapKeySalt?: string;
+  encryptedPrivateKeyData?: string;
+  encryptedPrivateKeyChacha20NonceB64u?: string;
+  deviceNumber?: number;
 }): Promise<{ decryptedPrivateKey: string; nearAccountId: AccountId }> {
   try {
     console.info('WebAuthnManager: Starting private key decryption with dual PRF (local operation)');
-    // Retrieve encrypted key data from IndexedDB in main thread
-    const deviceNumber = await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
-    const keyMaterial = await ctx.indexedDB.getNearLocalKeyMaterialV2First(
-      nearAccountId,
-      deviceNumber,
-    );
-    if (!keyMaterial) {
-      throw new Error(`No key material found for account: ${nearAccountId}`);
+    const explicitEncryptedSk = String(encryptedPrivateKeyData || '').trim();
+    const explicitNonce = String(encryptedPrivateKeyChacha20NonceB64u || '').trim();
+    if ((explicitEncryptedSk && !explicitNonce) || (!explicitEncryptedSk && explicitNonce)) {
+      throw new Error(
+        'Both encryptedPrivateKeyData and encryptedPrivateKeyChacha20NonceB64u must be provided together',
+      );
     }
+
+    let encryptedSk = explicitEncryptedSk;
+    let chacha20NonceB64u = explicitNonce;
+    let resolvedWrapKeySalt = String(wrapKeySalt || '').trim();
+
+    if (!encryptedSk || !chacha20NonceB64u) {
+      // Retrieve encrypted key data from IndexedDB in main thread only when explicit
+      // encrypted payload was not provided by caller.
+      const resolvedDeviceNumber = Number.isSafeInteger(deviceNumber) && Number(deviceNumber) >= 1
+        ? Number(deviceNumber)
+        : await getLastLoggedInDeviceNumber(nearAccountId, ctx.indexedDB.clientDB);
+      const keyMaterial = await ctx.indexedDB.getNearLocalKeyMaterialV2First(
+        nearAccountId,
+        resolvedDeviceNumber,
+      );
+      if (!keyMaterial) {
+        throw new Error(`No key material found for account: ${nearAccountId}`);
+      }
+      encryptedSk = String(keyMaterial.encryptedSk || '').trim();
+      chacha20NonceB64u = String(keyMaterial.chacha20NonceB64u || '').trim();
+      if (!resolvedWrapKeySalt) {
+        resolvedWrapKeySalt = String(keyMaterial.wrapKeySalt || '').trim();
+      }
+    }
+
+    if (!encryptedSk || !chacha20NonceB64u) {
+      throw new Error('Missing encrypted private key payload for private key decryption');
+    }
+
     const prfFirst = String(prfFirstB64u || '').trim();
-    const wrapKeySaltB64u = String(wrapKeySalt || keyMaterial.wrapKeySalt || '').trim();
+    const wrapKeySaltB64u = resolvedWrapKeySalt;
     if (!prfFirst) {
       throw new Error('Missing PRF.first output for private key decryption');
     }
@@ -53,8 +86,8 @@ export async function decryptPrivateKeyWithPrf({
         type: WorkerRequestType.DecryptPrivateKeyWithPrf,
         payload: withSessionId(sessionId, {
           nearAccountId: nearAccountId,
-          encryptedPrivateKeyData: keyMaterial.encryptedSk,
-          encryptedPrivateKeyChacha20NonceB64u: keyMaterial.chacha20NonceB64u,
+          encryptedPrivateKeyData: encryptedSk,
+          encryptedPrivateKeyChacha20NonceB64u: chacha20NonceB64u,
           prfFirstB64u: prfFirst,
           wrapKeySalt: wrapKeySaltB64u,
         }),

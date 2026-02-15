@@ -3,7 +3,7 @@ import { SyncAccountPhase, SyncAccountStatus } from '../types/sdkSentEvents';
 import type { PasskeyManagerContext } from './index';
 import type { AccountId, WebAuthnAuthenticationCredential } from '../types';
 import { toAccountId } from '../types/accountIds';
-import { removePrfOutputGuard } from '../signing/webauthn/credentials/helpers';
+import { redactCredentialExtensionOutputs } from '../signing/webauthn/credentials';
 import { base64UrlDecode } from '../../../../shared/src/utils/base64';
 import { errorMessage } from '../../../../shared/src/utils/errors';
 import { IndexedDBManager } from '../IndexedDBManager';
@@ -188,7 +188,7 @@ export async function syncAccount(
       includeSecondPrfOutput: false,
     } as any);
 
-    const credentialForRelay = removePrfOutputGuard<WebAuthnAuthenticationCredential>(credential as any);
+    const credentialForRelay = redactCredentialExtensionOutputs<WebAuthnAuthenticationCredential>(credential as any);
     const verifyResp = await fetch(`${relayerUrl}/sync-account/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

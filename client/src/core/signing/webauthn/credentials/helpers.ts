@@ -7,9 +7,6 @@ import {
   type CredentialPropertiesOutput,
 } from '../../../types/webauthn';
 import { PRF_FIRST_SALT_V1, PRF_SECOND_SALT_V1 } from '../../threshold/prfSalts';
-import { redactCredentialExtensionOutputs } from './credentialExtensions';
-
-type SerializableCredential = WebAuthnAuthenticationCredential | WebAuthnRegistrationCredential;
 
 /**
  * Serialize PublicKeyCredential for both authentication and registration for WASM worker
@@ -212,20 +209,6 @@ export function normalizeAuthenticationCredential(input: unknown): WebAuthnAuthe
   normalized.clientExtensionResults = normalizeClientExtensionOutputs(normalized.clientExtensionResults);
 
   return normalized as unknown as WebAuthnAuthenticationCredential;
-}
-
-/**
- * Redacts client extension outputs from the credential before sending it over the network.
- *
- * Motivation:
- * - WebAuthn `clientExtensionResults` may contain sensitive material (e.g. PRF outputs).
- * - Even when not sensitive, extension outputs can add fingerprinting surface and bloat payloads.
- *
- * @param credential - The WebAuthn credential potentially containing extension outputs
- * @returns Credential with `clientExtensionResults` removed/redacted
- */
-export function removePrfOutputGuard<C extends SerializableCredential>(credential: C): C {
-  return redactCredentialExtensionOutputs(credential);
 }
 
 /////////////////////////////////////////

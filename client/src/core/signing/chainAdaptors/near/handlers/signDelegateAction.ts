@@ -57,6 +57,10 @@ import {
 } from '../../../workers/signerWorkerManager/internal/validation';
 import { deriveThresholdEd25519ClientVerifyingShare } from '../../../threshold/workflows/deriveThresholdEd25519ClientVerifyingShare';
 import { executeSignerWorkerOperation } from '../../../workers/operations/executeSignerWorkerOperation';
+import {
+  assertRuntimeSigningLocalKeyMaterial,
+  isRuntimeSigningLocalKeyMaterial,
+} from './localKeyUsage';
 
 const DUMMY_WRAP_KEY_SALT_B64U = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
@@ -143,10 +147,24 @@ export async function signDelegateAction({
     warnings,
   });
 
-  const localKeyMaterial =
+  const localKeyMaterialCandidate =
     resolvedSignerMode === 'local-signer' || thresholdBehavior === 'fallback'
       ? await ctx.indexedDB.getNearLocalKeyMaterialV2First(nearAccountId, resolvedDeviceNumber)
       : null;
+  if (localKeyMaterialCandidate && !isRuntimeSigningLocalKeyMaterial(localKeyMaterialCandidate)) {
+    if (resolvedSignerMode === 'local-signer' && !thresholdKeyMaterial) {
+      assertRuntimeSigningLocalKeyMaterial({
+        nearAccountId: String(nearAccountId),
+        localKeyMaterial: localKeyMaterialCandidate,
+      });
+    }
+    const msg = `[WebAuthnManager] export-only local key material is excluded from runtime signing for account: ${nearAccountId}`;
+    console.warn(msg);
+    warnings.push(msg);
+  }
+  const localKeyMaterial = isRuntimeSigningLocalKeyMaterial(localKeyMaterialCandidate)
+    ? localKeyMaterialCandidate
+    : null;
   const localWrapKeySalt = String(localKeyMaterial?.wrapKeySalt || '').trim();
   const thresholdWrapKeySalt =
     String(thresholdKeyMaterial?.wrapKeySalt || '').trim() || DUMMY_WRAP_KEY_SALT_B64U;
@@ -174,9 +192,6 @@ export async function signDelegateAction({
       throw new Error(`Missing wrapKeySalt for account: ${nearAccountId}`);
     }
   }
-
-  const canFallbackToLocal =
-    thresholdBehavior === 'fallback' && !!localKeyMaterial && !!localWrapKeySalt;
 
   const signingContext = validateAndPrepareDelegateSigningContext({
     nearAccountId,
@@ -492,11 +507,9 @@ export async function signDelegateAction({
     } catch (e: unknown) {
       const err = e instanceof Error ? e : new Error(String(e));
 
-      if (canFallbackToLocal && isThresholdSignerMissingKeyError(err)) {
-        if (!localKeyMaterial)
-          throw new Error(`No local key material found for account: ${nearAccountId}`);
+      if (isThresholdSignerMissingKeyError(err)) {
         const msg =
-          '[WebAuthnManager] threshold-signer requested but the relayer is missing the signing share; falling back to local-signer';
+          '[WebAuthnManager] threshold-signer requested but the relayer is missing the signing share; local fallback is disabled';
         console.warn(msg);
         warnings.push(msg);
 
@@ -504,47 +517,7 @@ export async function signDelegateAction({
           clearCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey);
         } catch {}
         signingContext.threshold.thresholdSessionJwt = undefined;
-
-        const localPublicKey = ensureEd25519Prefix(localKeyMaterial.publicKey);
-        if (!localPublicKey) {
-          throw new Error(`Missing local signing public key for ${nearAccountId}`);
-        }
-        ctx.nonceManager.initializeUser(toAccountId(nearAccountId), localPublicKey);
-        transactionContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient, {
-          force: true,
-        });
-
-        const localDelegatePayload = {
-          ...delegatePayload,
-          publicKey: localPublicKey,
-        };
-
-        const resp = await executeSignerWorkerOperation({
-          ctx,
-          kind: 'nearSigner',
-          request: {
-            sessionId,
-            type: WorkerRequestType.SignDelegateAction,
-            payload: {
-              signerMode: 'local-signer',
-              rpcCall: resolvedRpcCall,
-              createdAt: Date.now(),
-              prfFirstB64u,
-              wrapKeySalt: localWrapKeySalt,
-              decryption: {
-                encryptedPrivateKeyData: localKeyMaterial.encryptedSk,
-                encryptedPrivateKeyChacha20NonceB64u: localKeyMaterial.chacha20NonceB64u,
-              },
-              delegate: localDelegatePayload,
-              intentDigest,
-              transactionContext,
-              credential: credentialForRelayJson,
-            },
-            onEvent,
-          },
-        });
-        okResponse = requireOkSignDelegateActionResponse(resp);
-        break;
+        throw new Error(msg);
       }
 
       if (attempt === 0 && isThresholdSessionAuthUnavailableError(err)) {

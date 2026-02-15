@@ -221,3 +221,47 @@ export type SignerWorkerOperationResult<
   : K extends MultichainWorkerKind
     ? MultichainWorkerOperationResult<K, Extract<T, MultichainOperationType<K>>>
     : never;
+
+export type SignerHostErrorCode =
+  | 'SIGNER_INVALID_INPUT'
+  | 'SIGNER_INVALID_LENGTH'
+  | 'SIGNER_DECODE_ERROR'
+  | 'SIGNER_ENCODE_ERROR'
+  | 'SIGNER_KDF_ERROR'
+  | 'SIGNER_CRYPTO_ERROR'
+  | 'SIGNER_UTF8_ERROR'
+  | 'SIGNER_UNSUPPORTED'
+  | 'SIGNER_INTERNAL'
+  | 'WORKER_RUNTIME_ERROR'
+  | 'WORKER_POSTMESSAGE_ERROR'
+  | 'WORKER_PROTOCOL_ERROR'
+  | 'TIMEOUT';
+
+export const DEFAULT_SIGNER_HOST_ERROR_CODE: SignerHostErrorCode = 'SIGNER_INTERNAL';
+
+export class SignerWorkerOperationError extends Error {
+  readonly code: string;
+  readonly coreCode?: string;
+  readonly workerKind?: SignerWorkerKind;
+
+  constructor(args: {
+    message: string;
+    code?: string | null;
+    coreCode?: string | null;
+    workerKind?: SignerWorkerKind;
+  }) {
+    super(args.message);
+    this.name = 'SignerWorkerOperationError';
+    this.code = (args.code || DEFAULT_SIGNER_HOST_ERROR_CODE).trim();
+    this.coreCode = args.coreCode?.trim() || undefined;
+    this.workerKind = args.workerKind;
+  }
+}
+
+export function getSignerWorkerOperationErrorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const code = (error as { code?: unknown }).code;
+  if (typeof code !== 'string') return undefined;
+  const trimmed = code.trim();
+  return trimmed.length ? trimmed : undefined;
+}

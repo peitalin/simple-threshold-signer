@@ -45,7 +45,7 @@ export const DB_MULTICHAIN_MIGRATION_CHECKPOINTS_KEY = 'migration.dbMultichainSc
 export const DB_MULTICHAIN_MIGRATION_LOCK_NAME = 'passkey-client-db-multichain-migration-v1' as const;
 export const DB_MULTICHAIN_MIGRATION_LOCK_TTL_MS = 2 * 60_000;
 export const DB_MULTICHAIN_MIGRATION_HEARTBEAT_INTERVAL_MS = 5_000;
-export const DB_MULTICHAIN_MIGRATION_SCHEMA_VERSION = 4 as const;
+export const DB_MULTICHAIN_MIGRATION_SCHEMA_VERSION = 5 as const;
 export const LEGACY_NEAR_PROFILE_PREFIX = 'legacy-near' as const;
 
 const LEGACY_CLIENT_STORES_TO_DROP = [

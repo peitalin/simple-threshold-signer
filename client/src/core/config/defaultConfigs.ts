@@ -29,6 +29,9 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiConfigs = {
     // Using an empty string triggers early validation errors in code paths that require it.
     url: '',
     delegateActionRoute: '/signed-delegate',
+    smartAccountDeployRoute: '/smart-account/deploy',
+    smartAccountDeploymentMode: 'enforce',
+    smartAccountDeploymentMaxAttempts: 2,
     emailRecovery: {
       // Require at least 0.01 NEAR available to start email recovery.
       minBalanceYocto: '10000000000000000000000', // 0.01 NEAR
@@ -74,6 +77,14 @@ export const DEFAULT_EMAIL_RECOVERY_CONTRACTS: EmailRecoveryContracts = {
   emailDkimVerifierContract: PASSKEY_MANAGER_DEFAULT_CONFIGS.emailRecoveryContracts.emailDkimVerifierContract,
 };
 
+function coercePositiveIntInRange(value: unknown, fallback: number, min: number, max: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+  const rounded = Math.trunc(value);
+  if (rounded < min) return min;
+  if (rounded > max) return max;
+  return rounded;
+}
+
 // Merge defaults with overrides
 export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiConfigs {
 
@@ -92,6 +103,16 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
     || toTrimmedString(defaults.relayerAccount)
     || toTrimmedString(defaults.contractId);
   const signerMode = coerceSignerMode(overrides.signerMode, defaults.signerMode);
+  const smartAccountDeploymentMode =
+    overrides.relayer?.smartAccountDeploymentMode === 'observe'
+      ? 'observe'
+      : 'enforce';
+  const smartAccountDeploymentMaxAttempts = coercePositiveIntInRange(
+    overrides.relayer?.smartAccountDeploymentMaxAttempts,
+    defaults.relayer?.smartAccountDeploymentMaxAttempts ?? 2,
+    1,
+    5,
+  );
   const merged: TatchiConfigs = {
     nearRpcUrl: overrides.nearRpcUrl ?? defaults.nearRpcUrl,
     nearNetwork: overrides.nearNetwork ?? defaults.nearNetwork,
@@ -109,6 +130,10 @@ export function buildConfigsFromEnv(overrides: TatchiConfigsInput = {}): TatchiC
       url: relayerUrl,
       delegateActionRoute: overrides.relayer?.delegateActionRoute
         ?? defaults.relayer?.delegateActionRoute,
+      smartAccountDeployRoute: overrides.relayer?.smartAccountDeployRoute
+        ?? defaults.relayer?.smartAccountDeployRoute,
+      smartAccountDeploymentMode,
+      smartAccountDeploymentMaxAttempts,
       emailRecovery: {
         minBalanceYocto: overrides.relayer?.emailRecovery?.minBalanceYocto
           ?? defaults.relayer?.emailRecovery?.minBalanceYocto,

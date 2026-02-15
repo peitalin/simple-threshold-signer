@@ -22,9 +22,7 @@ function makeRequestId(prefix: string): string {
 }
 
 function inferDigest32FromSignRequest(req: SignRequest): Uint8Array {
-  const bytes = req.kind === 'digest' ? req.digest32 : req.challenge32;
-  if (!bytes || bytes.length !== 32) throw new Error('[chains] expected 32-byte digest/challenge');
-  return bytes;
+  return req.kind === 'digest' ? req.digest32 : req.challenge32;
 }
 
 function asThresholdEcdsaKeyRef(value: KeyRef | undefined): ThresholdEcdsaSecp256k1KeyRef | null {

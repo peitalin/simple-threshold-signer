@@ -34,3 +34,4 @@ sha2 = "0.10"
 sha3 = "0.10"
 wasm-bindgen = "0.2"
 threshold-signatures = { git = "https://github.com/near/threshold-signatures", rev = "db609be5021eb9d794f577601f422818fbdfe246" }
+signer-platform-web = { path = "../../crates/signer-platform-web", features = ["secp256k1", "tx-finalization", "threshold-ecdsa"] }

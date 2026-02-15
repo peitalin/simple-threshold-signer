@@ -8,10 +8,11 @@ import type {
   MultichainWorkerOperationRequest,
   MultichainWorkerOperationResult,
 } from './types';
+import { SignerWorkerOperationError } from './types';
 import { resolveSignerWorkerContractVersion as resolveContractVersion } from './types';
 
 type RpcOk<T = unknown> = { id: string; ok: true; result: T };
-type RpcErr = { id: string; ok: false; error: string };
+type RpcErr = { id: string; ok: false; error: string; code?: string; coreCode?: string };
 type RpcResp<T = unknown> = RpcOk<T> | RpcErr;
 
 function makeId(prefix: string): string {
@@ -52,14 +53,21 @@ export class MultichainSignerWorkerTransport<
       if (msg.ok) {
         entry.resolve(msg.result);
       } else {
-        entry.reject(new Error(msg.error || `[${this.kind}] worker error`));
+        entry.reject(new SignerWorkerOperationError({
+          message: msg.error || `[${this.kind}] worker error`,
+          code: msg.code,
+          coreCode: msg.coreCode,
+          workerKind: this.kind,
+        }));
       }
     });
 
     worker.addEventListener('error', (event: ErrorEvent) => {
-      const err = new Error(
-        `[${this.kind}] worker runtime error: ${event.message || 'unknown error'}`,
-      );
+      const err = new SignerWorkerOperationError({
+        message: `[${this.kind}] worker runtime error: ${event.message || 'unknown error'}`,
+        code: 'WORKER_RUNTIME_ERROR',
+        workerKind: this.kind,
+      });
       for (const [, pending] of this.pending) pending.reject(err);
       this.pending.clear();
     });
@@ -87,7 +95,11 @@ export class MultichainSignerWorkerTransport<
         );
       } catch (e) {
         this.pending.delete(id);
-        reject(new Error(`[${this.kind}] failed to postMessage: ${errorMessage(e)}`));
+        reject(new SignerWorkerOperationError({
+          message: `[${this.kind}] failed to postMessage: ${errorMessage(e)}`,
+          code: 'WORKER_POSTMESSAGE_ERROR',
+          workerKind: this.kind,
+        }));
       }
     });
   }

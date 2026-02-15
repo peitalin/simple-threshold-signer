@@ -27,6 +27,12 @@ export interface LocalNearSkV3Material extends BasePasskeyNearKeyMaterial {
   wrapKeySalt: string;
   encryptedSk: string;
   /**
+   * Usage policy for local key material.
+   * - `runtime-signing`: may be used by local-signer runtime signing paths.
+   * - `export-only`: backup/export material only; runtime signing must reject it.
+   */
+  usage?: 'runtime-signing' | 'export-only';
+  /**
    * Base64url-encoded AEAD nonce (ChaCha20-Poly1305) for `encryptedSk`.
    */
   chacha20NonceB64u: string;

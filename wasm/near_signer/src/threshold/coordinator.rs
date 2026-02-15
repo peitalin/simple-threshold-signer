@@ -17,7 +17,7 @@ pub(super) async fn sign_ed25519_2p_v1<T: ThresholdEd25519Transport>(
     let round1 = protocol::client_round1_commit(client_key_package)?;
     let client_commitments_wire = round1.commitments_wire;
 
-    let signing_digest_b64u = crate::encoders::base64_url_encode(signing_digest_32);
+    let signing_digest_b64u = protocol::base64_url_encode(signing_digest_32);
 
     let init = transport
         .sign_init(

@@ -1,74 +1,21 @@
-use num_bigint::BigUint;
-use num_traits::Num;
+#![allow(dead_code)]
 
 pub fn hex_to_bytes(s: &str) -> Result<Vec<u8>, String> {
-    let raw = s.trim();
-    let hex = raw.strip_prefix("0x").unwrap_or(raw);
-    if hex.is_empty() {
-        return Ok(vec![]);
-    }
-    if hex.len() % 2 != 0 {
-        return Err("invalid hex (odd length)".to_string());
-    }
-    let mut out = Vec::with_capacity(hex.len() / 2);
-    for i in (0..hex.len()).step_by(2) {
-        let b = u8::from_str_radix(&hex[i..i + 2], 16).map_err(|_| "invalid hex".to_string())?;
-        out.push(b);
-    }
-    Ok(out)
+    signer_platform_web::codec::hex_to_bytes(s).map_err(|e| e.to_string())
 }
 
 pub fn u256_bytes_be_from_dec(s: &str) -> Result<Vec<u8>, String> {
-    let trimmed = s.trim();
-    if trimmed.is_empty() {
-        return Err("missing bigint".to_string());
-    }
-    if trimmed == "0" {
-        return Ok(vec![]);
-    }
-    let v = BigUint::from_str_radix(trimmed, 10).map_err(|_| "invalid bigint".to_string())?;
-    Ok(v.to_bytes_be())
-}
-
-pub fn rlp_encode_length(len: usize, offset: u8) -> Vec<u8> {
-    if len <= 55 {
-        vec![offset + (len as u8)]
-    } else {
-        let mut len_bytes = Vec::new();
-        let mut x = len;
-        while x > 0 {
-            len_bytes.push((x & 0xff) as u8);
-            x >>= 8;
-        }
-        len_bytes.reverse();
-        let mut out = vec![offset + 55 + (len_bytes.len() as u8)];
-        out.extend_from_slice(&len_bytes);
-        out
-    }
+    signer_platform_web::codec::u256_bytes_be_from_dec(s).map_err(|e| e.to_string())
 }
 
 pub fn rlp_encode_bytes(bytes: &[u8]) -> Vec<u8> {
-    if bytes.len() == 1 && bytes[0] < 0x80 {
-        return vec![bytes[0]];
-    }
-    let mut out = rlp_encode_length(bytes.len(), 0x80);
-    out.extend_from_slice(bytes);
-    out
+    signer_platform_web::codec::rlp_encode_bytes(bytes)
 }
 
 pub fn rlp_encode_list(items: &[Vec<u8>]) -> Vec<u8> {
-    let payload_len: usize = items.iter().map(|x| x.len()).sum();
-    let mut out = rlp_encode_length(payload_len, 0xc0);
-    for it in items {
-        out.extend_from_slice(it);
-    }
-    out
+    signer_platform_web::codec::rlp_encode_list(items)
 }
 
 pub fn strip_leading_zeros(bytes: &[u8]) -> &[u8] {
-    let mut i = 0;
-    while i < bytes.len() && bytes[i] == 0 {
-        i += 1;
-    }
-    &bytes[i..]
+    signer_platform_web::codec::strip_leading_zeros_slice(bytes)
 }

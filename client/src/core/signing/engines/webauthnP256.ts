@@ -104,10 +104,14 @@ export class WebAuthnP256Engine implements SigningEngine {
       throw new Error('[WebAuthnP256Engine] WebAuthn not available (must run in a browser context)');
     }
 
+    // Ensure browser-facing BufferSource values are ArrayBuffer-backed (not SharedArrayBuffer-backed).
+    const challenge = new Uint8Array(req.challenge32);
+    const allowCredentialId = new Uint8Array(keyRef.credentialId);
+
     const assertion = (await navigator.credentials.get({
       publicKey: {
-        challenge: req.challenge32,
-        allowCredentials: [{ type: 'public-key', id: keyRef.credentialId }],
+        challenge,
+        allowCredentials: [{ type: 'public-key', id: allowCredentialId }],
         rpId: req.rpId ?? keyRef.rpId,
         userVerification: 'preferred',
       },

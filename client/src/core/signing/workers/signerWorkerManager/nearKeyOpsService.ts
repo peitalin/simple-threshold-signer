@@ -83,6 +83,9 @@ export class NearSigningKeyOpsService {
     sessionId: string;
     prfFirstB64u?: string;
     wrapKeySalt?: string;
+    encryptedPrivateKeyData?: string;
+    encryptedPrivateKeyChacha20NonceB64u?: string;
+    deviceNumber?: number;
   }): Promise<{
     decryptedPrivateKey: string;
     nearAccountId: AccountId;

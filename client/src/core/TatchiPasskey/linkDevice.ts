@@ -11,7 +11,8 @@ import { IndexedDBManager } from '../IndexedDBManager';
 import { createNearKeypair, ensureEd25519Prefix } from '../near/nearCrypto';
 import { getLoginSession } from './login';
 import { DEVICE_LINKING_CONFIG } from '../../config';
-import { removePrfOutputGuard, normalizeRegistrationCredential } from '../signing/webauthn/credentials/helpers';
+import { normalizeRegistrationCredential } from '../signing/webauthn/credentials/helpers';
+import { redactCredentialExtensionOutputs } from '../signing/webauthn/credentials';
 import { buildThresholdEd25519Participants2pV1 } from '../../../../shared/src/threshold/participants';
 import { DEFAULT_WAIT_STATUS } from '../types/rpc';
 import { ActionType, type ActionArgsWasm } from '../types/actions';
@@ -313,7 +314,7 @@ export class LinkDeviceFlow {
       };
     }
 
-    const credentialForRelay = removePrfOutputGuard(normalizeRegistrationCredential(credential));
+    const credentialForRelay = redactCredentialExtensionOutputs(normalizeRegistrationCredential(credential));
     const prepareResp = await fetch(`${relayerUrl.replace(/\/$/, '')}/link-device/prepare`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -410,6 +411,7 @@ export class LinkDeviceFlow {
         encryptedSk: localKeyMaterialForPersist.encryptedSk,
         chacha20NonceB64u: localKeyMaterialForPersist.chacha20NonceB64u,
         wrapKeySalt: localKeyMaterialForPersist.wrapKeySalt,
+        usage: 'runtime-signing',
         timestamp: Date.now(),
       });
     }

@@ -32,8 +32,8 @@ export type RotateThresholdEd25519KeyPostRegistrationHandlerContext = {
  * - AddKey(new threshold publicKey)
  * - DeleteKey(old threshold publicKey)
  *
- * Uses the local signer key for AddKey/DeleteKey, and requires the account to already
- * have a stored `threshold_ed25519_2p_v1` key material entry for the target device.
+ * Uses threshold-signer for post-keygen DeleteKey(old), and expects a stored
+ * `threshold_ed25519_2p_v1` key material entry for the target device.
  */
 export async function rotateThresholdEd25519KeyPostRegistrationHandler(
   ctx: RotateThresholdEd25519KeyPostRegistrationHandlerContext,
@@ -110,15 +110,7 @@ export async function rotateThresholdEd25519KeyPostRegistrationHandler(
       nearAccountId,
       resolvedDeviceNumber,
     );
-    if (!localKeyMaterial) {
-      return ok({
-        deleteOldKeyAttempted: false,
-        deleteOldKeySuccess: false,
-        warning: `Rotation completed but could not load local key material for DeleteKey(old) (account ${nearAccountId} device ${resolvedDeviceNumber}).`,
-      });
-    }
-
-    const localPk = ensureEd25519Prefix(localKeyMaterial.publicKey);
+    const localPk = ensureEd25519Prefix(localKeyMaterial?.publicKey || '');
     if (localPk && localPk === oldNormalized) {
       return ok({
         deleteOldKeyAttempted: false,
@@ -155,7 +147,7 @@ export async function rotateThresholdEd25519KeyPostRegistrationHandler(
       const signed = await ctx.signTransactionsWithActions({
         transactions: txInputs,
         rpcCall,
-        signerMode: { mode: 'local-signer' },
+        signerMode: { mode: 'threshold-signer', behavior: 'strict' },
         confirmationConfigOverride: {
           uiMode: 'none',
           behavior: 'skipClick',

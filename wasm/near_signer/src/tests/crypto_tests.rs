@@ -1,6 +1,5 @@
 use bs58;
 
-use crate::config::CHACHA20_KEY_SIZE;
 use crate::crypto::{
     decrypt_data_chacha20, derive_ed25519_key_from_prf_output, encrypt_data_chacha20,
 };
@@ -9,7 +8,7 @@ use crate::encoders::base64_url_encode;
 /// Core round-trip test for ChaCha20 encryption/decryption and wrap-key salt tagging.
 #[test]
 fn chacha20_encrypt_then_decrypt_round_trip() {
-    let key = vec![42u8; CHACHA20_KEY_SIZE];
+    let key = vec![42u8; signer_platform_web::near_crypto::CHACHA20_KEY_SIZE];
     let plaintext = "hello chacha20 round-trip";
 
     let encrypted = encrypt_data_chacha20(plaintext, &key).unwrap();

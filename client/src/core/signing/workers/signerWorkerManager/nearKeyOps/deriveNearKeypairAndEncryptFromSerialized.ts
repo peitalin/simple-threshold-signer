@@ -111,6 +111,7 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
         encryptedSk,
         chacha20NonceB64u,
         wrapKeySalt: wrapKeySaltPersisted,
+        usage: 'runtime-signing',
         timestamp: Date.now(),
       });
     }

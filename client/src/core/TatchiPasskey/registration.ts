@@ -7,21 +7,17 @@ import type {
 import type { RegistrationResult, TatchiConfigs } from '../types/tatchi';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
 import { RegistrationPhase, RegistrationStatus } from '../types/sdkSentEvents';
-import { ActionType, toActionArgsWasm, type TransactionInputWasm } from '../types/actions';
-import { DEFAULT_WAIT_STATUS } from '../types/rpc';
 import {
   createAccountAndRegisterWithRelayServer
 } from './faucets/createAccountRelayServer';
 import { PasskeyManagerContext } from './index';
 import { WebAuthnManager } from '../signing/api/WebAuthnManager';
 import { IndexedDBManager } from '../IndexedDBManager';
-import { type ConfirmationConfig, type SignerMode, mergeSignerMode } from '../types/signer-worker';
-import type { WebAuthnRegistrationCredential } from '../types/webauthn';
+import { type ConfirmationConfig, mergeSignerMode } from '../types/signer-worker';
 import type { AccountId } from '../types/accountIds';
-import { errorMessage, getUserFriendlyErrorMessage } from '../../../../shared/src/utils/errors';
+import { getUserFriendlyErrorMessage } from '../../../../shared/src/utils/errors';
 import { buildThresholdEd25519Participants2pV1 } from '../../../../shared/src/threshold/participants';
 import { checkNearAccountExistsBestEffort } from '../near/rpcCalls';
-import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
 // Registration forces a visible, clickable confirmation for cross‑origin safety
 
 /**
@@ -29,9 +25,9 @@ import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
  *
  * Legacy proof-derived flows have been removed from the lite threshold-signer stack. Registration is now:
  * 1) Collect a standard WebAuthn registration credential (passkey).
- * 2) If `threshold-signer` is requested: derive a deterministic threshold client verifying share from PRF.first.
- *    Otherwise: derive and store an encrypted local NEAR key (v3 vault) from PRF outputs.
- * 3) Create/register the account via the relayer (threshold-only accounts are created with the threshold public key).
+ * 2) Derive a deterministic threshold client verifying share from PRF.first (default registration policy).
+ *    Optionally derive/store encrypted local NEAR key material (v3 vault) as backup/export data.
+ * 3) Create/register the account via the relayer using threshold key enrollment.
  */
 export async function registerPasskeyInternal(
   context: PasskeyManagerContext,
@@ -85,7 +81,6 @@ export async function registerPasskeyInternal(
     });
 
     const credential = registrationSession.credential;
-    const transactionContext = registrationSession.transactionContext;
 
     onEvent?.({
       step: 1,
@@ -95,32 +90,33 @@ export async function registerPasskeyInternal(
     });
 
     const baseSignerMode = webAuthnManager.getUserPreferences().getSignerMode();
-    const requestedSignerMode = mergeSignerMode(baseSignerMode, options?.signerMode);
+    // Registration defaults to threshold mode even when global/user defaults are local-signer.
+    // Explicit per-call overrides can still force local mode for legacy compatibility.
+    const registrationDefaultSignerMode = baseSignerMode.mode === 'threshold-signer'
+      ? baseSignerMode
+      : { mode: 'threshold-signer' as const };
+    const requestedSignerMode = mergeSignerMode(registrationDefaultSignerMode, options?.signerMode);
     const requestedSignerModeStr = requestedSignerMode.mode;
+    const deriveLocalBackupKey = requestedSignerModeStr === 'threshold-signer'
+      ? options?.backupLocalKey !== false
+      : true;
 
     const deviceNumber = 1;
-    let nearPublicKey: string | null = null;
-    let nearPrivateKeyForBootstrap: string | null = null;
+    let accountNearPublicKey: string | null = null;
     let thresholdClientVerifyingShareB64u: string | null = null;
     let localKeyMaterialForPersist: {
+      publicKey: string;
       encryptedSk: string;
       chacha20NonceB64u: string;
       wrapKeySalt: string;
+      usage: 'runtime-signing' | 'export-only';
     } | null = null;
 
     // 2) Key material:
-    // - threshold-signer: derive client verifying share from PRF.first (no local signer key)
-    // - local-signer: derive encrypted local key material (persisted after profile/account mapping exists)
+    // - threshold-signer: derive client verifying share from PRF.first (default)
+    // - threshold-signer + backupLocalKey: also derive encrypted local backup key material for export
+    // - local-signer (legacy compatibility): derive encrypted local key material for account key usage
     if (requestedSignerModeStr === 'threshold-signer') {
-      // Option B bootstrap: derive a local/backup key from PRF.second.
-      // The relay creates the account with this key, and then the client adds the threshold key.
-      const backupKeypair = await webAuthnManager.deriveNearKeypairFromCredentialViaWorker({
-        credential,
-        nearAccountId,
-      });
-      nearPublicKey = backupKeypair.publicKey;
-      nearPrivateKeyForBootstrap = backupKeypair.privateKey;
-
       const derived = await webAuthnManager.deriveThresholdEd25519ClientVerifyingShareFromCredential({
         credential,
         nearAccountId,
@@ -129,6 +125,35 @@ export async function registerPasskeyInternal(
         throw new Error(derived.error || 'Failed to derive threshold client verifying share');
       }
       thresholdClientVerifyingShareB64u = derived.clientVerifyingShareB64u;
+
+      if (deriveLocalBackupKey) {
+        const localKeyResult = await webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
+          credential,
+          nearAccountId,
+          options: { deviceNumber, persistToDb: false },
+        });
+        if (!localKeyResult.success || !localKeyResult.publicKey) {
+          const reason = localKeyResult?.error || 'Failed to derive local backup keypair with PRF';
+          throw new Error(reason);
+        }
+        const localPublicKey = ensureEd25519Prefix(String(localKeyResult.publicKey || '').trim());
+        if (!localPublicKey) {
+          throw new Error('Missing local backup public key after key derivation');
+        }
+        const encryptedSk = String(localKeyResult.encryptedSk || '').trim();
+        const chacha20NonceB64u = String(localKeyResult.chacha20NonceB64u || '').trim();
+        const wrapKeySalt = String(localKeyResult.wrapKeySalt || '').trim();
+        if (!encryptedSk || !chacha20NonceB64u || !wrapKeySalt) {
+          throw new Error('Missing encrypted local backup key material after key derivation');
+        }
+        localKeyMaterialForPersist = {
+          publicKey: localPublicKey,
+          encryptedSk,
+          chacha20NonceB64u,
+          wrapKeySalt,
+          usage: 'export-only',
+        };
+      }
     } else {
       const nearKeyResult = await webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
         credential,
@@ -139,6 +164,10 @@ export async function registerPasskeyInternal(
         const reason = nearKeyResult?.error || 'Failed to generate NEAR keypair with PRF';
         throw new Error(reason);
       }
+      const localPublicKey = ensureEd25519Prefix(String(nearKeyResult.publicKey || '').trim());
+      if (!localPublicKey) {
+        throw new Error('Missing local signer public key after key derivation');
+      }
       const encryptedSk = String(nearKeyResult.encryptedSk || '').trim();
       const chacha20NonceB64u = String(nearKeyResult.chacha20NonceB64u || '').trim();
       const wrapKeySalt = String(nearKeyResult.wrapKeySalt || '').trim();
@@ -146,11 +175,13 @@ export async function registerPasskeyInternal(
         throw new Error('Missing encrypted local key material after key derivation');
       }
       localKeyMaterialForPersist = {
+        publicKey: localPublicKey,
         encryptedSk,
         chacha20NonceB64u,
         wrapKeySalt,
+        usage: 'runtime-signing',
       };
-      nearPublicKey = nearKeyResult.publicKey;
+      accountNearPublicKey = localPublicKey;
     }
 
     // Step 4-5: Create account and register using the relay (atomic)
@@ -159,11 +190,15 @@ export async function registerPasskeyInternal(
       phase: RegistrationPhase.STEP_2_KEY_GENERATION,
       status: RegistrationStatus.SUCCESS,
       message: requestedSignerModeStr === 'threshold-signer'
-        ? 'Derived threshold client share and backup key from passkey'
+        ? (
+          deriveLocalBackupKey
+            ? 'Derived threshold client share and local backup key from passkey'
+            : 'Derived threshold client share from passkey'
+        )
         : 'Wallet derived successfully from passkey',
       verified: true,
       nearAccountId: nearAccountId,
-      nearPublicKey: nearPublicKey || null,
+      nearPublicKey: accountNearPublicKey || null,
     });
 
     let accountAndRegistrationResult;
@@ -174,9 +209,9 @@ export async function registerPasskeyInternal(
     accountAndRegistrationResult = await createAccountAndRegisterWithRelayServer(
       context,
       nearAccountId,
-      // Option B: threshold-signer supplies a backup/local key for account creation.
-      // Option A compatibility (older clients) can omit it, but the SDK prefers Option B.
-      nearPublicKey || undefined,
+      requestedSignerModeStr === 'threshold-signer'
+        ? undefined
+        : accountNearPublicKey || undefined,
       credential,
       rpId,
       authenticatorOptions,
@@ -208,7 +243,9 @@ export async function registerPasskeyInternal(
     const thresholdPublicKey = String(accountAndRegistrationResult?.thresholdEd25519?.publicKey || '').trim();
     const relayerKeyId = String(accountAndRegistrationResult?.thresholdEd25519?.relayerKeyId || '').trim();
     const relayerVerifyingShareB64u = String(accountAndRegistrationResult?.thresholdEd25519?.relayerVerifyingShareB64u || '').trim();
-    const accountCreationPublicKey = String(nearPublicKey || '').trim();
+    const accountCreationPublicKey = requestedSignerModeStr === 'threshold-signer'
+      ? thresholdPublicKey
+      : String(accountNearPublicKey || '').trim();
     if (!accountCreationPublicKey) {
       throw new Error('Missing account public key after registration');
     }
@@ -238,77 +275,42 @@ export async function registerPasskeyInternal(
       });
     }
 
-    // For threshold-signer registrations (Option B): client adds the threshold key AFTER account creation
-    // (account is created with the backup/local key derived from PRF.second).
+    // For threshold-signer registrations, the account is created directly with the threshold key.
+    // Confirm threshold key availability and continue.
     if (requestedSignerModeStr === 'threshold-signer') {
       if (!thresholdPublicKey || !relayerKeyId || !thresholdClientVerifyingShareB64u || !relayerVerifyingShareB64u) {
         throw new Error('Threshold registration did not return required key material');
       }
 
-      if (!nearPrivateKeyForBootstrap) {
-        throw new Error('Missing backup key material required to add threshold key');
-      }
-
-      // Step 7: add threshold key on-chain (client-signed with backup/local key) and verify.
+      // Step 7: ensure threshold key is available on-chain.
       onEvent?.({
         step: 7,
         phase: RegistrationPhase.STEP_7_THRESHOLD_KEY_ENROLLMENT,
         status: RegistrationStatus.PROGRESS,
-        message: 'Adding threshold key…',
+        message: 'Confirming threshold key…',
         thresholdPublicKey,
         relayerKeyId,
         deviceNumber,
       });
 
-      const thresholdAlreadyPresent = await verifyAccountAccessKeysPresent(
-        context.nearClient,
-        String(nearAccountId),
-        [thresholdPublicKey],
-        { attempts: 1, delayMs: 0, finality: 'optimistic' },
-      );
-
-      if (!thresholdAlreadyPresent) {
-        const txContext = await fetchNonceBlockHashForKey(
+      const thresholdConfirmed =
+        accessKeyVerified
+        || await verifyAccountAccessKeysPresent(
           context.nearClient,
           String(nearAccountId),
-          accountCreationPublicKey,
-          { attempts: 10, delayMs: 250, finality: 'final' },
+          [thresholdPublicKey],
+          { attempts: 10, delayMs: 250, finality: 'optimistic' },
         );
-
-        const signed = await context.webAuthnManager.signTransactionWithKeyPair({
-          nearPrivateKey: nearPrivateKeyForBootstrap,
-          signerAccountId: String(nearAccountId),
-          receiverId: String(nearAccountId),
-          nonce: txContext.nextNonce,
-          blockHash: txContext.blockHash,
-          actions: [
-            toActionArgsWasm({
-              type: ActionType.AddKey,
-              publicKey: thresholdPublicKey,
-              accessKey: { permission: 'FullAccess' },
-            }),
-          ],
-        });
-
-        await context.nearClient.sendTransaction(signed.signedTransaction, DEFAULT_WAIT_STATUS.thresholdAddKey);
-      }
-
-      const thresholdConfirmed = await verifyAccountAccessKeysPresent(
-        context.nearClient,
-        String(nearAccountId),
-        [accountCreationPublicKey, thresholdPublicKey],
-        { attempts: 10, delayMs: 250, finality: 'optimistic' },
-      );
       if (!thresholdConfirmed) {
-        console.warn('[Registration] Threshold key not yet visible after AddKey; continuing optimistically');
+        console.warn('[Registration] Threshold key not yet visible after atomic registration; continuing optimistically');
       }
 
       onEvent?.({
         step: 7,
         phase: RegistrationPhase.STEP_7_THRESHOLD_KEY_ENROLLMENT,
         status: RegistrationStatus.SUCCESS,
-        message: thresholdConfirmed ? 'Threshold key ready' : 'Threshold key submitted (awaiting on-chain propagation)',
-        thresholdKeyReady: true,
+        message: thresholdConfirmed ? 'Threshold key ready' : 'Threshold key verification pending (optimistic)',
+        thresholdKeyReady: thresholdConfirmed,
         thresholdPublicKey,
         relayerKeyId,
         deviceNumber,
@@ -340,10 +342,11 @@ export async function registerPasskeyInternal(
       await IndexedDBManager.storeNearLocalKeyMaterialV2({
         nearAccountId,
         deviceNumber,
-        publicKey: accountCreationPublicKey,
+        publicKey: localKeyMaterialForPersist.publicKey,
         encryptedSk: localKeyMaterialForPersist.encryptedSk,
         chacha20NonceB64u: localKeyMaterialForPersist.chacha20NonceB64u,
         wrapKeySalt: localKeyMaterialForPersist.wrapKeySalt,
+        usage: localKeyMaterialForPersist.usage,
         timestamp: Date.now(),
       });
     }
@@ -381,16 +384,6 @@ export async function registerPasskeyInternal(
     } catch (initErr) {
       console.warn('Failed to initialize current user after registration:', initErr);
     }
-
-    // Step 9 (best-effort): enable an escape-hatch key derived from PRF.second and add it on-chain.
-    await enableNearEscapeHatchBackupKeyBestEffort({
-      context,
-      nearAccountId,
-      registrationCredential: credential,
-      signerMode: requestedSignerMode,
-      confirmationConfigOverride: confirmationConfig,
-      onEvent,
-    });
 
     onEvent?.({
       step: 9,
@@ -443,160 +436,6 @@ export async function registerPasskeyInternal(
     const result = { success: false, error: errorMessage };
     afterCall?.(false);
     return result;
-  }
-}
-
-async function enableNearEscapeHatchBackupKeyBestEffort(args: {
-  context: PasskeyManagerContext;
-  nearAccountId: AccountId;
-  registrationCredential: WebAuthnRegistrationCredential;
-  signerMode: SignerMode;
-  confirmationConfigOverride?: Partial<ConfirmationConfig>;
-  onEvent?: (event: RegistrationSSEEvent) => void;
-}): Promise<void> {
-  const { context, nearAccountId, registrationCredential, signerMode, onEvent } = args;
-
-  try {
-    if (signerMode.mode !== 'threshold-signer') return;
-    if (!__isWalletIframeHostMode()) return;
-
-    const withTimeout = async <T,>(
-      promise: Promise<T>,
-      timeoutMs: number,
-      onTimeout: () => void,
-    ): Promise<T> => {
-      if (timeoutMs <= 0) return await promise;
-      return await new Promise<T>((resolve, reject) => {
-        const timeoutId = setTimeout(() => {
-          try {
-            onTimeout();
-          } finally {
-            reject(new Error(`Timed out after ${timeoutMs}ms`));
-          }
-        }, timeoutMs);
-        promise.then(
-          (value) => {
-            clearTimeout(timeoutId);
-            resolve(value);
-          },
-          (error) => {
-            clearTimeout(timeoutId);
-            reject(error);
-          },
-        );
-      });
-    };
-
-    const { publicKey: backupPublicKey } = await context.webAuthnManager.deriveNearKeypairFromCredentialViaWorker({
-      credential: registrationCredential,
-      nearAccountId,
-    });
-
-    const alreadyPresent = await verifyAccountAccessKeysPresent(
-      context.nearClient,
-      String(nearAccountId),
-      [backupPublicKey],
-      // Registration can race NEAR RPC propagation. Retry a few times to avoid
-      // false negatives that would otherwise trigger an extra (second) confirmation.
-      { attempts: 6, delayMs: 250, finality: 'optimistic' },
-    );
-    if (alreadyPresent) {
-      onEvent?.({
-        step: 9,
-        phase: RegistrationPhase.STEP_9_ESCAPE_HATCH,
-        status: RegistrationStatus.SUCCESS,
-        message: 'Backup key already enabled',
-        backupPublicKey,
-      });
-      return;
-    }
-
-    onEvent?.({
-      step: 9,
-      phase: RegistrationPhase.STEP_9_ESCAPE_HATCH,
-      status: RegistrationStatus.PROGRESS,
-      message: 'Enabling backup key (escape hatch)…',
-      backupPublicKey,
-    });
-
-    const txInputsWasm: TransactionInputWasm[] = [
-      {
-        receiverId: String(nearAccountId),
-        actions: [
-          toActionArgsWasm({
-            type: ActionType.AddKey,
-            publicKey: backupPublicKey,
-            accessKey: { permission: 'FullAccess' },
-          }),
-        ],
-      },
-    ];
-
-    const signPromise = context.webAuthnManager.signTransactionsWithActions({
-      transactions: txInputsWasm,
-      rpcCall: {
-        contractId: context.configs.contractId,
-        nearRpcUrl: context.configs.nearRpcUrl,
-        nearAccountId: String(nearAccountId),
-      },
-      signerMode,
-      confirmationConfigOverride: {
-        ...(args.confirmationConfigOverride ?? {}),
-        uiMode: 'modal',
-        behavior: 'requireClick',
-      },
-      title: 'Enable backup key (escape hatch)',
-      body: 'Adds a backup key to your NEAR account so you can leave MPC later.',
-    });
-
-    const signed = await withTimeout(signPromise, 180_000, () => {
-      // Best-effort: ensure the confirmer can unwind (releases reserved nonces) rather than hanging registration.
-      try {
-        window.postMessage({ type: 'MODAL_TIMEOUT', payload: 'Backup key confirmation timed out; continuing…' }, '*');
-      } catch {}
-    }).catch(async (err) => {
-      // Give the underlying flow a moment to settle after MODAL_TIMEOUT so nonce reservations are released.
-      try {
-        await Promise.race([
-          signPromise.catch(() => undefined),
-          new Promise((resolve) => setTimeout(resolve, 1500)),
-        ]);
-      } catch {}
-      throw err;
-    });
-
-    for (const item of signed) {
-      const signedTx = item?.signedTransaction;
-      if (!signedTx) throw new Error('Missing signed transaction for escape hatch AddKey');
-      await context.nearClient.sendTransaction(signedTx, DEFAULT_WAIT_STATUS.thresholdAddKey);
-    }
-
-    const confirmed = await verifyAccountAccessKeysPresent(
-      context.nearClient,
-      String(nearAccountId),
-      [backupPublicKey],
-      { attempts: 6, delayMs: 400, finality: 'optimistic' },
-    );
-
-    onEvent?.({
-      step: 9,
-      phase: RegistrationPhase.STEP_9_ESCAPE_HATCH,
-      status: RegistrationStatus.SUCCESS,
-      message: confirmed
-        ? 'Backup key enabled (escape hatch ready)'
-        : 'Backup key transaction submitted (awaiting on-chain propagation)',
-      backupPublicKey,
-    });
-  } catch (err: unknown) {
-    const msg = errorMessage(err) || 'Failed to enable backup key';
-    console.warn('[Registration] Backup key setup failed (continuing without escape hatch):', err);
-    onEvent?.({
-      step: 9,
-      phase: RegistrationPhase.STEP_9_ESCAPE_HATCH,
-      status: RegistrationStatus.SUCCESS,
-      message: `Backup key not enabled (continuing): ${msg}`,
-      error: msg,
-    });
   }
 }
 

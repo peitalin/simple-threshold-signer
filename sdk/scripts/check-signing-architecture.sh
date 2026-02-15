@@ -77,6 +77,34 @@ if rg -n \
   exit 1
 fi
 
+echo "[check-signing-architecture] checking forbidden WebAuthnManager imports from signing..."
+if rg -n \
+  -P -e "^[[:space:]]*(import|export)[^'\"]*['\"][^'\"]*(core/)?WebAuthnManager/[^'\"]*['\"]" \
+  client/src/core/signing \
+  tests; then
+  echo "[check-signing-architecture] failed: signing modules/tests must not import from legacy WebAuthnManager paths"
+  exit 1
+fi
+
+echo "[check-signing-architecture] checking api layering boundaries..."
+if rg -n \
+  -e "from ['\"][^'\"]*api/WebAuthnManager(\\.ts)?['\"]" \
+  client/src/core/signing/chainAdaptors \
+  client/src/core/signing/engines \
+  client/src/core/signing/threshold \
+  client/src/core/signing/webauthn \
+  client/src/core/signing/secureConfirm \
+  client/src/core/signing/workers; then
+  echo "[check-signing-architecture] failed: lower signing layers must not import signing/api/WebAuthnManager"
+  exit 1
+fi
+
+echo "[check-signing-architecture] checking api/lower-layer import cycles..."
+if ! node "$ROOT_DIR/sdk/scripts/check-signing-api-cycles.mjs"; then
+  echo "[check-signing-architecture] failed: detected api/lower-layer cycles"
+  exit 1
+fi
+
 echo "[check-signing-architecture] checking execute helper context enforcement..."
 if rg -n \
   -e "requestMultichainWorkerOperation" \
@@ -96,6 +124,23 @@ if ! rg -n \
   exit 1
 fi
 
+echo "[check-signing-architecture] checking typed worker error-code propagation..."
+if ! rg -n \
+  -e "SignerWorkerOperationError" \
+  client/src/core/signing/workers/signerWorkerManager/backends/multichainWorkerBackend.ts \
+  client/src/core/signing/workers/signerWorkerManager/backends/nearWorkerBackend.ts >/dev/null; then
+  echo "[check-signing-architecture] failed: worker transports must preserve typed error-code objects"
+  exit 1
+fi
+
+if ! rg -n \
+  -e "coreCode" \
+  client/src/core/workers/eth-signer.worker.ts \
+  client/src/core/workers/tempo-signer.worker.ts >/dev/null; then
+  echo "[check-signing-architecture] failed: multichain workers must forward structured wasm error codes"
+  exit 1
+fi
+
 echo "[check-signing-architecture] checking SecureConfirm wrapper cleanup..."
 if rg -n \
   -e "secureConfirm/flow/" \
@@ -103,6 +148,91 @@ if rg -n \
   tests; then
   echo "[check-signing-architecture] failed: secureConfirm/flow wrapper imports should be removed"
   exit 1
+fi
+
+if rg -n \
+  -P -e "^[[:space:]]*(import|export)[^'\"]*['\"][^'\"]*secureConfirm/ui/lit-components/(confirm-ui|ExportPrivateKey/iframe-host)(\\.ts|\\.js)?['\"]" \
+  client/src \
+  tests; then
+  echo "[check-signing-architecture] failed: secureConfirm UI consumers should import canonical ui/* modules"
+  exit 1
+fi
+
+if rg -n \
+  -e "secureConfirm/ui/lit-components/confirm-ui\\.ts" \
+  sdk/scripts/build-dev.sh \
+  sdk/scripts/build-prod.sh \
+  sdk/rolldown.config.ts; then
+  echo "[check-signing-architecture] failed: sdk build inputs should target canonical secureConfirm/ui/confirm-ui.ts"
+  exit 1
+fi
+
+if [[ -e "client/src/core/signing/secureConfirm/ui/iframe-host.ts" ]]; then
+  echo "[check-signing-architecture] failed: stale secureConfirm/ui/iframe-host.ts wrapper should be removed"
+  exit 1
+fi
+
+if rg -n \
+  -e "export \\* from '\\./lit-components/confirm-ui'" \
+  client/src/core/signing/secureConfirm/ui/confirm-ui.ts >/dev/null; then
+  echo "[check-signing-architecture] failed: secureConfirm/ui/confirm-ui.ts must be the canonical implementation (not a wrapper)"
+  exit 1
+fi
+
+if rg -n \
+  -e "export \\* from '\\.\\./lit-components/ExportPrivateKey/iframe-host'" \
+  client/src/core/signing/secureConfirm/ui/export-private-key/iframe-host.ts >/dev/null; then
+  echo "[check-signing-architecture] failed: secureConfirm/ui/export-private-key/iframe-host.ts must be canonical (not a wrapper)"
+  exit 1
+fi
+
+echo "[check-signing-architecture] checking zero-byte TS/TSX files..."
+zero_byte_ts_files="$(find client/src -type f \( -name '*.ts' -o -name '*.tsx' \) -size 0 -print)"
+if [[ -n "$zero_byte_ts_files" ]]; then
+  echo "$zero_byte_ts_files"
+  echo "[check-signing-architecture] failed: zero-byte TS/TSX files are not allowed"
+  exit 1
+fi
+
+echo "[check-signing-architecture] checking intentional zero-inbound entrypoint allowlist..."
+intentional_zero_inbound_files=(
+  "client/src/core/signing/secureConfirm/confirmTxFlow/forbiddenMainThreadSecrets.typecheck.ts"
+  "client/src/core/signing/secureConfirm/ui/lit-components/ExportPrivateKey/iframe-export-bootstrap-script.ts"
+)
+
+for intentional_file in "${intentional_zero_inbound_files[@]}"; do
+  if [[ ! -f "$intentional_file" ]]; then
+    echo "[check-signing-architecture] failed: missing allowlisted zero-inbound entrypoint: $intentional_file"
+    exit 1
+  fi
+
+  module_path="${intentional_file#client/src/}"
+  module_path_no_ext="${module_path%.ts}"
+  module_regex="$(printf '%s' "$module_path_no_ext" | sed -E 's/[][(){}.^$+*?|]/\\&/g')"
+
+  if rg -n \
+    -e "from ['\"][^'\"]*${module_regex}(['\"]|\\.ts['\"])" \
+    -e "import\\(['\"][^'\"]*${module_regex}(['\"]|\\.ts['\"])\\)" \
+    client/src \
+    tests \
+    sdk >/dev/null; then
+    echo "[check-signing-architecture] failed: allowlisted entrypoint should remain zero-inbound: $intentional_file"
+    exit 1
+  fi
+done
+
+all_typecheck_files="$(find client/src/core/signing -type f -name '*.typecheck.ts' -print | sort)"
+if [[ -n "$all_typecheck_files" ]]; then
+  while IFS= read -r typecheck_file; do
+    [[ -z "$typecheck_file" ]] && continue
+    case " ${intentional_zero_inbound_files[*]} " in
+      *" $typecheck_file "*) ;;
+      *)
+        echo "[check-signing-architecture] failed: typecheck entrypoint missing from intentional allowlist: $typecheck_file"
+        exit 1
+        ;;
+    esac
+  done <<< "$all_typecheck_files"
 fi
 
 echo "[check-signing-architecture] checking WebAuthn P-256 wasm boundary..."
@@ -159,12 +289,23 @@ if ! rg -n \
   exit 1
 fi
 
+echo "[check-signing-architecture] checking NEAR threshold signer local-fallback removal..."
+if rg -n \
+  -e "falling back to local-signer" \
+  client/src/core/signing/chainAdaptors/near/handlers/signTransactionsWithActions.ts \
+  client/src/core/signing/chainAdaptors/near/handlers/signDelegateAction.ts \
+  client/src/core/signing/chainAdaptors/near/handlers/signNep413Message.ts >/dev/null; then
+  echo "[check-signing-architecture] failed: NEAR threshold signing handlers must not fallback to local-signer during runtime threshold execution"
+  exit 1
+fi
+
 echo "[check-signing-architecture] checking secp256k1 derivation stays export-only..."
 if rg -n \
   -e "deriveSecp256k1KeypairFromPrfSecondWasm\\(" \
   client/src/core/signing \
   client/src/core/TatchiPasskey \
   | rg -v "client/src/core/signing/api/WebAuthnManager.ts" \
+  | rg -v "client/src/core/signing/api/privateKeyExportRecovery.ts" \
   | rg -v "client/src/core/signing/chainAdaptors/evm/ethSignerWasm.ts" >/dev/null; then
   echo "[check-signing-architecture] failed: secp256k1 local derivation must be restricted to export UX wiring"
   exit 1
@@ -267,6 +408,15 @@ if ! rg -n \
   -e "run-swift-vector-replay\\.sh" \
   sdk/scripts/check-signer-parity.sh >/dev/null; then
   echo "[check-signing-architecture] failed: check-signer-parity must include iOS Swift replay harness"
+  exit 1
+fi
+
+if ! rg -n \
+  -e "with_wasm_bindgen_cli_for_lockfile" \
+  sdk/scripts/build-dev.sh \
+  sdk/scripts/build-prod.sh \
+  sdk/scripts/generate-types.sh >/dev/null; then
+  echo "[check-signing-architecture] failed: sdk wasm build scripts must pin wasm-bindgen via lockfile-aware toolchain wrapper"
   exit 1
 fi
 
@@ -396,6 +546,9 @@ if rg -n \
   -e "Tempo signatures must be 65 bytes" \
   -e "parseRecoveredSecp256k1Signature" \
   -e "secp256k1 recovered signature must be 65 bytes" \
+  -e "aaAuthorizationList not supported in MVP" \
+  -e "keyAuthorization not supported in MVP" \
+  -e "function getRlpValueLength\\(" \
   -e "encodeEip1559SignedTxWasm\\(" \
   -e "const yParity = \\(recovery & 1\\)" \
   client/src/core/signing/chainAdaptors/tempo/tempoAdapter.ts >/dev/null; then
@@ -459,10 +612,18 @@ fi
 
 if rg -n \
   -e "frost_ed25519::round1::commit" \
-  -e "base64_url_decode\\(" \
-  -e "base64_url_encode\\(" \
+  -e "crate::encoders::base64_url_decode" \
+  -e "crate::encoders::base64_url_encode" \
+  -e "Base64UrlUnpadded::" \
   wasm/near_signer/src/threshold/protocol.rs >/dev/null; then
   echo "[check-signing-architecture] failed: near threshold protocol wrapper must not contain local runtime commit/base64 protocol logic"
+  exit 1
+fi
+
+if ! rg -n \
+  -e "signer_platform_web::near_threshold_ed25519::base64_url_encode" \
+  wasm/near_signer/src/threshold/protocol.rs >/dev/null; then
+  echo "[check-signing-architecture] failed: near threshold protocol wrapper must delegate base64url encoding to signer-platform-web::near_threshold_ed25519"
   exit 1
 fi
 
@@ -479,6 +640,20 @@ if rg -n \
   -e "fn derive_client_key_package_from_wrap_key_seed\\(" \
   wasm/near_signer/src/threshold/signer_backend.rs >/dev/null; then
   echo "[check-signing-architecture] failed: near signer_backend must not keep local key parsing/package derivation helpers"
+  exit 1
+fi
+
+if ! rg -n \
+  -e "signer_platform_web::near_ed25519::parse_near_private_key_secret_key_bytes" \
+  wasm/near_signer/src/threshold/signer_backend.rs >/dev/null; then
+  echo "[check-signing-architecture] failed: near signer_backend local signer path must delegate private-key secret-byte parsing to signer-platform-web::near_ed25519"
+  exit 1
+fi
+
+if rg -n \
+  -e "fn parse_near_private_key_to_signing_key\\(" \
+  wasm/near_signer/src/threshold/signer_backend.rs >/dev/null; then
+  echo "[check-signing-architecture] failed: near signer_backend must not keep local near private-key parsing helpers"
   exit 1
 fi
 
@@ -514,6 +689,13 @@ if rg -n \
   -e "frost_ed25519::aggregate\\(" \
   wasm/near_signer/src/threshold/coordinator.rs >/dev/null; then
   echo "[check-signing-architecture] failed: near coordinator must not contain direct FROST round/aggregate calls"
+  exit 1
+fi
+
+if rg -n \
+  -e "crate::encoders::base64_url_encode" \
+  wasm/near_signer/src/threshold/coordinator.rs >/dev/null; then
+  echo "[check-signing-architecture] failed: near coordinator must route digest base64url encoding through protocol wrapper delegates"
   exit 1
 fi
 
@@ -566,6 +748,24 @@ if rg -n \
   -e "Sha256" \
   wasm/near_signer/src/threshold/relayer_http.rs >/dev/null; then
   echo "[check-signing-architecture] failed: near relayer_http must not contain local threshold crypto primitives"
+  exit 1
+fi
+
+if ! rg -n \
+  -e "signer_platform_web::near_threshold_frost::" \
+  wasm/near_signer/src/threshold/threshold_frost.rs >/dev/null; then
+  echo "[check-signing-architecture] failed: near threshold_frost wrapper must delegate runtime keygen/round operations to signer-platform-web::near_threshold_frost"
+  exit 1
+fi
+
+if rg -n \
+  -e "frost_ed25519::round1::commit" \
+  -e "frost_ed25519::round2::sign" \
+  -e "binding_factor_preimages" \
+  -e "CurveScalar::from_bytes_mod_order_wide" \
+  -e "Hkdf::" \
+  wasm/near_signer/src/threshold/threshold_frost.rs >/dev/null; then
+  echo "[check-signing-architecture] failed: near threshold_frost wrapper must not contain local runtime FROST/HKDF/curve signing logic"
   exit 1
 fi
 

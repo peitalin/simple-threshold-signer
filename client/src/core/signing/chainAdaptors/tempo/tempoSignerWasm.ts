@@ -4,6 +4,8 @@ import {
   type WorkerOperationContext,
 } from '../../workers/operations/executeSignerWorkerOperation';
 
+type TempoRlpValueWasm = number[] | TempoRlpValueWasm[];
+
 type TempoTxWasmJson = {
   chainId: string;
   maxPriorityFeePerGas: string;
@@ -20,6 +22,8 @@ type TempoTxWasmJson = {
     | { kind: 'none' }
     | { kind: 'placeholder' }
     | { kind: 'signed'; v: 0 | 1; r: string; s: string };
+  aaAuthorizationList?: TempoRlpValueWasm;
+  keyAuthorization?: TempoRlpValueWasm;
 };
 
 function toDec(v: bigint): string {
@@ -31,6 +35,14 @@ function toDecOpt(v: bigint | null | undefined): string | null | undefined {
   if (v === null) return null;
   if (v === undefined) return undefined;
   return toDec(v);
+}
+
+function toWasmTempoRlpValue(
+  value: TempoUnsignedTx['aaAuthorizationList'] | TempoUnsignedTx['keyAuthorization'],
+): TempoRlpValueWasm | undefined {
+  if (value === undefined) return undefined;
+  if (value instanceof Uint8Array) return Array.from(value);
+  return value.map((entry) => toWasmTempoRlpValue(entry) as TempoRlpValueWasm);
 }
 
 function toWasmTx(tx: TempoUnsignedTx): TempoTxWasmJson {
@@ -50,6 +62,8 @@ function toWasmTx(tx: TempoUnsignedTx): TempoTxWasmJson {
     validAfter: toDecOpt(tx.validAfter),
     feeToken: tx.feeToken ?? null,
     feePayerSignature: tx.feePayerSignature ?? { kind: 'none' },
+    aaAuthorizationList: toWasmTempoRlpValue(tx.aaAuthorizationList),
+    keyAuthorization: toWasmTempoRlpValue(tx.keyAuthorization),
   };
 }
 

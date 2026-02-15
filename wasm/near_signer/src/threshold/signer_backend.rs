@@ -386,7 +386,12 @@ impl LocalEd25519Signer {
         )
         .map_err(|e| format!("Failed to decrypt private key: {}", e))?;
 
-        let signing_key = parse_near_private_key_to_signing_key(&decrypted_private_key_str)?;
+        let secret_bytes =
+            signer_platform_web::near_ed25519::parse_near_private_key_secret_key_bytes(
+                &decrypted_private_key_str,
+            )
+            .map_err(|e| e.to_string())?;
+        let signing_key = ed25519_dalek::SigningKey::from_bytes(&secret_bytes);
         Ok(Self { signing_key })
     }
 
@@ -596,22 +601,4 @@ impl ThresholdEd25519RelayerSigner {
             .await
         }
     }
-}
-
-fn parse_near_private_key_to_signing_key(
-    private_key: &str,
-) -> Result<ed25519_dalek::SigningKey, String> {
-    let decoded = bs58::decode(private_key.strip_prefix("ed25519:").unwrap_or(private_key))
-        .into_vec()
-        .map_err(|e| format!("Invalid private key base58: {}", e))?;
-
-    if decoded.len() < 32 {
-        return Err("Decoded private key too short".to_string());
-    }
-
-    let secret_bytes: [u8; 32] = decoded[0..32]
-        .try_into()
-        .map_err(|_| "Invalid secret key length".to_string())?;
-
-    Ok(ed25519_dalek::SigningKey::from_bytes(&secret_bytes))
 }

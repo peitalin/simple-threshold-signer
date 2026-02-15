@@ -42,6 +42,11 @@ export async function keygenThresholdEcdsaLite(args: {
   relayerKeyId?: string;
   relayerVerifyingShareB64u?: string;
   participantIds?: number[];
+  chainId?: string;
+  factory?: string;
+  entryPoint?: string;
+  salt?: string;
+  counterfactualAddress?: string;
   code?: string;
   message?: string;
 }> {
@@ -105,6 +110,21 @@ export async function keygenThresholdEcdsaLite(args: {
       relayerKeyId: keygen.relayerKeyId,
       relayerVerifyingShareB64u: keygen.relayerVerifyingShareB64u,
       participantIds: keygen.participantIds,
+      ...(typeof keygen.chainId === 'string' && keygen.chainId.trim()
+        ? { chainId: keygen.chainId.trim() }
+        : {}),
+      ...(typeof keygen.factory === 'string' && keygen.factory.trim()
+        ? { factory: keygen.factory.trim() }
+        : {}),
+      ...(typeof keygen.entryPoint === 'string' && keygen.entryPoint.trim()
+        ? { entryPoint: keygen.entryPoint.trim() }
+        : {}),
+      ...(typeof keygen.salt === 'string' && keygen.salt.trim()
+        ? { salt: keygen.salt.trim() }
+        : {}),
+      ...(typeof keygen.counterfactualAddress === 'string' && keygen.counterfactualAddress.trim()
+        ? { counterfactualAddress: keygen.counterfactualAddress.trim() }
+        : {}),
       ...(keygen.code ? { code: keygen.code } : {}),
       ...(keygen.message ? { message: keygen.message } : {}),
     };

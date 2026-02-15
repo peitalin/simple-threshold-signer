@@ -53,6 +53,10 @@ import { normalizeThresholdEd25519ParticipantIds } from '../../../../../../../sh
 import { deriveThresholdEd25519ClientVerifyingShare } from '../../../threshold/workflows/deriveThresholdEd25519ClientVerifyingShare';
 import { executeSignerWorkerOperation } from '../../../workers/operations/executeSignerWorkerOperation';
 import { NearAdapter } from '../nearAdapter';
+import {
+  assertRuntimeSigningLocalKeyMaterial,
+  isRuntimeSigningLocalKeyMaterial,
+} from './localKeyUsage';
 
 /**
  * Sign multiple transactions with a shared WebAuthn credential.
@@ -127,10 +131,24 @@ export async function signTransactionsWithActions({
     warnings,
   });
 
-  const localKeyMaterial =
+  const localKeyMaterialCandidate =
     resolvedSignerMode === 'local-signer' || thresholdBehavior === 'fallback'
       ? await ctx.indexedDB.getNearLocalKeyMaterialV2First(nearAccountId, resolvedDeviceNumber)
       : null;
+  if (localKeyMaterialCandidate && !isRuntimeSigningLocalKeyMaterial(localKeyMaterialCandidate)) {
+    if (resolvedSignerMode === 'local-signer' && !thresholdKeyMaterial) {
+      assertRuntimeSigningLocalKeyMaterial({
+        nearAccountId: String(nearAccountId),
+        localKeyMaterial: localKeyMaterialCandidate,
+      });
+    }
+    const msg = `[WebAuthnManager] export-only local key material is excluded from runtime signing for account: ${nearAccountId}`;
+    console.warn(msg);
+    warnings.push(msg);
+  }
+  const localKeyMaterial = isRuntimeSigningLocalKeyMaterial(localKeyMaterialCandidate)
+    ? localKeyMaterialCandidate
+    : null;
   const localWrapKeySalt = String(localKeyMaterial?.wrapKeySalt || '').trim();
   // Threshold share derivation must use the same wrapKeySalt that was used at keygen time.
   const thresholdWrapKeySalt =
@@ -164,9 +182,6 @@ export async function signTransactionsWithActions({
       throw new Error(`Missing wrapKeySalt for account: ${nearAccountId}`);
     }
   }
-
-  const canFallbackToLocal =
-    thresholdBehavior === 'fallback' && !!localKeyMaterial && !!localWrapKeySalt;
 
   const signingContext = validateAndPrepareSigningContext({
     nearAccountId,
@@ -386,42 +401,16 @@ export async function signTransactionsWithActions({
     });
     if (!minted.ok || !minted.jwt) {
       const err = new Error(minted.message || minted.code || 'Failed to mint threshold session');
-      // In fallback mode, allow missing relayer shares to degrade to local signing.
-      // Missing relayer shares can cause the session mint to fail before the signer worker
-      // ever attempts `/threshold-ed25519/authorize`.
-      if (canFallbackToLocal && isThresholdSignerMissingKeyError(err)) {
-        if (!localKeyMaterial)
-          throw new Error(`No local key material found for account: ${nearAccountId}`);
+      if (isThresholdSignerMissingKeyError(err)) {
         const msg =
-          '[WebAuthnManager] threshold-signer requested but the relayer is missing the signing share; falling back to local-signer';
+          '[WebAuthnManager] threshold-signer requested but the relayer is missing the signing share; local fallback is disabled';
         console.warn(msg);
         warnings.push(msg);
-
         try {
           clearCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey);
         } catch {}
         signingContext.threshold.thresholdSessionJwt = undefined;
-
-        ctx.nonceManager.initializeUser(toAccountId(nearAccountId), localKeyMaterial.publicKey);
-        const localTxContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient, {
-          force: true,
-        });
-
-        return await signTransactionsWithActionsLocally({
-          ctx,
-          sessionId,
-          onEvent,
-          resolvedRpcCall,
-          localKeyMaterial,
-          txSigningRequests,
-          intentDigest,
-          transactionContext: localTxContext,
-          credential: credentialForRelayJson,
-          prfFirstB64u,
-          wrapKeySalt: localWrapKeySalt,
-          expectedTransactionCount: transactions.length,
-          warnings,
-        });
+        throw new Error(msg);
       }
       throw err;
     }
@@ -509,11 +498,9 @@ export async function signTransactionsWithActions({
       } catch (e: unknown) {
         const err = e instanceof Error ? e : new Error(String(e));
 
-        if (canFallbackToLocal && isThresholdSignerMissingKeyError(err)) {
-          if (!localKeyMaterial)
-            throw new Error(`No local key material found for account: ${nearAccountId}`);
+        if (isThresholdSignerMissingKeyError(err)) {
           const msg =
-            '[WebAuthnManager] threshold-signer requested but the relayer is missing the signing share; falling back to local-signer';
+            '[WebAuthnManager] threshold-signer requested but the relayer is missing the signing share; local fallback is disabled';
           console.warn(msg);
           warnings.push(msg);
 
@@ -524,27 +511,7 @@ export async function signTransactionsWithActions({
           } catch {}
           signingContext.threshold.thresholdSessionJwt = undefined;
           requestPayload.threshold!.thresholdSessionJwt = undefined;
-
-          ctx.nonceManager.initializeUser(toAccountId(nearAccountId), localKeyMaterial.publicKey);
-          transactionContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient, {
-            force: true,
-          });
-
-          return await signTransactionsWithActionsLocally({
-            ctx,
-            sessionId,
-            onEvent,
-            resolvedRpcCall,
-            localKeyMaterial,
-            txSigningRequests,
-            intentDigest,
-            transactionContext,
-            credential: credentialForRelayJson,
-            prfFirstB64u,
-            wrapKeySalt: localWrapKeySalt,
-            expectedTransactionCount: transactions.length,
-            warnings,
-          });
+          throw new Error(msg);
         }
 
         if (attempt === 0 && isThresholdSessionAuthUnavailableError(err)) {

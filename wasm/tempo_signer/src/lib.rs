@@ -1,4 +1,5 @@
 mod codec;
+mod errors;
 mod tempo_tx;
 
 use wasm_bindgen::prelude::*;

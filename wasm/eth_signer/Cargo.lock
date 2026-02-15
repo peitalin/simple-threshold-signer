@@ -318,6 +318,7 @@ dependencies = [
  "serde-wasm-bindgen",
  "sha2",
  "sha3",
+ "signer-platform-web",
  "threshold-signatures",
  "wasm-bindgen",
 ]
@@ -965,6 +966,28 @@ checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
 dependencies = [
  "digest",
  "rand_core",
+]
+
+[[package]]
+name = "signer-core"
+version = "0.1.0"
+dependencies = [
+ "hkdf",
+ "k256",
+ "num-bigint",
+ "num-traits",
+ "rand_core",
+ "serde",
+ "sha2",
+ "sha3",
+ "threshold-signatures",
+]
+
+[[package]]
+name = "signer-platform-web"
+version = "0.1.0"
+dependencies = [
+ "signer-core",
 ]
 
 [[package]]

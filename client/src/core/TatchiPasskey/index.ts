@@ -1391,6 +1391,13 @@ export class TatchiPasskey {
       sessionKind?: 'jwt' | 'cookie';
       ttlMs?: number;
       remainingUses?: number;
+      smartAccount?: {
+        chainId?: string;
+        factory?: string;
+        entryPoint?: string;
+        salt?: string;
+        counterfactualAddress?: string;
+      };
     };
   }): Promise<ThresholdEcdsaSessionBootstrapResult> {
     if (this.shouldUseWalletIframe()) {
@@ -1409,6 +1416,7 @@ export class TatchiPasskey {
       sessionKind: args.options?.sessionKind,
       ttlMs: args.options?.ttlMs,
       remainingUses: args.options?.remainingUses,
+      smartAccount: args.options?.smartAccount,
     });
   }
 

@@ -76,7 +76,7 @@ export class TxTree extends LitElementWithProps {
   // Initializers can overwrite values set by the parent during element upgrade.
   node?: TreeNode | null;
   depth?: number;
-  styles?: TxTreeStyles;
+  declare styles?: TxTreeStyles;
   theme?: 'dark' | 'light';
   // Optional class applied to the root container (depth=0 only)
   class?: string;

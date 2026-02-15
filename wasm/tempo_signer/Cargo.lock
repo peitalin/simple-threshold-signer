@@ -203,6 +203,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "signer-core"
+version = "0.1.0"
+dependencies = [
+ "num-bigint",
+ "num-traits",
+ "serde",
+ "sha3",
+]
+
+[[package]]
+name = "signer-platform-web"
+version = "0.1.0"
+dependencies = [
+ "signer-core",
+]
+
+[[package]]
 name = "syn"
 version = "2.0.114"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -222,6 +239,7 @@ dependencies = [
  "serde",
  "serde-wasm-bindgen",
  "sha3",
+ "signer-platform-web",
  "wasm-bindgen",
 ]
 

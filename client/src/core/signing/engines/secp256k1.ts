@@ -2,7 +2,6 @@ import type { KeyRef, SignRequest, SignatureBytes, SigningEngine } from '../orch
 import type { WorkerOperationContext } from '../workers/operations/executeSignerWorkerOperation';
 import {
   deriveThresholdSecp256k1ClientShareWasm,
-  signSecp256k1RecoverableWasm,
 } from '../chainAdaptors/evm/ethSignerWasm';
 import { authorizeThresholdEcdsaWithSession } from '../threshold/workflows/thresholdEcdsaAuthorize';
 import {
@@ -47,19 +46,8 @@ export class Secp256k1Engine implements SigningEngine {
       throw new Error('[Secp256k1Engine] digest32 must be 32 bytes');
     }
 
-    if (keyRef.type === 'local-secp256k1') {
-      if (keyRef.privateKey.length !== 32) {
-        throw new Error('[Secp256k1Engine] privateKey must be 32 bytes');
-      }
-      return await signSecp256k1RecoverableWasm({
-        digest32: req.digest32,
-        privateKey32: keyRef.privateKey,
-        workerCtx: this.workerCtx,
-      });
-    }
-
     if (keyRef.type !== 'threshold-ecdsa-secp256k1') {
-      throw new Error('[Secp256k1Engine] keyRef must be local-secp256k1 or threshold-ecdsa-secp256k1');
+      throw new Error('[Secp256k1Engine] runtime signing requires threshold-ecdsa-secp256k1 keyRef');
     }
 
     const rpId = this.getRpId?.() || null;

@@ -3,7 +3,8 @@ import { EmailRecoveryPhase } from '../types/sdkSentEvents';
 import { EmailRecoveryStatus } from '../types/sdkSentEvents';
 import type { EmailRecoveryFlowOptions, PendingEmailRecovery } from '../types/emailRecovery';
 import { generateEmailRecoveryRequestId } from '../types/emailRecovery';
-import { removePrfOutputGuard, normalizeRegistrationCredential } from '../signing/webauthn/credentials/helpers';
+import { normalizeRegistrationCredential } from '../signing/webauthn/credentials/helpers';
+import { redactCredentialExtensionOutputs } from '../signing/webauthn/credentials';
 import { toAccountId } from '../types/accountIds';
 import { buildThresholdEd25519Participants2pV1 } from '../../../../shared/src/threshold/participants';
 import { IndexedDBManager } from '../IndexedDBManager';
@@ -116,7 +117,7 @@ export class EmailRecoveryFlow {
         throw new Error(derived.error || 'Failed to derive threshold client verifying share');
       }
 
-      const credentialForRelay = removePrfOutputGuard(normalizeRegistrationCredential(credential));
+      const credentialForRelay = redactCredentialExtensionOutputs(normalizeRegistrationCredential(credential));
       const prepareResp = await fetch(`${relayerUrl}/email-recovery/prepare`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

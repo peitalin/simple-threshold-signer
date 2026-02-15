@@ -18,11 +18,22 @@ import { WorkerControlMessage } from './workerControlMessages';
 import { resolveSignerWorkerContractVersion } from '../signing/workers/signerWorkerManager/backends/types';
 
 type EthSignerWorkerRequest =
-  | { id: string; type: 'computeEip1559TxHash'; payload: { tx: any } }
-  | { id: string; type: 'encodeEip1559SignedTxFromSignature65'; payload: { tx: any; signature65: any } }
-  | { id: string; type: 'signSecp256k1Recoverable'; payload: { digest32: any; privateKey32: any } }
+  | { id: string; version?: number; type: 'computeEip1559TxHash'; payload: { tx: any } }
   | {
       id: string;
+      version?: number;
+      type: 'encodeEip1559SignedTxFromSignature65';
+      payload: { tx: any; signature65: any };
+    }
+  | {
+      id: string;
+      version?: number;
+      type: 'signSecp256k1Recoverable';
+      payload: { digest32: any; privateKey32: any };
+    }
+  | {
+      id: string;
+      version?: number;
       type: 'deriveThresholdSecp256k1ClientShare';
       payload: {
         prfFirst32: any;
@@ -32,6 +43,7 @@ type EthSignerWorkerRequest =
     }
   | {
       id: string;
+      version?: number;
       type: 'deriveSecp256k1KeypairFromPrfSecond';
       payload: {
         prfSecond: any;
@@ -40,6 +52,7 @@ type EthSignerWorkerRequest =
     }
   | {
       id: string;
+      version?: number;
       type: 'mapAdditiveShareToThresholdSignaturesShare2p';
       payload: {
         additiveShare32: any;
@@ -48,6 +61,7 @@ type EthSignerWorkerRequest =
     }
   | {
       id: string;
+      version?: number;
       type: 'validateSecp256k1PublicKey33';
       payload: {
         publicKey33: any;
@@ -55,6 +69,7 @@ type EthSignerWorkerRequest =
     }
   | {
       id: string;
+      version?: number;
       type: 'addSecp256k1PublicKeys33';
       payload: {
         left33: any;
@@ -63,6 +78,7 @@ type EthSignerWorkerRequest =
     }
   | {
       id: string;
+      version?: number;
       type: 'buildWebauthnP256Signature';
       payload: {
         challenge32: any;
@@ -75,6 +91,7 @@ type EthSignerWorkerRequest =
     }
   | {
       id: string;
+      version?: number;
       type: 'thresholdEcdsaPresignSessionInit';
       payload: {
         sessionId: string;
@@ -87,6 +104,7 @@ type EthSignerWorkerRequest =
     }
   | {
       id: string;
+      version?: number;
       type: 'thresholdEcdsaPresignSessionStep';
       payload: {
         sessionId: string;
@@ -97,11 +115,13 @@ type EthSignerWorkerRequest =
     }
   | {
       id: string;
+      version?: number;
       type: 'thresholdEcdsaPresignSessionAbort';
       payload: { sessionId: string };
     }
   | {
       id: string;
+      version?: number;
       type: 'thresholdEcdsaComputeSignatureShare';
       payload: {
         participantIds: number[];
@@ -114,6 +134,32 @@ type EthSignerWorkerRequest =
         entropy32: any;
       };
     };
+
+type WorkerErrorPayload = {
+  message: string;
+  code?: string;
+  coreCode?: string;
+};
+
+function asWorkerErrorPayload(err: unknown): WorkerErrorPayload {
+  if (err && typeof err === 'object') {
+    const message = typeof (err as { message?: unknown }).message === 'string'
+      ? String((err as { message?: string }).message).trim()
+      : '';
+    const code = typeof (err as { code?: unknown }).code === 'string'
+      ? String((err as { code?: string }).code).trim()
+      : '';
+    const coreCode = typeof (err as { coreCode?: unknown }).coreCode === 'string'
+      ? String((err as { coreCode?: string }).coreCode).trim()
+      : '';
+    return {
+      message: message || errorMessage(err),
+      ...(code ? { code } : {}),
+      ...(coreCode ? { coreCode } : {}),
+    };
+  }
+  return { message: errorMessage(err) };
+}
 
 function toU8(v: any): Uint8Array {
   if (v instanceof Uint8Array) return v;
@@ -456,6 +502,13 @@ self.addEventListener('message', async (event: MessageEvent) => {
       const sessionId = String((msg as { payload?: { sessionId?: unknown } })?.payload?.sessionId || '').trim();
       if (sessionId) freePresignSession(sessionId);
     }
-    (self as any).postMessage({ id: msg.id, ok: false, error: errorMessage(e) });
+    const err = asWorkerErrorPayload(e);
+    (self as any).postMessage({
+      id: msg.id,
+      ok: false,
+      error: err.message,
+      ...(err.code ? { code: err.code } : {}),
+      ...(err.coreCode ? { coreCode: err.coreCode } : {}),
+    });
   }
 });

@@ -156,6 +156,13 @@ export interface PMBootstrapThresholdEcdsaSessionPayload {
     sessionKind?: 'jwt' | 'cookie';
     ttlMs?: number;
     remainingUses?: number;
+    smartAccount?: {
+      chainId?: string;
+      factory?: string;
+      entryPoint?: string;
+      salt?: string;
+      counterfactualAddress?: string;
+    };
   };
 }
 

@@ -1,6 +1,7 @@
 import { RegistrationSSEEvent, RegistrationPhase, RegistrationStatus } from '../../types/sdkSentEvents';
 import { PasskeyManagerContext } from '..';
-import { removePrfOutputGuard, serializeRegistrationCredential, normalizeRegistrationCredential } from '../../signing/webauthn/credentials/helpers';
+import { serializeRegistrationCredential, normalizeRegistrationCredential } from '../../signing/webauthn/credentials/helpers';
+import { redactCredentialExtensionOutputs } from '../../signing/webauthn/credentials';
 import type { WebAuthnRegistrationCredential } from '../../types/webauthn';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
 import type { CreateAccountAndRegisterResult } from '@server/core/types';
@@ -77,10 +78,8 @@ export interface CreateAccountAndRegisterUserRequest {
   new_account_id: string;
   /**
    * Optional account access key to add during creation.
-   *
-   * - Local-signer flows provide a locally derived key.
-   * - Threshold-signer flows typically provide a locally derived "backup" key (Option B) so the client
-   *   can add the threshold key after validating it. Older clients may omit this (Option A).
+   * - Threshold-first registration flows omit this field (relay creates the account with threshold key material).
+   * - Legacy local-signer flows provide a locally derived key.
    */
   new_public_key?: string;
   device_number: number;
@@ -146,7 +145,7 @@ export async function createAccountAndRegisterWithRelayServer(
       : serializeRegistrationCredential(credential);
 
     // Strip PRF outputs before sending to relay/contract
-    const serializedCredential = removePrfOutputGuard<WebAuthnRegistrationCredential>(serialized);
+    const serializedCredential = redactCredentialExtensionOutputs<WebAuthnRegistrationCredential>(serialized);
     // Normalize transports to an array (avoid null)
     if (!Array.isArray(serializedCredential?.response?.transports)) {
       serializedCredential.response.transports = [];

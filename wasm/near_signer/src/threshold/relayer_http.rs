@@ -258,52 +258,6 @@ fn build_authorize_body(
         .ok_or_else(|| "threshold-signer: JSON.stringify did not return a string".to_string())
 }
 
-pub(super) async fn authorize_mpc_session_id(
-    cfg: &ThresholdSignerConfig,
-    client_verifying_share_b64u: &str,
-    near_account_id: &str,
-    purpose: &str,
-    signing_digest_32: &[u8],
-    credential_json: &str,
-    signing_payload_json: Option<&str>,
-) -> Result<String, String> {
-    let _ = (near_account_id, credential_json);
-    let auth_body = build_authorize_body(
-        cfg,
-        client_verifying_share_b64u,
-        purpose,
-        signing_digest_32,
-        signing_payload_json,
-    )?;
-
-    let auth_json = post_json(
-        cfg,
-        "/threshold-ed25519/authorize",
-        &auth_body,
-        "/authorize",
-        None,
-    )
-    .await?;
-    let auth: AuthorizeResponse = serde_wasm_bindgen::from_value(auth_json)
-        .map_err(|e| format!("threshold-signer: failed to parse /authorize response: {e}"))?;
-
-    if !auth.ok {
-        let mut msg = format_threshold_response_error(
-            "/authorize",
-            auth.code.as_deref(),
-            auth.message.as_deref(),
-        );
-        if let Some(expires) = auth.expires_at {
-            msg = format!("{msg} (expiresAt={expires})");
-        }
-        return Err(msg);
-    }
-
-    auth.mpc_session_id
-        .clone()
-        .ok_or_else(|| "threshold-signer: /authorize missing mpcSessionId".to_string())
-}
-
 pub(super) async fn authorize_mpc_session_id_with_threshold_session(
     cfg: &ThresholdSignerConfig,
     client_verifying_share_b64u: &str,
@@ -372,7 +326,8 @@ pub(super) async fn mint_threshold_session(
         .unwrap_or_default();
     if !policy_user_id.trim().is_empty() && policy_user_id.trim() != near_account_id.trim() {
         return Err(
-            "threshold-signer: sessionPolicy.nearAccountId does not match nearAccountId".to_string(),
+            "threshold-signer: sessionPolicy.nearAccountId does not match nearAccountId"
+                .to_string(),
         );
     }
 

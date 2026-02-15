@@ -6,10 +6,42 @@ import init, {
 import { initializeWasm, resolveWasmUrl } from '../runtimeAssetPaths/wasm-loader';
 import { errorMessage } from '../../../../shared/src/utils/errors';
 import { WorkerControlMessage } from './workerControlMessages';
+import { resolveSignerWorkerContractVersion } from '../signing/workers/signerWorkerManager/backends/types';
 
 type TempoSignerWorkerRequest =
-  | { id: string; type: 'computeTempoSenderHash'; payload: { tx: any } }
-  | { id: string; type: 'encodeTempoSignedTx'; payload: { tx: any; senderSignature: any } };
+  | { id: string; version?: number; type: 'computeTempoSenderHash'; payload: { tx: any } }
+  | {
+      id: string;
+      version?: number;
+      type: 'encodeTempoSignedTx';
+      payload: { tx: any; senderSignature: any };
+    };
+
+type WorkerErrorPayload = {
+  message: string;
+  code?: string;
+  coreCode?: string;
+};
+
+function asWorkerErrorPayload(err: unknown): WorkerErrorPayload {
+  if (err && typeof err === 'object') {
+    const message = typeof (err as { message?: unknown }).message === 'string'
+      ? String((err as { message?: string }).message).trim()
+      : '';
+    const code = typeof (err as { code?: unknown }).code === 'string'
+      ? String((err as { code?: string }).code).trim()
+      : '';
+    const coreCode = typeof (err as { coreCode?: unknown }).coreCode === 'string'
+      ? String((err as { coreCode?: string }).coreCode).trim()
+      : '';
+    return {
+      message: message || errorMessage(err),
+      ...(code ? { code } : {}),
+      ...(coreCode ? { coreCode } : {}),
+    };
+  }
+  return { message: errorMessage(err) };
+}
 
 function toU8(v: any): Uint8Array {
   if (v instanceof Uint8Array) return v;
@@ -43,6 +75,7 @@ self.addEventListener('message', async (event: MessageEvent) => {
   if (!msg?.id || !msg?.type) return;
 
   try {
+    resolveSignerWorkerContractVersion((msg as { version?: number }).version);
     await ensureWasm();
     switch (msg.type) {
       case 'computeTempoSenderHash': {
@@ -59,6 +92,13 @@ self.addEventListener('message', async (event: MessageEvent) => {
       }
     }
   } catch (e) {
-    (self as any).postMessage({ id: msg.id, ok: false, error: errorMessage(e) });
+    const err = asWorkerErrorPayload(e);
+    (self as any).postMessage({
+      id: msg.id,
+      ok: false,
+      error: err.message,
+      ...(err.code ? { code: err.code } : {}),
+      ...(err.coreCode ? { coreCode: err.coreCode } : {}),
+    });
   }
 });

@@ -21,7 +21,7 @@ import type { FinalExecutionOutcome } from '@near-js/types';
 
 import { TransactionContext } from '../types/rpc';
 import { DEFAULT_WAIT_STATUS } from '../types/rpc';
-import { removePrfOutputGuard } from '../signing/webauthn/credentials/helpers';
+import { redactCredentialExtensionOutputs } from '../signing/webauthn/credentials';
 import { errorMessage } from '../../../../shared/src/utils/errors';
 import { ensureEd25519Prefix } from '../../../../shared/src/utils/validation';
 import { ActionType } from '../types/actions';
@@ -269,7 +269,7 @@ export async function verifyWebAuthnLogin(
     if (!challengeId) throw new Error('Missing challengeId');
 
     // Strip PRF outputs before sending to the relay.
-    const redacted = removePrfOutputGuard(args.webauthnAuthentication);
+    const redacted = redactCredentialExtensionOutputs(args.webauthnAuthentication);
 
     // Normalize authenticatorAttachment and userHandle to null for server schema
     const webauthn_authentication = {
@@ -344,7 +344,7 @@ export async function thresholdEd25519Keygen(
     if (!keygenSessionId) throw new Error('Missing keygenSessionId');
 
     // Never send PRF outputs to the relay.
-    const webauthn_authentication = removePrfOutputGuard(args.webauthnAuthentication);
+    const webauthn_authentication = redactCredentialExtensionOutputs(args.webauthnAuthentication);
 
     const url = `${base}/threshold-ed25519/keygen`;
     const response = await fetch(url, {
@@ -398,6 +398,11 @@ export async function thresholdEcdsaKeygen(
   groupPublicKeyB64u?: string;
   ethereumAddress?: string;
   relayerVerifyingShareB64u?: string;
+  chainId?: string;
+  factory?: string;
+  entryPoint?: string;
+  salt?: string;
+  counterfactualAddress?: string;
   code?: string;
   message?: string;
   error?: string;
@@ -419,7 +424,7 @@ export async function thresholdEcdsaKeygen(
     if (!clientVerifyingShareB64u) throw new Error('Missing clientVerifyingShareB64u');
 
     // Never send PRF outputs to the relay.
-    const webauthn_authentication = removePrfOutputGuard(args.webauthnAuthentication);
+    const webauthn_authentication = redactCredentialExtensionOutputs(args.webauthnAuthentication);
 
     const url = `${base}/threshold-ecdsa/keygen`;
     const response = await fetch(url, {
@@ -448,6 +453,11 @@ export async function thresholdEcdsaKeygen(
       groupPublicKeyB64u: json?.groupPublicKeyB64u,
       ethereumAddress: json?.ethereumAddress,
       relayerVerifyingShareB64u: json?.relayerVerifyingShareB64u,
+      chainId: json?.chainId,
+      factory: json?.factory,
+      entryPoint: json?.entryPoint,
+      salt: json?.salt,
+      counterfactualAddress: json?.counterfactualAddress,
       code: json?.code,
       message: json?.message,
     };

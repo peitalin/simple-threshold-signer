@@ -1,64 +1,41 @@
 use crate::crypto::WrapKey;
-use crate::encoders::{base64_url_decode, base64_url_encode};
+#[cfg(test)]
 use curve25519_dalek::constants::ED25519_BASEPOINT_POINT;
+#[cfg(test)]
 use curve25519_dalek::scalar::Scalar as CurveScalar;
-use hkdf::Hkdf;
-use sha2::Sha256;
 
-pub(crate) const THRESHOLD_CLIENT_SHARE_SALT_V1: &[u8] =
-    b"tatchi/lite/threshold-ed25519/client-share:v1";
-
-pub(crate) fn derive_threshold_client_share_scalar_v1(
-    wrap_key: &WrapKey,
-    near_account_id: &str,
-) -> Result<CurveScalar, String> {
-    let seed_bytes = base64_url_decode(&wrap_key.wrap_key_seed)?;
-    if seed_bytes.len() != 32 {
-        return Err(format!(
-            "threshold-signer: invalid WrapKeySeed length: expected 32 bytes, got {}",
-            seed_bytes.len()
-        ));
-    }
-
-    let hk = Hkdf::<Sha256>::new(Some(THRESHOLD_CLIENT_SHARE_SALT_V1), &seed_bytes);
-    let mut okm = [0u8; 64];
-    // v1: info = nearAccountId || 0x00 || u32be(derivationPath=0)
-    let mut info = Vec::with_capacity(near_account_id.as_bytes().len() + 1 + 4);
-    info.extend_from_slice(near_account_id.as_bytes());
-    info.push(0);
-    info.extend_from_slice(&0u32.to_be_bytes());
-
-    hk.expand(&info, &mut okm)
-        .map_err(|_| "threshold-signer: HKDF expand failed".to_string())?;
-
-    let scalar = CurveScalar::from_bytes_mod_order_wide(&okm);
-    if scalar == CurveScalar::ZERO {
-        return Err("threshold-signer: derived client signing share is zero".to_string());
-    }
-    Ok(scalar)
-}
-
+#[cfg(test)]
 pub(crate) fn derive_threshold_client_signing_share_bytes_v1(
     wrap_key: &WrapKey,
     near_account_id: &str,
 ) -> Result<[u8; 32], String> {
-    Ok(derive_threshold_client_share_scalar_v1(wrap_key, near_account_id)?.to_bytes())
+    signer_platform_web::near_threshold_ed25519::derive_threshold_client_signing_share_bytes_v1_from_wrap_key_seed_b64u(
+        &wrap_key.wrap_key_seed,
+        near_account_id,
+    )
+    .map_err(|e| e.to_string())
 }
 
 pub(crate) fn derive_threshold_client_verifying_share_bytes_v1(
     wrap_key: &WrapKey,
     near_account_id: &str,
 ) -> Result<[u8; 32], String> {
-    let scalar = derive_threshold_client_share_scalar_v1(wrap_key, near_account_id)?;
-    Ok((ED25519_BASEPOINT_POINT * scalar).compress().to_bytes())
+    signer_platform_web::near_threshold_ed25519::derive_threshold_client_verifying_share_bytes_v1_from_wrap_key_seed_b64u(
+        &wrap_key.wrap_key_seed,
+        near_account_id,
+    )
+    .map_err(|e| e.to_string())
 }
 
 pub(crate) fn derive_threshold_client_verifying_share_b64u_v1(
     wrap_key: &WrapKey,
     near_account_id: &str,
 ) -> Result<String, String> {
-    let bytes = derive_threshold_client_verifying_share_bytes_v1(wrap_key, near_account_id)?;
-    Ok(base64_url_encode(&bytes))
+    signer_platform_web::near_threshold_ed25519::derive_threshold_client_verifying_share_b64u_v1_from_wrap_key_seed_b64u(
+        &wrap_key.wrap_key_seed,
+        near_account_id,
+    )
+    .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

@@ -185,6 +185,13 @@ export interface ChainAccountRecord {
   createdAt: number;
   updatedAt: number;
   legacyNearAccountId?: AccountId;
+  factory?: string;
+  entryPoint?: string;
+  salt?: string;
+  counterfactualAddress?: string;
+  deployed?: boolean;
+  deploymentTxHash?: string;
+  lastDeploymentCheckAt?: number;
 }
 
 export interface AccountSignerRecord {
@@ -232,6 +239,13 @@ export type UpsertChainAccountInput = {
   accountModel: AccountModel;
   isPrimary?: boolean;
   legacyNearAccountId?: AccountId;
+  factory?: string | null;
+  entryPoint?: string | null;
+  salt?: string | null;
+  counterfactualAddress?: string | null;
+  deployed?: boolean;
+  deploymentTxHash?: string | null;
+  lastDeploymentCheckAt?: number | null;
 };
 
 export type UpsertAccountSignerInput = {

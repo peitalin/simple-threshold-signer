@@ -161,6 +161,26 @@ export interface TatchiConfigsInput {
      * Defaults to '/signed-delegate'.
      */
     delegateActionRoute?: string;
+    /**
+     * Relative path on the relayer used for smart-account deployment.
+     * Defaults to '/smart-account/deploy'.
+     */
+    smartAccountDeployRoute?: string;
+    /**
+     * Smart-account deployment gate mode for EVM/Tempo sends.
+     * - `observe`: stamp checks and continue signing without blocking undeployed accounts.
+     * - `enforce`: require successful deploy-on-first-use before signing proceeds.
+     *
+     * Defaults to `enforce`.
+     */
+    smartAccountDeploymentMode?: 'observe' | 'enforce';
+    /**
+     * Maximum deploy attempts for deploy-on-first-use in enforce mode.
+     * Values are clamped to [1, 5].
+     *
+     * Defaults to `2`.
+     */
+    smartAccountDeploymentMaxAttempts?: number;
     emailRecovery?: {
       minBalanceYocto?: string;
       pollingIntervalMs?: number;
@@ -199,6 +219,9 @@ export interface TatchiConfigs {
   relayer: {
     url: string;
     delegateActionRoute: string;
+    smartAccountDeployRoute: string;
+    smartAccountDeploymentMode: 'observe' | 'enforce';
+    smartAccountDeploymentMaxAttempts: number;
     emailRecovery: {
       minBalanceYocto: string;
       pollingIntervalMs: number;

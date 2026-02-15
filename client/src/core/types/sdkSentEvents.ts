@@ -619,13 +619,20 @@ export interface RegistrationHooksOptions {
   afterCall?: AfterCall<RegistrationResult>;
   /**
    * Optional: registration signing policy.
-   * - `{ mode: 'local-signer' }`: derive and store an encrypted local NEAR secret key (v3 vault).
-   * - `{ mode: 'threshold-signer' }`: derive the local key AND enroll a threshold Ed25519 (2-of-2) access key
-   *   during registration (relay adds the threshold public key on-chain and returns relayerKeyId).
+   * - `{ mode: 'threshold-signer' }`: default registration behavior.
+   *   Derives threshold Ed25519 share material and enrolls threshold key during relay registration.
+   * - `{ mode: 'local-signer' }`: legacy compatibility path for local-key account registration.
    *
-   * Defaults to `{ mode: 'local-signer' }` for backwards compatibility in public APIs.
+   * Registration defaults to `{ mode: 'threshold-signer' }` when omitted.
    */
   signerMode?: SignerMode;
+  /**
+   * When `signerMode` resolves to `threshold-signer`, also derive/store encrypted local NEAR
+   * key material as backup/export data.
+   *
+   * Defaults to `true`.
+   */
+  backupLocalKey?: boolean;
   /**
    * Preferred grouping for per-call confirmer copy.
    */

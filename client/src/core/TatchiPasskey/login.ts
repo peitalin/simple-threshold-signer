@@ -14,7 +14,7 @@ import type {
 import type { PasskeyManagerContext } from './index';
 import type { AccountId } from '../types/accountIds';
 import { getUserFriendlyErrorMessage } from '../../../../shared/src/utils/errors';
-import { authenticatorsToAllowCredentials } from '../signing/webauthn/prompt/touchIdPrompt';
+import { authenticatorsToAllowCredentials } from '../signing/webauthn/credentials';
 import { IndexedDBManager } from '../IndexedDBManager';
 import type { ClientAuthenticatorData, ClientUserData } from '../IndexedDBManager';
 import { createWebAuthnLoginOptions, verifyWebAuthnLogin } from '../near/rpcCalls';

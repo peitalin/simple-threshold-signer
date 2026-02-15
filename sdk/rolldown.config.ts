@@ -615,7 +615,7 @@ const configs = [
   // Confirm UI helpers and elements bundle for iframe usage
   // Build from confirm-ui.ts (container-agnostic); keep output filename stable
   {
-    input: '../client/src/core/signing/secureConfirm/ui/lit-components/confirm-ui.ts',
+    input: '../client/src/core/signing/secureConfirm/ui/confirm-ui.ts',
     output: {
       dir: BUILD_PATHS.BUILD.ESM,
       format: 'esm',

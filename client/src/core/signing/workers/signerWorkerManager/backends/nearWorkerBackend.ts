@@ -18,6 +18,7 @@ import type {
   NearWorkerOperationResult,
   NearWorkerOperationType,
 } from './types';
+import { SignerWorkerOperationError } from './types';
 import { resolveSignerWorkerContractVersion } from './types';
 
 export class NearSignerWorkerTransport implements NearSignerWorkerTransportContract {
@@ -168,7 +169,13 @@ export class NearSignerWorkerTransport implements NearSignerWorkerTransportContr
           const seconds = Math.round(timeoutMs / 1000);
           window.postMessage({ type: 'MODAL_TIMEOUT', payload: `Timed out after ${seconds}s, try again` }, '*');
         } catch {}
-        reject(new Error(`Worker operation timed out after ${timeoutMs}ms`));
+        reject(
+          new SignerWorkerOperationError({
+            message: `Worker operation timed out after ${timeoutMs}ms`,
+            code: 'TIMEOUT',
+            workerKind: 'nearSigner',
+          }),
+        );
       }, timeoutMs);
 
       worker.onmessage = async (event) => {
@@ -189,7 +196,13 @@ export class NearSignerWorkerTransport implements NearSignerWorkerTransportContr
             this.terminateAndReplaceWorker(worker);
             const errorResponse = response as WorkerErrorResponse;
             console.error('Worker error response:', errorResponse);
-            reject(new Error(errorResponse.payload.error));
+            reject(
+              new SignerWorkerOperationError({
+                message: errorResponse.payload.error,
+                code: String(errorResponse.payload.errorCode || '').trim() || undefined,
+                workerKind: 'nearSigner',
+              }),
+            );
             return;
           }
 
@@ -205,18 +218,36 @@ export class NearSignerWorkerTransport implements NearSignerWorkerTransportContr
             clearTimeout(timeoutId);
             this.terminateAndReplaceWorker(worker);
             const message = String((response as { message?: unknown }).message ?? 'Unknown error');
-            reject(new Error(`Worker sent generic error: ${message}`));
+            reject(
+              new SignerWorkerOperationError({
+                message: `Worker sent generic error: ${message}`,
+                code: 'WORKER_PROTOCOL_ERROR',
+                workerKind: 'nearSigner',
+              }),
+            );
             return;
           }
 
           clearTimeout(timeoutId);
           this.terminateAndReplaceWorker(worker);
-          reject(new Error(`Unknown worker response format: ${JSON.stringify(response)}`));
+          reject(
+            new SignerWorkerOperationError({
+              message: `Unknown worker response format: ${JSON.stringify(response)}`,
+              code: 'WORKER_PROTOCOL_ERROR',
+              workerKind: 'nearSigner',
+            }),
+          );
         } catch (error: unknown) {
           clearTimeout(timeoutId);
           this.terminateAndReplaceWorker(worker);
           const err = toError(error);
-          reject(new Error(`Worker message processing error: ${err.message}`));
+          reject(
+            new SignerWorkerOperationError({
+              message: `Worker message processing error: ${err.message}`,
+              code: 'WORKER_PROTOCOL_ERROR',
+              workerKind: 'nearSigner',
+            }),
+          );
         }
       };
 
@@ -231,7 +262,13 @@ export class NearSignerWorkerTransport implements NearSignerWorkerTransportContr
           colno: event.colno,
           error: event.error,
         });
-        reject(new Error(`Worker error: ${errorMessage}`));
+        reject(
+          new SignerWorkerOperationError({
+            message: `Worker error: ${errorMessage}`,
+            code: 'WORKER_RUNTIME_ERROR',
+            workerKind: 'nearSigner',
+          }),
+        );
       };
 
       worker.postMessage({

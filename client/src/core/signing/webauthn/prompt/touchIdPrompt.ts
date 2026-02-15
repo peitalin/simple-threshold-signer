@@ -1,14 +1,10 @@
-import { ClientAuthenticatorData } from '../../../IndexedDBManager';
 import { base64UrlDecode } from '../../../../../../shared/src/utils/encoders';
 import {
   serializeAuthenticationCredentialWithPRF,
   getPrfFirstSaltV1,
   getPrfSecondSaltV1,
 } from '../credentials/helpers';
-import {
-  authenticatorsToAllowCredentials as mapAuthenticatorsToAllowCredentials,
-  type WebAuthnAllowCredential,
-} from '../credentials/collectAuthenticationCredentialForChallengeB64u';
+import type { WebAuthnAllowCredential } from '../credentials';
 import type {
   WebAuthnAuthenticationCredential,
   WebAuthnRegistrationCredential
@@ -36,13 +32,13 @@ function decodeChallengeB64u(challengeB64u: string): Uint8Array {
   return decoded;
 }
 
-export interface RegisterCredentialsArgs {
+interface RegisterCredentialsArgs {
   nearAccountId: string,    // NEAR account ID for PRF salts and keypair derivation (always base account)
   challengeB64u: string,
   deviceNumber?: number, // Optional device number for device-specific user ID (0, 1, 2, etc.)
 }
 
-export interface AuthenticateCredentialsForChallengeB64uArgs {
+interface AuthenticateCredentialsForChallengeB64uArgs {
   nearAccountId: string;
   /**
    * Base64url-encoded 32-byte challenge.
@@ -55,20 +51,12 @@ export interface AuthenticateCredentialsForChallengeB64uArgs {
    * When omitted or empty, the browser may display an account chooser for any
    * credential available for this rpId.
    */
-  allowCredentials?: AllowCredential[];
+  allowCredentials?: WebAuthnAllowCredential[];
   /**
    * When true, include PRF.second in the serialized credential.
    * Use only for explicit recovery/export flows (higher-friction paths).
    */
   includeSecondPrfOutput?: boolean;
-}
-
-export type AllowCredential = WebAuthnAllowCredential;
-
-export function authenticatorsToAllowCredentials(
-  authenticators: ClientAuthenticatorData[]
-): AllowCredential[] {
-  return mapAuthenticatorsToAllowCredentials(authenticators);
 }
 
 /**
@@ -117,7 +105,7 @@ export class TouchIdPrompt {
   }: AuthenticateCredentialsForChallengeB64uArgs): Promise<WebAuthnAuthenticationCredential> {
     // New controller per get() call
     this.abortController = new AbortController();
-    this.removePageAbortHandlers = TouchIdPrompt.attachPageAbortHandlers(this.abortController);
+    this.removePageAbortHandlers = attachPageAbortHandlers(this.abortController);
     const rpId = this.getRpId();
 
     const challengeBytes = decodeChallengeB64u(challengeB64u);
@@ -186,7 +174,7 @@ export class TouchIdPrompt {
   }: RegisterCredentialsArgs): Promise<PublicKeyCredential> {
     // New controller per create() call
     this.abortController = new AbortController();
-    this.removePageAbortHandlers = TouchIdPrompt.attachPageAbortHandlers(this.abortController);
+    this.removePageAbortHandlers = attachPageAbortHandlers(this.abortController);
     // Single source of truth for rpId: use getRpId().
     const rpId = this.getRpId();
     const publicKey: PublicKeyCredentialCreationOptions = {
@@ -258,7 +246,7 @@ function isSerializedAuthenticationCredential(x: unknown): x is WebAuthnAuthenti
  *   - Device 2: "serp120.web3-authn.testnet (2)"
  *   - Device 3: "serp120.web3-authn.testnet (3)"
  */
-export function generateDeviceSpecificUserId(nearAccountId: string, deviceNumber?: number): string {
+function generateDeviceSpecificUserId(nearAccountId: string, deviceNumber?: number): string {
   // If no device number provided or device number is 1, this is the first device
   if (deviceNumber === undefined || deviceNumber === 1) {
     return nearAccountId;
@@ -289,20 +277,17 @@ function generateUserFriendlyDisplayName(nearAccountId: string, deviceNumber?: n
   return `${baseUsername} (device ${deviceNumber})`;
 }
 
-// Abort native WebAuthn when page is being hidden or unloaded
-// Centralized here to keep WebAuthn lifecycle concerns alongside native calls.
-export namespace TouchIdPrompt {
-  export function attachPageAbortHandlers(controller: AbortController): () => void {
-    const onVisibility = () => { if (document.hidden) controller.abort(); };
-    const onPageHide = () => { controller.abort(); };
-    const onBeforeUnload = () => { controller.abort(); };
-    document.addEventListener('visibilitychange', onVisibility, { passive: true });
-    window.addEventListener('pagehide', onPageHide, { passive: true });
-    window.addEventListener('beforeunload', onBeforeUnload, { passive: true });
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('pagehide', onPageHide);
-      window.removeEventListener('beforeunload', onBeforeUnload);
-    };
-  }
+// Abort native WebAuthn when page is being hidden or unloaded.
+function attachPageAbortHandlers(controller: AbortController): () => void {
+  const onVisibility = () => { if (document.hidden) controller.abort(); };
+  const onPageHide = () => { controller.abort(); };
+  const onBeforeUnload = () => { controller.abort(); };
+  document.addEventListener('visibilitychange', onVisibility, { passive: true });
+  window.addEventListener('pagehide', onPageHide, { passive: true });
+  window.addEventListener('beforeunload', onBeforeUnload, { passive: true });
+  return () => {
+    document.removeEventListener('visibilitychange', onVisibility);
+    window.removeEventListener('pagehide', onPageHide);
+    window.removeEventListener('beforeunload', onBeforeUnload);
+  };
 }

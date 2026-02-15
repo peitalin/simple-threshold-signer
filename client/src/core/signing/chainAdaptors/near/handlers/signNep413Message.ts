@@ -44,6 +44,10 @@ import type { SigningRuntimeDeps } from '../../types';
 import { toAccountId } from '../../../../types/accountIds';
 import { deriveThresholdEd25519ClientVerifyingShare } from '../../../threshold/workflows/deriveThresholdEd25519ClientVerifyingShare';
 import { executeSignerWorkerOperation } from '../../../workers/operations/executeSignerWorkerOperation';
+import {
+  assertRuntimeSigningLocalKeyMaterial,
+  isRuntimeSigningLocalKeyMaterial,
+} from './localKeyUsage';
 
 const DUMMY_WRAP_KEY_SALT_B64U = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
@@ -109,10 +113,24 @@ export async function signNep413Message({
       hasThresholdKeyMaterial: !!thresholdKeyMaterial,
     });
 
-    const localKeyMaterial =
+    const localKeyMaterialCandidate =
       resolvedSignerMode === 'local-signer' || thresholdBehavior === 'fallback'
         ? await ctx.indexedDB.getNearLocalKeyMaterialV2First(nearAccount, resolvedDeviceNumber)
         : null;
+    if (localKeyMaterialCandidate && !isRuntimeSigningLocalKeyMaterial(localKeyMaterialCandidate)) {
+      if (resolvedSignerMode === 'local-signer' && !thresholdKeyMaterial) {
+        assertRuntimeSigningLocalKeyMaterial({
+          nearAccountId: String(nearAccountId),
+          localKeyMaterial: localKeyMaterialCandidate,
+        });
+      }
+      console.warn(
+        `[WebAuthnManager] export-only local key material is excluded from runtime signing for account: ${nearAccountId}`,
+      );
+    }
+    const localKeyMaterial = isRuntimeSigningLocalKeyMaterial(localKeyMaterialCandidate)
+      ? localKeyMaterialCandidate
+      : null;
     const localWrapKeySalt = String(localKeyMaterial?.wrapKeySalt || '').trim();
     const thresholdWrapKeySalt =
       String(thresholdKeyMaterial?.wrapKeySalt || '').trim() || DUMMY_WRAP_KEY_SALT_B64U;
@@ -130,9 +148,6 @@ export async function signNep413Message({
     if (!secureConfirmWorkerManager) {
       throw new Error('SecureConfirmWorkerManager not available for NEP-413 signing');
     }
-
-    const canFallbackToLocal =
-      thresholdBehavior === 'fallback' && !!localKeyMaterial && !!localWrapKeySalt;
 
     const signingContext = validateAndPrepareNep413SigningContext({
       nearAccountId,
@@ -409,36 +424,12 @@ export async function signNep413Message({
       } catch (e: unknown) {
         const err = e instanceof Error ? e : new Error(String(e));
 
-        if (canFallbackToLocal && isThresholdSignerMissingKeyError(err)) {
-          if (!localKeyMaterial)
-            throw new Error(`No local key material found for account: ${nearAccountId}`);
+        if (isThresholdSignerMissingKeyError(err)) {
+          const msg =
+            '[WebAuthnManager] threshold-signer requested but the relayer is missing the signing share; local fallback is disabled';
           clearCachedThresholdEd25519AuthSession(signingContext.threshold.thresholdSessionCacheKey);
           signingContext.threshold.thresholdSessionJwt = undefined;
-
-          const localRequestPayload: Omit<WasmSignNep413MessageRequest, 'sessionId'> = {
-            ...requestPayload,
-            signerMode: 'local-signer',
-            nearPublicKey: String(localKeyMaterial.publicKey || '').trim(),
-            prfFirstB64u,
-            wrapKeySalt: localWrapKeySalt,
-            decryption: {
-              encryptedPrivateKeyData: localKeyMaterial.encryptedSk,
-              encryptedPrivateKeyChacha20NonceB64u: localKeyMaterial.chacha20NonceB64u,
-            },
-            threshold: undefined,
-          };
-
-          const response = await executeSignerWorkerOperation({
-            ctx,
-            kind: 'nearSigner',
-            request: {
-              sessionId,
-              type: WorkerRequestType.SignNep413Message,
-              payload: localRequestPayload,
-            },
-          });
-          okResponse = requireOkSignNep413MessageResponse(response);
-          break;
+          throw new Error(msg);
         }
 
         if (attempt === 0 && isThresholdSessionAuthUnavailableError(err)) {
