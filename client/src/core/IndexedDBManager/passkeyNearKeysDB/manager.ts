@@ -1,4 +1,5 @@
 import { openDB, type IDBPDatabase } from 'idb';
+import { toTrimmedString } from '../../../../../shared/src/utils/validation';
 import type {
   ClientShareDerivation,
   LocalNearSkV3Material,
@@ -46,7 +47,7 @@ export class PasskeyNearKeysDBManager {
   }
 
   setDbName(dbName: string): void {
-    const next = String(dbName || '').trim();
+    const next = toTrimmedString(dbName || '');
     if (!next || next === this.config.dbName) return;
     try { (this.db as any)?.close?.(); } catch {}
     this.db = null;
@@ -99,13 +100,13 @@ export class PasskeyNearKeysDBManager {
 
   async storeKeyMaterialV2(data: PasskeyChainKeyMaterialV2): Promise<void> {
     const db = await this.getDB();
-    const profileId = String(data.profileId || '').trim();
-    const signerId = String(data.signerId || '').trim();
-    const wrapKeySalt = String(data.wrapKeySalt || '').trim();
-    const chainId = String(data.chainId || '').trim().toLowerCase();
-    const keyKind = String(data.keyKind || '').trim();
-    const algorithm = String(data.algorithm || '').trim();
-    const publicKey = String(data.publicKey || '').trim();
+    const profileId = toTrimmedString(data.profileId || '');
+    const signerId = toTrimmedString(data.signerId || '');
+    const wrapKeySalt = toTrimmedString(data.wrapKeySalt || '');
+    const chainId = toTrimmedString(data.chainId || '').toLowerCase();
+    const keyKind = toTrimmedString(data.keyKind || '');
+    const algorithm = toTrimmedString(data.algorithm || '');
+    const publicKey = toTrimmedString(data.publicKey || '');
     if (!profileId) {
       throw new Error('PasskeyNearKeysDB: Missing profileId for keyMaterialV2');
     }
@@ -179,9 +180,9 @@ export class PasskeyNearKeysDBManager {
     keyKind: PasskeyChainKeyKind
   ): Promise<PasskeyChainKeyMaterialV2 | null> {
     const db = await this.getDB();
-    const normalizedProfileId = String(profileId || '').trim();
-    const normalizedChainId = String(chainId || '').trim().toLowerCase();
-    const normalizedKeyKind = String(keyKind || '').trim();
+    const normalizedProfileId = toTrimmedString(profileId || '');
+    const normalizedChainId = toTrimmedString(chainId || '').toLowerCase();
+    const normalizedKeyKind = toTrimmedString(keyKind || '');
     if (!normalizedProfileId || !normalizedChainId || !normalizedKeyKind) return null;
     const rec = await db.get(this.config.v2StoreName, [normalizedProfileId, deviceNumber, normalizedChainId, normalizedKeyKind]) as PasskeyChainKeyMaterialV2 | undefined;
     if (!rec) return null;
@@ -194,8 +195,8 @@ export class PasskeyNearKeysDBManager {
     chainId?: string,
   ): Promise<PasskeyChainKeyMaterialV2[]> {
     const db = await this.getDB();
-    const normalizedProfileId = String(profileId || '').trim();
-    const normalizedChainId = String(chainId || '').trim().toLowerCase();
+    const normalizedProfileId = toTrimmedString(profileId || '');
+    const normalizedChainId = toTrimmedString(chainId || '').toLowerCase();
     if (!normalizedProfileId) return [];
     if (!Number.isSafeInteger(deviceNumber) || deviceNumber < 1) return [];
 
@@ -219,9 +220,9 @@ export class PasskeyNearKeysDBManager {
     keyKind: PasskeyChainKeyKind,
   ): Promise<void> {
     const db = await this.getDB();
-    const normalizedProfileId = String(profileId || '').trim();
-    const normalizedChainId = String(chainId || '').trim().toLowerCase();
-    const normalizedKeyKind = String(keyKind || '').trim();
+    const normalizedProfileId = toTrimmedString(profileId || '');
+    const normalizedChainId = toTrimmedString(chainId || '').toLowerCase();
+    const normalizedKeyKind = toTrimmedString(keyKind || '');
     if (!normalizedProfileId || !normalizedChainId || !normalizedKeyKind) return;
     if (!Number.isSafeInteger(deviceNumber) || deviceNumber < 1) return;
     await db.delete(this.config.v2StoreName, [normalizedProfileId, deviceNumber, normalizedChainId, normalizedKeyKind]);

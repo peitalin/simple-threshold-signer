@@ -1,4 +1,5 @@
 import type { IDBPDatabase } from 'idb';
+import { toTrimmedString } from '../../../../../shared/src/utils/validation';
 import { toAccountId } from '../../types/accountIds';
 import type {
   AccountModel,
@@ -60,15 +61,15 @@ export interface InvariantStores {
 }
 
 function normalizeChainId(chainId: unknown): string {
-  return String(chainId || '').trim().toLowerCase();
+  return toTrimmedString(chainId || '').toLowerCase();
 }
 
 function normalizeAccountAddress(address: unknown): string {
-  return String(address || '').trim().toLowerCase();
+  return toTrimmedString(address || '').toLowerCase();
 }
 
 function normalizeAccountModel(model: unknown): AccountModel {
-  return String(model || '').trim().toLowerCase();
+  return toTrimmedString(model || '').toLowerCase();
 }
 
 function encodeDbPrimaryKey(primaryKey: unknown): string {
@@ -296,7 +297,7 @@ export async function validateAndQuarantineInvariantViolations(
     while (cursor) {
       checked += 1;
       const row = cursor.value as ProfileRecord;
-      const profileId = String(row?.profileId || '').trim();
+      const profileId = toTrimmedString(row?.profileId || '');
       if (!profileId) {
         addViolation({
           sourceStore: args.stores.profilesStore,
@@ -318,7 +319,7 @@ export async function validateAndQuarantineInvariantViolations(
     while (cursor) {
       checked += 1;
       const row = cursor.value as ChainAccountRecord;
-      const profileId = String(row?.profileId || '').trim();
+      const profileId = toTrimmedString(row?.profileId || '');
       const chainId = normalizeChainId((row as any)?.chainId);
       const accountAddress = normalizeAccountAddress((row as any)?.accountAddress);
       const accountModel = normalizeAccountModel((row as any)?.accountModel);
@@ -380,12 +381,12 @@ export async function validateAndQuarantineInvariantViolations(
     while (cursor) {
       checked += 1;
       const row = cursor.value as AccountSignerRecord;
-      const profileId = String(row?.profileId || '').trim();
+      const profileId = toTrimmedString(row?.profileId || '');
       const chainId = normalizeChainId((row as any)?.chainId);
       const accountAddress = normalizeAccountAddress((row as any)?.accountAddress);
-      const signerId = String((row as any)?.signerId || '').trim();
+      const signerId = toTrimmedString((row as any)?.signerId || '');
       const signerSlot = Number((row as any)?.signerSlot);
-      const status = String((row as any)?.status || '').trim() as AccountSignerStatus;
+      const status = toTrimmedString((row as any)?.status || '') as AccountSignerStatus;
       if (!profileId || !chainId || !accountAddress || !signerId) {
         addViolation({
           sourceStore: args.stores.accountSignersStore,
@@ -504,8 +505,8 @@ export async function validateAndQuarantineInvariantViolations(
     while (cursor) {
       checked += 1;
       const row = cursor.value as ProfileAuthenticatorRecord;
-      const profileId = String(row?.profileId || '').trim();
-      const credentialId = String((row as any)?.credentialId || '').trim();
+      const profileId = toTrimmedString(row?.profileId || '');
+      const credentialId = toTrimmedString((row as any)?.credentialId || '');
       const deviceNumber = Number((row as any)?.deviceNumber);
       if (!profileId || !credentialId) {
         addViolation({
@@ -548,13 +549,13 @@ export async function validateAndQuarantineInvariantViolations(
     while (cursor) {
       checked += 1;
       const row = cursor.value as DerivedAddressV2Record;
-      const profileId = String(row?.profileId || '').trim();
+      const profileId = toTrimmedString(row?.profileId || '');
       const sourceChainId = normalizeChainId((row as any)?.sourceChainId);
       const sourceAccountAddress = normalizeAccountAddress((row as any)?.sourceAccountAddress);
       const targetChainId = normalizeChainId((row as any)?.targetChainId);
-      const providerRef = String((row as any)?.providerRef || '').trim();
-      const path = String((row as any)?.path || '').trim();
-      const address = String((row as any)?.address || '').trim();
+      const providerRef = toTrimmedString((row as any)?.providerRef || '');
+      const path = toTrimmedString((row as any)?.path || '');
+      const address = toTrimmedString((row as any)?.address || '');
       if (!profileId || !sourceChainId || !sourceAccountAddress || !targetChainId || !providerRef || !path || !address) {
         addViolation({
           sourceStore: args.stores.derivedAddressV2Store,
@@ -586,8 +587,8 @@ export async function validateAndQuarantineInvariantViolations(
     while (cursor) {
       checked += 1;
       const row = cursor.value as RecoveryEmailV2Record;
-      const profileId = String(row?.profileId || '').trim();
-      const hashHex = String((row as any)?.hashHex || '').trim();
+      const profileId = toTrimmedString(row?.profileId || '');
+      const hashHex = toTrimmedString((row as any)?.hashHex || '');
       if (!profileId || !hashHex) {
         addViolation({
           sourceStore: args.stores.recoveryEmailV2Store,
@@ -618,7 +619,7 @@ export async function validateAndQuarantineInvariantViolations(
     let cursor = await tx.store.openCursor();
     while (cursor) {
       const row = cursor.value as AppStateEntry<unknown>;
-      const key = String(row?.key || '').trim();
+      const key = toTrimmedString(row?.key || '');
       if (
         key === args.lastProfileStateAppStateKey
         || key.startsWith(`${args.lastProfileStateAppStateKey}::`)

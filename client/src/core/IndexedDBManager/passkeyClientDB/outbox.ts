@@ -1,4 +1,5 @@
 import type { IDBPDatabase } from 'idb';
+import { toTrimmedString } from '../../../../../shared/src/utils/validation';
 import type {
   EnqueueSignerOperationInput,
   SignerOperationStatus,
@@ -7,11 +8,11 @@ import type {
 import { SIGNER_OPS_OUTBOX_STATUS_NEXT_ATTEMPT_INDEX } from './schema';
 
 function normalizeChainId(chainId: unknown): string {
-  return String(chainId || '').trim().toLowerCase();
+  return toTrimmedString(chainId || '').toLowerCase();
 }
 
 function normalizeAccountAddress(address: unknown): string {
-  return String(address || '').trim().toLowerCase();
+  return toTrimmedString(address || '').toLowerCase();
 }
 
 export function createSignerOperationId(prefix: string): string {
@@ -25,11 +26,11 @@ export async function enqueueSignerOperationRecord(
   signerOpsOutboxStore: string,
   input: EnqueueSignerOperationInput,
 ): Promise<SignerOpOutboxRecord> {
-  const opId = String(input.opId || '').trim();
-  const idempotencyKey = String(input.idempotencyKey || '').trim();
+  const opId = toTrimmedString(input.opId || '');
+  const idempotencyKey = toTrimmedString(input.idempotencyKey || '');
   const chainId = normalizeChainId(input.chainId);
   const accountAddress = normalizeAccountAddress(input.accountAddress);
-  const signerId = String(input.signerId || '').trim();
+  const signerId = toTrimmedString(input.signerId || '');
   if (!opId || !idempotencyKey || !chainId || !accountAddress || !signerId) {
     throw new Error('PasskeyClientDB: opId, idempotencyKey, chainId, accountAddress, and signerId are required');
   }
@@ -134,7 +135,7 @@ export async function setSignerOperationRecordStatus(
     txHash?: string | null;
   },
 ): Promise<SignerOpOutboxRecord | null> {
-  const opId = String(args.opId || '').trim();
+  const opId = toTrimmedString(args.opId || '');
   if (!opId) return null;
 
   const existing = await db.get(signerOpsOutboxStore, opId) as SignerOpOutboxRecord | undefined;

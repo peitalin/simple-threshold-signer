@@ -1,6 +1,7 @@
 import type { AccountId } from '../../types/accountIds';
 import { toAccountId } from '../../types/accountIds';
 import type { IDBPDatabase } from 'idb';
+import { toTrimmedString } from '../../../../../shared/src/utils/validation';
 import type {
   AccountSignerRecord,
   ChainAccountRecord,
@@ -29,7 +30,7 @@ function normalizeLastUserScope(scope: unknown): string | null {
 }
 
 function parseEip155ChainId(raw: unknown): string | null {
-  const value = String(raw || '').trim().toLowerCase();
+  const value = toTrimmedString(raw || '').toLowerCase();
   if (!value) return null;
   if (/^\d+$/.test(value)) return value;
   if (!/^0x[0-9a-f]+$/.test(value)) return null;
@@ -39,7 +40,7 @@ function parseEip155ChainId(raw: unknown): string | null {
 }
 
 function normalizeAccountAddress(address: unknown): string {
-  return String(address || '').trim().toLowerCase();
+  return toTrimmedString(address || '').toLowerCase();
 }
 
 export function buildLegacyNearProfileId(accountId: AccountId): string {
@@ -106,9 +107,9 @@ export function inferNearChainId(
 }
 
 export function inferTargetChainIdFromLegacyDerivedAddress(rec: DerivedAddressRecord): string {
-  const namespace = String(rec.namespace || '').trim().toLowerCase();
-  const chainRef = String(rec.chainRef || '').trim();
-  const path = String(rec.path || '').trim().toLowerCase();
+  const namespace = toTrimmedString(rec.namespace || '').toLowerCase();
+  const chainRef = toTrimmedString(rec.chainRef || '');
+  const path = toTrimmedString(rec.path || '').toLowerCase();
   const evmChainFromPath = (() => {
     const match = path.match(/^evm:([^:]+):/);
     return match?.[1] || null;
@@ -172,7 +173,7 @@ export async function upsertLegacyNearUserProjection(args: {
   const profileId = buildLegacyNearProfileId(accountId);
   const chainId = inferNearChainId(accountId, userData.preferences?.useNetwork);
   const accountAddress = normalizeAccountAddress(accountId);
-  const signerId = String(userData.passkeyCredential?.rawId || '').trim()
+  const signerId = toTrimmedString(userData.passkeyCredential?.rawId || '')
     || `legacy-device-${deviceNumber}`;
 
   await ops.upsertProfile({
@@ -305,7 +306,7 @@ export async function backfillCoreFromLegacyUserRecord(args: {
   const profileId = buildLegacyNearProfileId(accountId);
   const chainId = inferNearChainId(accountId, userData.preferences?.useNetwork);
   const accountAddress = normalizeAccountAddress(accountId);
-  const signerId = String(userData.passkeyCredential?.rawId || '').trim() || `legacy-device-${userData.deviceNumber}`;
+  const signerId = toTrimmedString(userData.passkeyCredential?.rawId || '') || `legacy-device-${userData.deviceNumber}`;
   const now = Date.now();
 
   const existingProfile = await db.get(stores.profilesStore, profileId) as ProfileRecord | undefined;

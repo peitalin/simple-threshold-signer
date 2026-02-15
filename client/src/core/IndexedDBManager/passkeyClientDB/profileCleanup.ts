@@ -1,4 +1,5 @@
 import type { IDBPDatabase } from 'idb';
+import { toTrimmedString } from '../../../../../shared/src/utils/validation';
 
 async function deleteRowsByProfileId(args: {
   db: IDBPDatabase;
@@ -29,7 +30,7 @@ export async function deleteV2ProfileData(args: {
   };
 }): Promise<void> {
   const { db, stores } = args;
-  const normalizedProfileId = String(args.profileId || '').trim();
+  const normalizedProfileId = toTrimmedString(args.profileId || '');
   if (!normalizedProfileId) return;
 
   try {

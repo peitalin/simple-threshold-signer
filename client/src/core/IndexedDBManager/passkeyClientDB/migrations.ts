@@ -1,6 +1,8 @@
 import type { IDBPDatabase } from 'idb';
+import { toTrimmedString } from '../../../../../shared/src/utils/validation';
 import { toAccountId } from '../../types/accountIds';
 import type {
+  ChainAccountRecord,
   ClientAuthenticatorData,
   ClientUserData,
   DerivedAddressRecord,
@@ -53,6 +55,7 @@ export type DbMultichainMigrationStep =
   | 'legacyDerivedAddressesToV2'
   | 'legacyRecoveryEmailsToV2'
   | 'lastProfileStateSync'
+  | 'smartAccountChainDefaultsBackfilled'
   | 'parityChecksLogged'
   | 'invariantsValidatedAndQuarantined';
 
@@ -79,6 +82,8 @@ export interface DbMultichainMigrationCounts {
   recoveryEmailV2Upserts: number;
   recoveryEmailV2Failures: number;
   lastProfileStateSynced: number;
+  smartAccountRowsScanned: number;
+  smartAccountRowsBackfilled: number;
   invariantRowsChecked: number;
   invariantViolationsFound: number;
   invariantRowsQuarantined: number;
@@ -105,10 +110,32 @@ function buildDefaultDbMultichainMigrationCounts(): DbMultichainMigrationCounts 
     recoveryEmailV2Upserts: 0,
     recoveryEmailV2Failures: 0,
     lastProfileStateSynced: 0,
+    smartAccountRowsScanned: 0,
+    smartAccountRowsBackfilled: 0,
     invariantRowsChecked: 0,
     invariantViolationsFound: 0,
     invariantRowsQuarantined: 0,
   };
+}
+
+function normalizeAccountModel(value: unknown): string {
+  return toTrimmedString(value || '').toLowerCase();
+}
+
+function normalizeAccountAddress(value: unknown): string {
+  return toTrimmedString(value || '').toLowerCase();
+}
+
+function hasSmartAccountShape(row: ChainAccountRecord): boolean {
+  const accountModel = normalizeAccountModel(row.accountModel);
+  return (
+    accountModel === 'erc4337'
+    || accountModel === 'tempo-native'
+    || toTrimmedString((row as any)?.factory || '').length > 0
+    || toTrimmedString((row as any)?.entryPoint || '').length > 0
+    || toTrimmedString((row as any)?.salt || '').length > 0
+    || toTrimmedString((row as any)?.counterfactualAddress || '').length > 0
+  );
 }
 
 export interface RunMigrationsIfNeededArgs {
@@ -254,9 +281,9 @@ export async function runMigrationsIfNeeded(args: RunMigrationsIfNeededArgs): Pr
               const maybeDevice = Number((raw as any).deviceNumber);
               const deviceNumber =
                 Number.isSafeInteger(maybeDevice) && maybeDevice >= 1 ? maybeDevice : 1;
-              const credentialRawId = String((raw as any)?.passkeyCredential?.rawId || '').trim();
-              const credentialId = String((raw as any)?.passkeyCredential?.id || '').trim();
-              const clientNearPublicKey = String((raw as any)?.clientNearPublicKey || '').trim();
+              const credentialRawId = toTrimmedString((raw as any)?.passkeyCredential?.rawId || '');
+              const credentialId = toTrimmedString((raw as any)?.passkeyCredential?.id || '');
+              const clientNearPublicKey = toTrimmedString((raw as any)?.clientNearPublicKey || '');
               if (!credentialRawId || !clientNearPublicKey) {
                 stepFailures += 1;
                 counts.coreUserBackfillFailures += 1;
@@ -319,7 +346,7 @@ export async function runMigrationsIfNeeded(args: RunMigrationsIfNeededArgs): Pr
               const maybeDevice = Number((legacy as any).deviceNumber);
               const deviceNumber =
                 Number.isSafeInteger(maybeDevice) && maybeDevice >= 1 ? maybeDevice : 1;
-              const credentialId = String((legacy as any)?.credentialId || '').trim();
+              const credentialId = toTrimmedString((legacy as any)?.credentialId || '');
               const credentialPublicKey = (legacy as any)?.credentialPublicKey;
               if (!credentialId || !(credentialPublicKey instanceof Uint8Array)) {
                 stepFailures += 1;
@@ -369,9 +396,9 @@ export async function runMigrationsIfNeeded(args: RunMigrationsIfNeededArgs): Pr
             const legacy = current.value as DerivedAddressRecord;
             try {
               const accountId = toAccountId(legacy.nearAccountId);
-              const providerRef = String(legacy.contractId || '').trim();
-              const path = String(legacy.path || '').trim();
-              const address = String(legacy.address || '').trim();
+              const providerRef = toTrimmedString(legacy.contractId || '');
+              const path = toTrimmedString(legacy.path || '');
+              const address = toTrimmedString(legacy.address || '');
               if (!providerRef || !path || !address) {
                 stepFailures += 1;
                 counts.derivedAddressV2Failures += 1;
@@ -382,7 +409,7 @@ export async function runMigrationsIfNeeded(args: RunMigrationsIfNeededArgs): Pr
               const row: DerivedAddressV2Record = {
                 profileId: buildLegacyNearProfileId(accountId),
                 sourceChainId,
-                sourceAccountAddress: String(accountId || '').trim().toLowerCase(),
+                sourceAccountAddress: toTrimmedString(accountId || '').toLowerCase(),
                 targetChainId: inferTargetChainIdFromLegacyDerivedAddress(legacy),
                 providerRef,
                 path,
@@ -420,7 +447,7 @@ export async function runMigrationsIfNeeded(args: RunMigrationsIfNeededArgs): Pr
             const legacy = current.value as RecoveryEmailRecord;
             try {
               const accountId = toAccountId(legacy.nearAccountId);
-              const hashHex = String(legacy.hashHex || '').trim();
+              const hashHex = toTrimmedString(legacy.hashHex || '');
               if (!hashHex) {
                 stepFailures += 1;
                 counts.recoveryEmailV2Failures += 1;
@@ -430,7 +457,7 @@ export async function runMigrationsIfNeeded(args: RunMigrationsIfNeededArgs): Pr
               const row: RecoveryEmailV2Record = {
                 profileId: buildLegacyNearProfileId(accountId),
                 hashHex,
-                email: String(legacy.email || '').trim() || hashHex,
+                email: toTrimmedString(legacy.email || '') || hashHex,
                 addedAt: typeof legacy.addedAt === 'number' ? legacy.addedAt : Date.now(),
               };
               await db.put(DB_CONFIG.recoveryEmailV2Store, row);
@@ -473,6 +500,49 @@ export async function runMigrationsIfNeeded(args: RunMigrationsIfNeededArgs): Pr
         }
         await markCheckpoint('lastProfileStateSync', {
           synced: counts.lastProfileStateSynced,
+        });
+      }
+
+      if (!checkpoints.smartAccountChainDefaultsBackfilled) {
+        let stepScanned = 0;
+        let stepBackfilled = 0;
+        if (db.objectStoreNames.contains(DB_CONFIG.chainAccountsStore)) {
+          const chainTx = db.transaction(DB_CONFIG.chainAccountsStore, 'readwrite');
+          let chainCursor = await chainTx.store.openCursor();
+          while (chainCursor) {
+            const current = chainCursor;
+            await refreshHeartbeat();
+            const row = current.value as ChainAccountRecord;
+            if (hasSmartAccountShape(row)) {
+              stepScanned += 1;
+              counts.smartAccountRowsScanned += 1;
+              const accountAddress = normalizeAccountAddress(row.accountAddress);
+              const existingCounterfactual = normalizeAccountAddress(
+                (row as any)?.counterfactualAddress,
+              );
+              const counterfactualAddress = existingCounterfactual || accountAddress;
+              const hasDeployed = typeof (row as any)?.deployed === 'boolean';
+              if (!hasDeployed || counterfactualAddress !== existingCounterfactual) {
+                await current.update({
+                  ...row,
+                  counterfactualAddress,
+                  deployed: hasDeployed ? (row as any).deployed : false,
+                  updatedAt:
+                    typeof (row as any)?.updatedAt === 'number'
+                      ? (row as any).updatedAt
+                      : Date.now(),
+                } as ChainAccountRecord);
+                stepBackfilled += 1;
+                counts.smartAccountRowsBackfilled += 1;
+              }
+            }
+            chainCursor = await current.continue();
+          }
+          await chainTx.done;
+        }
+        await markCheckpoint('smartAccountChainDefaultsBackfilled', {
+          scanned: stepScanned,
+          backfilled: stepBackfilled,
         });
       }
 

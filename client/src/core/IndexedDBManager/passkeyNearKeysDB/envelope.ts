@@ -3,6 +3,7 @@ import type {
   PasskeyChainKeyPayloadEnvelope,
   PasskeyChainKeyPayloadEnvelopeAAD,
 } from '../passkeyNearKeysDB.types';
+import { toTrimmedString } from '../../../../../shared/src/utils/validation';
 
 export const KEY_PAYLOAD_ENC_VERSION = 1;
 export const LOCAL_SK_ENVELOPE_ALG = 'chacha20poly1305-b64u-v1';
@@ -26,12 +27,12 @@ export function buildEnvelopeAAD(args: {
   schemaVersion: number;
   signerId?: string;
 }): PasskeyChainKeyPayloadEnvelopeAAD {
-  const signerId = String(args.signerId || '').trim();
+  const signerId = toTrimmedString(args.signerId || '');
   return {
-    profileId: String(args.profileId || '').trim(),
+    profileId: toTrimmedString(args.profileId || ''),
     deviceNumber: args.deviceNumber,
-    chainId: String(args.chainId || '').trim().toLowerCase(),
-    keyKind: String(args.keyKind || '').trim(),
+    chainId: toTrimmedString(args.chainId || '').toLowerCase(),
+    keyKind: toTrimmedString(args.keyKind || ''),
     schemaVersion: args.schemaVersion,
     ...(signerId ? { signerId } : {}),
   };
@@ -55,7 +56,7 @@ function normalizeEnvelopeAAD(
     ? deviceNumberRaw
     : expected.deviceNumber;
   const signerId = String(record?.signerId ?? expected.signerId ?? '').trim();
-  const accountAddress = String(record?.accountAddress || '').trim().toLowerCase();
+  const accountAddress = toTrimmedString(record?.accountAddress || '').toLowerCase();
   const normalized: PasskeyChainKeyPayloadEnvelopeAAD = {
     profileId,
     deviceNumber,
@@ -96,10 +97,10 @@ export function normalizePayloadEnvelope(
   const encVersion = Number.isSafeInteger(encVersionRaw) && encVersionRaw >= 1
     ? encVersionRaw
     : NaN;
-  const alg = String(record.alg || '').trim();
-  const nonce = String(record.nonce || '').trim();
-  const ciphertext = String(record.ciphertext || '').trim();
-  const tag = String(record.tag || '').trim();
+  const alg = toTrimmedString(record.alg || '');
+  const nonce = toTrimmedString(record.nonce || '');
+  const ciphertext = toTrimmedString(record.ciphertext || '');
+  const tag = toTrimmedString(record.tag || '');
   if (!Number.isFinite(encVersion)) {
     throw new Error(`PasskeyNearKeysDB: Invalid payloadEnvelope.encVersion for ${context}`);
   }
@@ -121,8 +122,8 @@ function extractLegacyLocalSkPayload(payload: Record<string, unknown> | undefine
   chacha20NonceB64u: string;
 } | null {
   if (!payload) return null;
-  const encryptedSk = String(payload.encryptedSk || '').trim();
-  const chacha20NonceB64u = String(payload.chacha20NonceB64u || '').trim();
+  const encryptedSk = toTrimmedString(payload.encryptedSk || '');
+  const chacha20NonceB64u = toTrimmedString(payload.chacha20NonceB64u || '');
   if (!encryptedSk || !chacha20NonceB64u) return null;
   return { encryptedSk, chacha20NonceB64u };
 }
@@ -136,13 +137,13 @@ function removeLegacyLocalSkPayloadFields(payload: Record<string, unknown> | und
 }
 
 export function hydrateCompatibilityPayload(rec: PasskeyChainKeyMaterialV2): PasskeyChainKeyMaterialV2 | null {
-  const profileId = String(rec.profileId || '').trim();
-  const chainId = String(rec.chainId || '').trim().toLowerCase();
-  const keyKind = String(rec.keyKind || '').trim();
-  const algorithm = String(rec.algorithm || '').trim();
-  const publicKey = String(rec.publicKey || '').trim();
-  const signerId = String(rec.signerId || '').trim();
-  const wrapKeySalt = String(rec.wrapKeySalt || '').trim();
+  const profileId = toTrimmedString(rec.profileId || '');
+  const chainId = toTrimmedString(rec.chainId || '').toLowerCase();
+  const keyKind = toTrimmedString(rec.keyKind || '');
+  const algorithm = toTrimmedString(rec.algorithm || '');
+  const publicKey = toTrimmedString(rec.publicKey || '');
+  const signerId = toTrimmedString(rec.signerId || '');
+  const wrapKeySalt = toTrimmedString(rec.wrapKeySalt || '');
   if (!profileId || !chainId || !keyKind || !algorithm || !publicKey) return null;
   if (!Number.isSafeInteger(rec.deviceNumber) || rec.deviceNumber < 1) return null;
   if (typeof rec.timestamp !== 'number') return null;
@@ -165,8 +166,8 @@ export function hydrateCompatibilityPayload(rec: PasskeyChainKeyMaterialV2): Pas
 
   if (keyKind === 'local_sk_encrypted_v1') {
     const legacyPayload = extractLegacyLocalSkPayload(payload);
-    const encryptedSkFromEnvelope = String(payloadEnvelope?.ciphertext || '').trim();
-    const nonceFromEnvelope = String(payloadEnvelope?.nonce || '').trim();
+    const encryptedSkFromEnvelope = toTrimmedString(payloadEnvelope?.ciphertext || '');
+    const nonceFromEnvelope = toTrimmedString(payloadEnvelope?.nonce || '');
     const encryptedSk = String(legacyPayload?.encryptedSk || encryptedSkFromEnvelope).trim();
     const chacha20NonceB64u = String(legacyPayload?.chacha20NonceB64u || nonceFromEnvelope).trim();
     if (!encryptedSk || !chacha20NonceB64u) return null;

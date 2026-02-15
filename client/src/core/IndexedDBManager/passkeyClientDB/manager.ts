@@ -1,4 +1,5 @@
 import { openDB, type IDBPDatabase } from 'idb';
+import { toTrimmedString } from '../../../../../shared/src/utils/validation';
 import type { AccountId } from '../../types/accountIds';
 import { toAccountId } from '../../types/accountIds';
 import { DEFAULT_CONFIRMATION_CONFIG } from '../../types/signer-worker';
@@ -129,15 +130,20 @@ function makeScopedAppStateKey(baseKey: string, scope: unknown): string | null {
 }
 
 function normalizeChainId(chainId: unknown): string {
-  return String(chainId || '').trim().toLowerCase();
+  return toTrimmedString(chainId || '').toLowerCase();
 }
 
 function normalizeAccountAddress(address: unknown): string {
-  return String(address || '').trim().toLowerCase();
+  return toTrimmedString(address || '').toLowerCase();
 }
 
 function normalizeAccountModel(model: unknown): AccountModel {
-  return String(model || '').trim().toLowerCase();
+  return toTrimmedString(model || '').toLowerCase();
+}
+
+function normalizeOptionalString(value: unknown): string | undefined {
+  const next = toTrimmedString(value || '');
+  return next || undefined;
 }
 
 export class DBConstraintError extends Error {
@@ -208,7 +214,7 @@ export class PasskeyClientDBManager {
   }
 
   setDbName(dbName: string): void {
-    const next = String(dbName || '').trim();
+    const next = toTrimmedString(dbName || '');
     if (!next || next === this.config.dbName) return;
     try { (this.db as any)?.close?.(); } catch {}
     this.db = null;
@@ -512,7 +518,7 @@ export class PasskeyClientDBManager {
   // V2 multichain records
 
   async getProfile(profileId: string): Promise<ProfileRecord | null> {
-    const normalized = String(profileId || '').trim();
+    const normalized = toTrimmedString(profileId || '');
     if (!normalized) return null;
     const db = await this.getDB();
     const rec = await db.get(DB_CONFIG.profilesStore, normalized);
@@ -520,7 +526,7 @@ export class PasskeyClientDBManager {
   }
 
   async upsertProfile(input: UpsertProfileInput): Promise<ProfileRecord> {
-    const profileId = String(input.profileId || '').trim();
+    const profileId = toTrimmedString(input.profileId || '');
     if (!profileId) throw new Error('PasskeyClientDB: profileId is required');
     if (!input.passkeyCredential?.rawId) {
       throw new Error('PasskeyClientDB: passkeyCredential.rawId is required');
@@ -550,7 +556,7 @@ export class PasskeyClientDBManager {
     accountModel: AccountModel,
     accountRef: { chainId: string; accountAddress: string },
   ): void {
-    const normalizedSignerType = String(signerType || '').trim().toLowerCase();
+    const normalizedSignerType = toTrimmedString(signerType || '').toLowerCase();
     const capabilities = this.getAccountModelCapabilities(accountModel);
     if (normalizedSignerType === 'session' && !capabilities.supportsSessionSigner) {
       throw new DBConstraintError(
@@ -720,7 +726,7 @@ export class PasskeyClientDBManager {
   }
 
   async upsertChainAccount(input: UpsertChainAccountInput): Promise<ChainAccountRecord> {
-    const profileId = String(input.profileId || '').trim();
+    const profileId = toTrimmedString(input.profileId || '');
     const chainId = normalizeChainId(input.chainId);
     const accountAddress = normalizeAccountAddress(input.accountAddress);
     const accountModel = normalizeAccountModel(input.accountModel);
@@ -743,6 +749,50 @@ export class PasskeyClientDBManager {
     const tx = db.transaction(DB_CONFIG.chainAccountsStore, 'readwrite');
     const store = tx.store;
     const existing = await store.get([profileId, chainId, accountAddress]) as ChainAccountRecord | undefined;
+    const factory = input.factory === null
+      ? undefined
+      : normalizeOptionalString(input.factory ?? existing?.factory);
+    const entryPoint = input.entryPoint === null
+      ? undefined
+      : normalizeOptionalString(input.entryPoint ?? existing?.entryPoint);
+    const salt = input.salt === null
+      ? undefined
+      : normalizeOptionalString(input.salt ?? existing?.salt);
+    const counterfactualAddressInput = input.counterfactualAddress === null
+      ? undefined
+      : (input.counterfactualAddress ?? existing?.counterfactualAddress);
+    const hasSmartAccountShape = Boolean(
+      factory
+      || entryPoint
+      || salt
+      || counterfactualAddressInput
+      || normalizeAccountModel(accountModel) === 'erc4337'
+      || normalizeAccountModel(accountModel) === 'tempo-native',
+    );
+    const counterfactualAddress = hasSmartAccountShape
+      ? normalizeAccountAddress(counterfactualAddressInput || accountAddress)
+      : undefined;
+    const deployed = typeof input.deployed === 'boolean'
+      ? input.deployed
+      : typeof existing?.deployed === 'boolean'
+        ? existing.deployed
+        : hasSmartAccountShape
+          ? false
+          : undefined;
+    const deploymentTxHash = input.deploymentTxHash === null
+      ? undefined
+      : normalizeOptionalString(input.deploymentTxHash ?? existing?.deploymentTxHash);
+    const deploymentCheckCandidate = input.lastDeploymentCheckAt === null
+      ? undefined
+      : (
+        typeof input.lastDeploymentCheckAt === 'number'
+          ? input.lastDeploymentCheckAt
+          : existing?.lastDeploymentCheckAt
+      );
+    const lastDeploymentCheckAt =
+      typeof deploymentCheckCandidate === 'number' && Number.isFinite(deploymentCheckCandidate)
+        ? deploymentCheckCandidate
+        : undefined;
     const next: ChainAccountRecord = {
       profileId,
       chainId,
@@ -752,6 +802,13 @@ export class PasskeyClientDBManager {
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
       legacyNearAccountId: input.legacyNearAccountId ?? existing?.legacyNearAccountId,
+      ...(factory ? { factory } : {}),
+      ...(entryPoint ? { entryPoint } : {}),
+      ...(salt ? { salt } : {}),
+      ...(counterfactualAddress ? { counterfactualAddress } : {}),
+      ...(typeof deployed === 'boolean' ? { deployed } : {}),
+      ...(deploymentTxHash ? { deploymentTxHash } : {}),
+      ...(typeof lastDeploymentCheckAt === 'number' ? { lastDeploymentCheckAt } : {}),
     };
 
     if (next.isPrimary) {
@@ -791,8 +848,25 @@ export class PasskeyClientDBManager {
     return (profile as ProfileRecord) || null;
   }
 
+  async listChainAccountsByProfileAndChain(
+    profileId: string,
+    chainId: string,
+  ): Promise<ChainAccountRecord[]> {
+    const normalizedProfileId = toTrimmedString(profileId || '');
+    const normalizedChainId = normalizeChainId(chainId);
+    if (!normalizedProfileId || !normalizedChainId) return [];
+    const db = await this.getDB();
+    const tx = db.transaction(DB_CONFIG.chainAccountsStore, 'readonly');
+    const rows = await tx.store.index('profileId_chainId').getAll([
+      normalizedProfileId,
+      normalizedChainId,
+    ]);
+    await tx.done;
+    return (rows as ChainAccountRecord[]) || [];
+  }
+
   async listProfileAuthenticators(profileId: string): Promise<ProfileAuthenticatorRecord[]> {
-    const normalizedProfileId = String(profileId || '').trim();
+    const normalizedProfileId = toTrimmedString(profileId || '');
     if (!normalizedProfileId) return [];
     const db = await this.getDB();
     const tx = db.transaction(DB_CONFIG.profileAuthenticatorStore, 'readonly');
@@ -814,7 +888,7 @@ export class PasskeyClientDBManager {
       const chainAccount = await idx.get([sourceChainId, sourceAccountAddress]) as
         | ChainAccountRecord
         | undefined;
-      const profileId = String(chainAccount?.profileId || '').trim();
+      const profileId = toTrimmedString(chainAccount?.profileId || '');
       if (profileId) {
         await tx.done;
         return {
@@ -829,7 +903,7 @@ export class PasskeyClientDBManager {
   }
 
   async getNearAccountIdForProfile(profileId: string): Promise<AccountId | null> {
-    const normalizedProfileId = String(profileId || '').trim();
+    const normalizedProfileId = toTrimmedString(profileId || '');
     if (!normalizedProfileId) return null;
 
     const db = await this.getDB();
@@ -842,7 +916,7 @@ export class PasskeyClientDBManager {
     if (!nearRows.length) return null;
     const selected = nearRows.find((row) => !!row.isPrimary) || nearRows[0];
     if (!selected) return null;
-    const candidate = String(selected.legacyNearAccountId || selected.accountAddress || '').trim();
+    const candidate = toTrimmedString(selected.legacyNearAccountId || selected.accountAddress || '');
     if (!candidate) return null;
     try {
       return toAccountId(candidate);
@@ -916,7 +990,7 @@ export class PasskeyClientDBManager {
 
     const accountCandidates = new Set<AccountId>();
     for (const row of [...(nearTestnetRows || []), ...(nearMainnetRows || [])]) {
-      const candidate = String(row.legacyNearAccountId || row.accountAddress || '').trim();
+      const candidate = toTrimmedString(row.legacyNearAccountId || row.accountAddress || '');
       if (!candidate) continue;
       try {
         accountCandidates.add(toAccountId(candidate));
@@ -1098,8 +1172,8 @@ export class PasskeyClientDBManager {
   }
 
   async upsertProfileAuthenticator(record: ProfileAuthenticatorRecord): Promise<void> {
-    const profileId = String(record.profileId || '').trim();
-    const credentialId = String(record.credentialId || '').trim();
+    const profileId = toTrimmedString(record.profileId || '');
+    const credentialId = toTrimmedString(record.credentialId || '');
     if (!profileId || !credentialId) {
       throw new Error('PasskeyClientDB: profileId and credentialId are required for profileAuthenticators');
     }
@@ -1115,8 +1189,8 @@ export class PasskeyClientDBManager {
     profileId: string,
     credentialId: string,
   ): Promise<ProfileAuthenticatorRecord | null> {
-    const normalizedProfileId = String(profileId || '').trim();
-    const normalizedCredentialId = String(credentialId || '').trim();
+    const normalizedProfileId = toTrimmedString(profileId || '');
+    const normalizedCredentialId = toTrimmedString(credentialId || '');
     if (!normalizedProfileId || !normalizedCredentialId) return null;
     const db = await this.getDB();
     const tx = db.transaction(DB_CONFIG.profileAuthenticatorStore, 'readonly');
@@ -1128,7 +1202,7 @@ export class PasskeyClientDBManager {
   }
 
   async clearProfileAuthenticators(profileId: string): Promise<void> {
-    const normalizedProfileId = String(profileId || '').trim();
+    const normalizedProfileId = toTrimmedString(profileId || '');
     if (!normalizedProfileId) return;
     const db = await this.getDB();
     const tx = db.transaction(DB_CONFIG.profileAuthenticatorStore, 'readwrite');
@@ -1151,13 +1225,13 @@ export class PasskeyClientDBManager {
     address: string;
     updatedAt?: number;
   }): Promise<void> {
-    const profileId = String(input.profileId || '').trim();
+    const profileId = toTrimmedString(input.profileId || '');
     const sourceChainId = normalizeChainId(input.sourceChainId);
     const sourceAccountAddress = normalizeAccountAddress(input.sourceAccountAddress);
     const targetChainId = normalizeChainId(input.targetChainId);
-    const providerRef = String(input.providerRef || '').trim();
-    const path = String(input.path || '').trim();
-    const address = String(input.address || '').trim();
+    const providerRef = toTrimmedString(input.providerRef || '');
+    const path = toTrimmedString(input.path || '');
+    const address = toTrimmedString(input.address || '');
     if (!profileId || !sourceChainId || !sourceAccountAddress || !targetChainId || !providerRef || !path || !address) {
       throw new Error('PasskeyClientDB: Missing derivedAddressesV2 fields');
     }
@@ -1181,11 +1255,11 @@ export class PasskeyClientDBManager {
     providerRef: string;
     path: string;
   }): Promise<DerivedAddressV2Record | null> {
-    const profileId = String(input.profileId || '').trim();
+    const profileId = toTrimmedString(input.profileId || '');
     const sourceChainId = normalizeChainId(input.sourceChainId);
     const sourceAccountAddress = normalizeAccountAddress(input.sourceAccountAddress);
-    const providerRef = String(input.providerRef || '').trim();
-    const path = String(input.path || '').trim();
+    const providerRef = toTrimmedString(input.providerRef || '');
+    const path = toTrimmedString(input.path || '');
     if (!profileId || !sourceChainId || !sourceAccountAddress || !providerRef || !path) return null;
 
     const db = await this.getDB();
@@ -1204,13 +1278,13 @@ export class PasskeyClientDBManager {
     profileId: string,
     entries: Array<{ hashHex: string; email: string }>,
   ): Promise<void> {
-    const normalizedProfileId = String(profileId || '').trim();
+    const normalizedProfileId = toTrimmedString(profileId || '');
     if (!normalizedProfileId || !entries?.length) return;
     const db = await this.getDB();
     const now = Date.now();
     for (const entry of entries) {
-      const hashHex = String(entry?.hashHex || '').trim();
-      const email = String(entry?.email || '').trim();
+      const hashHex = toTrimmedString(entry?.hashHex || '');
+      const email = toTrimmedString(entry?.email || '');
       if (!hashHex) continue;
       await db.put(DB_CONFIG.recoveryEmailV2Store, {
         profileId: normalizedProfileId,
@@ -1222,7 +1296,7 @@ export class PasskeyClientDBManager {
   }
 
   async listRecoveryEmailsV2(profileId: string): Promise<RecoveryEmailV2Record[]> {
-    const normalizedProfileId = String(profileId || '').trim();
+    const normalizedProfileId = toTrimmedString(profileId || '');
     if (!normalizedProfileId) return [];
     const db = await this.getDB();
     const tx = db.transaction(DB_CONFIG.recoveryEmailV2Store, 'readonly');
@@ -1240,7 +1314,7 @@ export class PasskeyClientDBManager {
     authenticatorsForPrompt: ProfileAuthenticatorRecord[];
     wrongPasskeyError?: string;
   }> {
-    const profileId = String(args.profileId || '').trim();
+    const profileId = toTrimmedString(args.profileId || '');
     const authenticators = Array.isArray(args.authenticators) ? args.authenticators : [];
     if (!profileId || authenticators.length <= 1) {
       return { authenticatorsForPrompt: authenticators };
@@ -1264,7 +1338,7 @@ export class PasskeyClientDBManager {
         ? byCredentialId
         : (byDeviceNumber.length > 0 ? byDeviceNumber : authenticators);
 
-    const selectedCredentialRawId = String(args.selectedCredentialRawId || '').trim();
+    const selectedCredentialRawId = toTrimmedString(args.selectedCredentialRawId || '');
     const accountLabel = String(args.accountLabel || profileId).trim();
     const wrongPasskeyError =
       selectedCredentialRawId && expectedCredentialId && selectedCredentialRawId !== expectedCredentialId
@@ -1283,10 +1357,10 @@ export class PasskeyClientDBManager {
   }
 
   private async upsertAccountSignerDirect(input: UpsertAccountSignerInput): Promise<AccountSignerRecord> {
-    const profileId = String(input.profileId || '').trim();
+    const profileId = toTrimmedString(input.profileId || '');
     const chainId = normalizeChainId(input.chainId);
     const accountAddress = normalizeAccountAddress(input.accountAddress);
-    const signerId = String(input.signerId || '').trim();
+    const signerId = toTrimmedString(input.signerId || '');
     if (!profileId || !chainId || !accountAddress || !signerId) {
       throw new Error('PasskeyClientDB: profileId, chainId, accountAddress, and signerId are required');
     }
@@ -1375,8 +1449,8 @@ export class PasskeyClientDBManager {
     const next = await this.upsertAccountSignerDirect(input);
     const routeThroughOutbox = input.mutation?.routeThroughOutbox ?? true;
     if (!routeThroughOutbox) return next;
-    const opId = String(input.mutation?.opId || '').trim() || this.createSignerOperationId('add-signer');
-    const idempotencyKey = String(input.mutation?.idempotencyKey || '').trim()
+    const opId = toTrimmedString(input.mutation?.opId || '') || this.createSignerOperationId('add-signer');
+    const idempotencyKey = toTrimmedString(input.mutation?.idempotencyKey || '')
       || `add-signer:${next.chainId}:${next.accountAddress}:${next.signerId}:${next.signerSlot}`;
     await this.enqueueSignerOperation({
       opId,
@@ -1421,7 +1495,7 @@ export class PasskeyClientDBManager {
   }): Promise<AccountSignerRecord | null> {
     const chainId = normalizeChainId(args.chainId);
     const accountAddress = normalizeAccountAddress(args.accountAddress);
-    const signerId = String(args.signerId || '').trim();
+    const signerId = toTrimmedString(args.signerId || '');
     if (!chainId || !accountAddress || !signerId) return null;
     const db = await this.getDB();
     const row = await db.get(DB_CONFIG.accountSignersStore, [chainId, accountAddress, signerId]) as
@@ -1439,7 +1513,7 @@ export class PasskeyClientDBManager {
   }): Promise<AccountSignerRecord | null> {
     const chainId = normalizeChainId(args.chainId);
     const accountAddress = normalizeAccountAddress(args.accountAddress);
-    const signerId = String(args.signerId || '').trim();
+    const signerId = toTrimmedString(args.signerId || '');
     if (!chainId || !accountAddress || !signerId) return null;
     const db = await this.getDB();
     const existing = await db.get(
@@ -1512,8 +1586,8 @@ export class PasskeyClientDBManager {
     if (!routeThroughOutbox) return updated;
 
     const opType: SignerOperationType = args.status === 'revoked' ? 'revoke-signer' : 'add-signer';
-    const opId = String(args.mutation?.opId || '').trim() || this.createSignerOperationId(opType);
-    const idempotencyKey = String(args.mutation?.idempotencyKey || '').trim()
+    const opId = toTrimmedString(args.mutation?.opId || '') || this.createSignerOperationId(opType);
+    const idempotencyKey = toTrimmedString(args.mutation?.idempotencyKey || '')
       || `signer-status:${args.status}:${updated.chainId}:${updated.accountAddress}:${updated.signerId}`;
     await this.enqueueSignerOperation({
       opId,
@@ -1651,7 +1725,7 @@ export class PasskeyClientDBManager {
 
   private async clearLastProfileStateIfMatchesProfile(profileId: string): Promise<void> {
     await this.clearLegacyLastUserPointers();
-    const normalizedProfileId = String(profileId || '').trim();
+    const normalizedProfileId = toTrimmedString(profileId || '');
     if (!normalizedProfileId) return;
     try {
       const legacyProfile = parseLastProfileState(

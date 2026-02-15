@@ -33,7 +33,7 @@ export function stripTrailingSlashes(value: string): string {
 
 /** Ensure a non-empty string starts with `/` (path normalization). */
 export function ensureLeadingSlash(value: string): string {
-  const trimmed = String(value ?? '').trim();
+  const trimmed = toTrimmedString(value);
   if (!trimmed) return '';
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
 }
@@ -48,12 +48,12 @@ export function toBasePath(value?: string, fallback = '/sdk'): string {
 /** Best-effort origin normalization (used by CSP/Permissions-Policy helpers). */
 export function toOriginOrUndefined(input?: string): string | undefined {
   try {
-    const v = (input || '').trim();
+    const v = toTrimmedString(input);
     if (!v) return undefined;
     // Next/Caddy/etc. expect an origin, not a path
     return new URL(v, 'http://dummy').origin === 'http://dummy' ? new URL(v).origin : v;
   } catch {
-    return input?.trim() || undefined;
+    return toTrimmedString(input) || undefined;
   }
 }
 
